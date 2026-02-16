@@ -6,11 +6,12 @@ description: Orchestrate the end-to-end agent task lifecycle using repository wo
 # Workflow Task Lifecycle
 
 Use sub-skills in this order:
-1. `workflow-start-task`
-2. `backend-transition-task-status`
-3. `workflow-stage-artifact`
-4. `workflow-awaiting-human` (only when blocked)
-5. `workflow-verify-commit-pr`
+1. `workflow-branch-task`
+2. `workflow-start-task`
+3. `backend-transition-task-status`
+4. `workflow-stage-artifact`
+5. `workflow-awaiting-human` (only when blocked)
+6. `workflow-verify-commit-pr`
 
 ## Stage sequence
 - `ready -> planning -> implementing -> review -> verification -> done`
@@ -27,3 +28,7 @@ Use sub-skills in this order:
 - Commit includes task reference.
 - PR created for human review.
 - Move to `done` only after merge/merge-ready confirmation.
+
+## Branch gate
+- Never implement on `main`.
+- Every task must include `metadata.workflow.branchName` and `metadata.workflow.baseBranch` before entering `implementing`.

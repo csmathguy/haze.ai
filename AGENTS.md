@@ -48,6 +48,7 @@ Run these at repo root:
 - Move tasks through lifecycle statuses explicitly: `ready -> planning -> implementing -> review -> verification -> done`.
 - Use `awaiting_human` whenever required user input blocks progress; include `metadata.awaitingHumanArtifact`.
 - Attach stage artifacts during handoffs: `planningArtifact`, `reviewArtifact`, `verificationArtifact`, `doneArtifact`.
+- Never implement on `main`; create a task branch first and record `metadata.workflow.branchName` + `metadata.workflow.baseBranch`.
 - Each agent PR/change must include:
   - scope and assumptions,
   - tests added/updated,

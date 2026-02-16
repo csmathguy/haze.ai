@@ -10,10 +10,11 @@ description: Start work on a selected task by moving it from ready/backlog to pl
 - plan outline: goals, steps, risks
 
 ## Procedure
-1. Read task via `GET /tasks/:id`.
-2. Patch task to `planning` with `metadata.planningArtifact`.
-3. If required information is missing, route to `workflow-awaiting-human`.
-4. When planning is complete, transition to `implementing`.
+1. Ensure task branch exists via `workflow-branch-task`.
+2. Read task via `GET /tasks/:id`.
+3. Patch task to `planning` with `metadata.planningArtifact`.
+4. If required information is missing, route to `workflow-awaiting-human`.
+5. When planning is complete, transition to `implementing`.
 
 ## Output
 - task id

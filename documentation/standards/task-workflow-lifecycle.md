@@ -24,10 +24,17 @@ Branch path:
 
 ## Git and PR flow
 1. Start from clean branch named with task id (for example: `task/T-00042-kanban-card-readability`).
-2. Implement and verify locally (`npm run verify`).
-3. Commit with task reference.
-4. Create PR using deterministic command path (see `scripts/create-pr.ps1`).
-5. Move task to `done` only after PR approval and merge (or explicit merge-ready policy).
+2. Record branch metadata on task:
+   - `metadata.workflow.branchName`
+   - `metadata.workflow.baseBranch`
+   - `metadata.workflow.branchCreatedAt`
+3. Implement and verify locally (`npm run verify`).
+4. Commit with task reference.
+5. Create PR using deterministic command path (see `scripts/create-pr.ps1`).
+6. Move task to `done` only after PR approval and merge (or explicit merge-ready policy).
+
+Mandatory rule:
+- Never implement directly on `main`.
 
 ## ID policy target
 - New canonical task id format: `T-#####`.
