@@ -583,12 +583,15 @@ function KanbanView() {
               key={column.status}
               sx={{
                 minWidth: 0,
+                minHeight: { xs: 420, md: 500 },
                 border: `1px solid ${tokens.lane.border}`,
-                backgroundColor: tokens.lane.bg
+                backgroundColor: tokens.lane.bg,
+                display: "flex",
+                flexDirection: "column"
               }}
             >
-            <CardContent>
-              <Stack spacing={1.5}>
+            <CardContent sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+              <Stack spacing={1.5} sx={{ minHeight: 0, flexGrow: 1 }}>
                 <Stack
                   direction="row"
                   justifyContent="space-between"
@@ -615,7 +618,13 @@ function KanbanView() {
                   />
                 </Stack>
                 <Divider />
-                <Stack spacing={1.25} sx={{ maxHeight: 520, overflowY: "auto", pr: 0.5 }}>
+                <Stack
+                  data-testid={`lane-scroll-${column.status}`}
+                  data-lane-scroll="true"
+                  spacing={1.25}
+                  style={{ minHeight: "360px", maxHeight: "520px", overflowY: "auto" }}
+                  sx={{ pr: 0.5 }}
+                >
                   {(tasksByStatus.get(column.status) ?? []).map((task) => (
                     <Card
                       key={task.id}

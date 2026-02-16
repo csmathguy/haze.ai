@@ -293,4 +293,35 @@ describe("App", () => {
       );
     });
   });
+
+  test("renders lane-level scroll containers with minimum height", async () => {
+    installFetchMock([
+      {
+        id: "t4",
+        title: "Dense lane item",
+        description: "Testing lane container layout",
+        priority: 2,
+        status: "backlog",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["layout"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    const laneScroll = await screen.findByTestId("lane-scroll-backlog");
+    expect(laneScroll).toHaveAttribute("data-lane-scroll", "true");
+    expect(laneScroll).toHaveStyle({
+      minHeight: "360px",
+      maxHeight: "520px",
+      overflowY: "auto"
+    });
+  });
 });
