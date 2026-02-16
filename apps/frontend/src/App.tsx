@@ -18,21 +18,27 @@ import {
   Container,
   Divider,
   Drawer,
+  FormControl,
   IconButton,
+  InputLabel,
+  Select,
   Stack,
+  TextField,
   Typography
 } from "@mui/material";
 import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
+  patchTask,
   fetchStatus,
   fetchTasks,
   postJson,
   subscribeAudit,
   type AuditEventRecord,
   type OrchestratorStatus,
-  type TaskRecord
+  type TaskRecord,
+  type TaskStatus
 } from "./api";
 import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
@@ -411,6 +417,10 @@ function KanbanView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus>("backlog");
+  const [statusNote, setStatusNote] = useState("");
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -491,6 +501,44 @@ function KanbanView() {
     selectedWorkflow && typeof selectedWorkflow.branchName === "string"
       ? selectedWorkflow.branchName
       : null;
+  const selectedTaskStatus = selectedTask?.status;
+
+  useEffect(() => {
+    if (!selectedTaskId || !selectedTaskStatus) {
+      return;
+    }
+    setSelectedStatus(selectedTaskStatus);
+    setStatusNote("");
+    setStatusUpdateError(null);
+  }, [selectedTaskId, selectedTaskStatus]);
+
+  const handleStatusUpdate = async () => {
+    if (!selectedTask || statusUpdating || selectedStatus === selectedTask.status) {
+      return;
+    }
+
+    setStatusUpdating(true);
+    setStatusUpdateError(null);
+    try {
+      const metadata = {
+        ...selectedTask.metadata,
+        transitionNote:
+          statusNote.trim().length > 0
+            ? statusNote.trim()
+            : `Human updated status from ${selectedTask.status} to ${selectedStatus} via task detail UI.`
+      };
+
+      await patchTask(selectedTask.id, {
+        status: selectedStatus,
+        metadata
+      });
+      await refresh();
+    } catch (updateError) {
+      setStatusUpdateError((updateError as Error).message);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
 
   return (
     <Stack spacing={2}>
@@ -702,6 +750,46 @@ function KanbanView() {
               {selectedTask.description && (
                 <Typography variant="body2">{selectedTask.description}</Typography>
               )}
+
+              <Divider />
+              <Stack spacing={1.25}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Human Status Update
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="task-status-select-label">Update status</InputLabel>
+                  <Select
+                    native
+                    labelId="task-status-select-label"
+                    value={selectedStatus}
+                    label="Update status"
+                    onChange={(event) => setSelectedStatus(event.target.value as TaskStatus)}
+                    inputProps={{ "aria-label": "Update status" }}
+                  >
+                    {columns.map((column) => (
+                      <option key={column.status} value={column.status}>
+                        {column.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  size="small"
+                  label="Transition note (optional)"
+                  value={statusNote}
+                  onChange={(event) => setStatusNote(event.target.value)}
+                  multiline
+                  minRows={2}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => void handleStatusUpdate()}
+                  disabled={statusUpdating || selectedStatus === selectedTask.status}
+                >
+                  Save Status Change
+                </Button>
+                {statusUpdateError && <Alert severity="error">{statusUpdateError}</Alert>}
+              </Stack>
 
               <Divider />
               <Stack spacing={1}>
