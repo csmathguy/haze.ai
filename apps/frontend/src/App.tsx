@@ -26,7 +26,7 @@ import {
   TextField,
   Typography
 } from "@mui/material";
-import { alpha, keyframes, useColorScheme, useTheme } from "@mui/material/styles";
+import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
@@ -417,11 +417,11 @@ function getTaskDisplayId(task: TaskRecord): string {
 
 function KanbanView() {
   const { mode } = useColorScheme();
-  const theme = useTheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
-  const cardTitleColor = theme.palette.text.primary;
-  const cardBodyColor = theme.palette.text.secondary;
-  const cardMetaColor = mode === "dark" ? "#eaf2ff" : "#1d2a3f";
+  const isDarkMode = mode === "dark";
+  const cardTitleColor = isDarkMode ? "#edf3ff" : "#142034";
+  const cardBodyColor = isDarkMode ? "#c4d2e8" : "#44516a";
+  const cardMetaColor = isDarkMode ? "#eaf2ff" : "#1d2a3f";
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
