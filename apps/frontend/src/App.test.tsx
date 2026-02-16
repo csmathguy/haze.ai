@@ -319,9 +319,14 @@ describe("App", () => {
     const laneScroll = await screen.findByTestId("lane-scroll-backlog");
     expect(laneScroll).toHaveAttribute("data-lane-scroll", "true");
     expect(laneScroll).toHaveStyle({
+      height: "520px",
       minHeight: "360px",
-      maxHeight: "520px",
-      overflowY: "auto"
+      overflowY: "scroll"
     });
+
+    const card = screen.getByText(/dense lane item/i).closest(".MuiCard-root");
+    expect(card).toBeTruthy();
+    expect(card).toHaveAttribute("data-card-fixed", "true");
+    expect(card).toHaveStyle({ height: "176px" });
   });
 });

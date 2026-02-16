@@ -622,21 +622,32 @@ function KanbanView() {
                   data-testid={`lane-scroll-${column.status}`}
                   data-lane-scroll="true"
                   spacing={1.25}
-                  style={{ minHeight: "360px", maxHeight: "520px", overflowY: "auto" }}
+                  style={{ height: "520px", minHeight: "360px", overflowY: "scroll" }}
                   sx={{ pr: 0.5 }}
                 >
                   {(tasksByStatus.get(column.status) ?? []).map((task) => (
                     <Card
                       key={task.id}
                       variant="outlined"
+                      data-card-fixed="true"
                       sx={{
                         borderColor: tokens.card.border,
                         backgroundColor: tokens.card.bg,
-                        boxShadow: tokens.card.shadow
+                        boxShadow: tokens.card.shadow,
+                        height: 176,
+                        display: "flex",
+                        flexDirection: "column"
                       }}
                     >
-                      <CardContent sx={{ "&:last-child": { pb: 2 } }}>
-                        <Stack spacing={1}>
+                      <CardContent
+                        sx={{
+                          "&:last-child": { pb: 1.5 },
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%"
+                        }}
+                      >
+                        <Stack spacing={1} sx={{ minHeight: 0, justifyContent: "space-between", flexGrow: 1 }}>
                           <Typography
                             fontWeight={700}
                             component="button"
@@ -649,6 +660,10 @@ function KanbanView() {
                               wordBreak: "break-word",
                               color: tokens.card.title,
                               fontWeight: 700,
+                              display: "-webkit-box",
+                              WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: 2,
+                              overflow: "hidden",
                               textDecoration: "underline",
                               textUnderlineOffset: "2px",
                               "&:focus-visible": {
@@ -669,7 +684,7 @@ function KanbanView() {
                                 wordBreak: "break-word",
                                 display: "-webkit-box",
                                 WebkitBoxOrient: "vertical",
-                                WebkitLineClamp: 4,
+                                WebkitLineClamp: 2,
                                 overflow: "hidden"
                               }}
                             >
