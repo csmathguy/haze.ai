@@ -10,7 +10,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Run-Command([string]$file, [string[]]$args) {
+function Run-Command(
+  [string]$file,
+  [Parameter(ValueFromRemainingArguments = $true)][string[]]$args
+) {
   Write-Host "> $file $($args -join ' ')"
   & $file @args
   if ($LASTEXITCODE -ne 0) {
@@ -90,22 +93,22 @@ if (-not $dirty) {
   throw "No local changes to commit"
 }
 
-Run-Command "npm" @("run", "verify")
-Run-Command "git" @("add", "-A")
+Run-Command "npm" "run" "verify"
+Run-Command "git" "add" "-A"
 
 $staged = git diff --cached --name-only
 if (-not $staged) {
   throw "No staged changes after git add"
 }
 
-Run-Command "git" @("commit", "-m", $CommitMessage)
+Run-Command "git" "commit" "-m" $CommitMessage
 
 $headSha = (git rev-parse HEAD).Trim()
 if (-not $headSha) {
   throw "Unable to determine HEAD sha"
 }
 
-Run-Command "git" @("push", "origin", "HEAD")
+Run-Command "git" "push" "origin" "HEAD"
 
 $prArgs = @("pr", "create", "--base", $Base, "--head", $branch, "--title", $PrTitle)
 if ($PrBodyFile -and (Test-Path $PrBodyFile)) {

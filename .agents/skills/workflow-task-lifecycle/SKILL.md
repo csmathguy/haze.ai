@@ -14,7 +14,7 @@ Use sub-skills in this order:
 6. `workflow-verify-commit-pr`
 
 ## Stage sequence
-- `ready -> planning -> implementing -> review -> verification -> done`
+- `backlog -> planning -> implementing -> review -> verification -> done`
 - If blocked by missing input: move to `awaiting_human`.
 
 ## Required handoff artifacts
@@ -27,7 +27,7 @@ Use sub-skills in this order:
 - `npm run verify` passes.
 - Commit includes task reference.
 - PR created for human review.
-- Move to `done` only after merge/merge-ready confirmation.
+- Move to `done` only after merge confirmation.
 
 ## Branch gate
 - Never implement on `main`.

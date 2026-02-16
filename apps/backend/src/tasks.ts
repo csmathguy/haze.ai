@@ -3,7 +3,6 @@ import type { AuditSink } from "./audit.js";
 
 export type TaskStatus =
   | "backlog"
-  | "ready"
   | "planning"
   | "implementing"
   | "review"
@@ -12,7 +11,7 @@ export type TaskStatus =
   | "done"
   | "cancelled";
 
-type InputTaskStatus = TaskStatus | "todo" | "in_progress";
+type InputTaskStatus = TaskStatus | "todo" | "in_progress" | "ready";
 
 const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
   "planning",
@@ -282,7 +281,7 @@ export class TaskWorkflowService {
   async claimNextTask(): Promise<TaskRecord | null> {
     const eligible = [...this.tasks.values()].filter(
       (task) =>
-        task.status === "ready" &&
+        task.status === "backlog" &&
         task.dependencies.every(
           (dependencyId) => this.tasks.get(dependencyId)?.status === "done"
         )
@@ -358,11 +357,11 @@ export class TaskWorkflowService {
   private normalizeStatus(status: InputTaskStatus): TaskStatus {
     switch (status) {
       case "todo":
+      case "ready":
         return "backlog";
       case "in_progress":
         return "implementing";
       case "backlog":
-      case "ready":
       case "planning":
       case "implementing":
       case "review":

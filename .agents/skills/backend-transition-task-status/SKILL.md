@@ -14,7 +14,6 @@ Collect:
 
 Allowed statuses:
 - `backlog`
-- `ready`
 - `planning`
 - `implementing`
 - `review`

@@ -276,7 +276,6 @@ function DashboardView() {
 
 const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
   { status: "backlog", label: "Backlog" },
-  { status: "ready", label: "Ready" },
   { status: "planning", label: "Planning" },
   { status: "implementing", label: "Implementing" },
   { status: "review", label: "Review" },
