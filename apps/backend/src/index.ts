@@ -17,8 +17,7 @@ import { resolveRepoPath } from "./paths.js";
 const PORT = Number(process.env.PORT ?? 3001);
 const AUDIT_LOG_DIR = process.env.AUDIT_LOG_DIR ?? "data/audit";
 const AUDIT_RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS ?? 7);
-const TASKS_FILE_PATH =
-  process.env.TASKS_FILE_PATH ?? "apps/backend/data/tasks/tasks.json";
+const TASKS_FILE_PATH = process.env.TASKS_FILE_PATH ?? "data/tasks/tasks.json";
 const TASKS_DOCS_DIR = resolveRepoPath(process.env.TASKS_DOCS_DIR);
 
 const app = express();

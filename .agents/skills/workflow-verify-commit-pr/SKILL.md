@@ -22,3 +22,4 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 - Do not open PR with unverified changes.
 - Keep commit scope limited to active task.
 - Never mark `done` from this skill; it should stop at `review`.
+- Update task stage through backend API only (`PATCH /tasks/:id`); do not edit task JSON files directly.

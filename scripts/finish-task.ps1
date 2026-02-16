@@ -5,7 +5,6 @@ param(
   [string]$PrBodyFile = "",
   [string]$Base = "main",
   [string]$ApiBase = "http://localhost:3001",
-  [string]$TaskFilePath = "apps/backend/data/tasks/tasks.json",
   [switch]$Draft
 )
 
@@ -57,53 +56,25 @@ function Build-Artifacts([string]$prUrl, [string]$headSha, [string[]]$changedFil
 }
 
 function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifacts) {
-  try {
-    $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
-    if (-not $taskResponse.record) {
-      return $false
-    }
-
-    $task = $taskResponse.record
-    $metadata = Copy-Metadata $task.metadata
-    $metadata.reviewArtifact = $artifacts.reviewArtifact
-    $metadata.verificationArtifact = $artifacts.verificationArtifact
-
-    $patchBody = @{
-      status = "review"
-      metadata = $metadata
-    } | ConvertTo-Json -Depth 20
-
-    $patchResponse = Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $patchBody
-    return ($patchResponse.record -and $patchResponse.record.status -eq "review")
-  } catch {
-    return $false
-  }
-}
-
-function Update-TaskInFile([string]$taskFilePath, [string]$taskId, [hashtable]$artifacts) {
-  if (-not (Test-Path $taskFilePath)) {
-    throw "Task file not found: $taskFilePath"
+  $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
+  if (-not $taskResponse.record) {
+    throw "Task not found via API: $taskId"
   }
 
-  $json = Get-Content -Raw $taskFilePath | ConvertFrom-Json
-  $task = $json.tasks | Where-Object { $_.id -eq $taskId } | Select-Object -First 1
-  if (-not $task) {
-    throw "Task not found in file: $taskId"
+  $task = $taskResponse.record
+  $metadata = Copy-Metadata $task.metadata
+  $metadata.reviewArtifact = $artifacts.reviewArtifact
+  $metadata.verificationArtifact = $artifacts.verificationArtifact
+
+  $patchBody = @{
+    status = "review"
+    metadata = $metadata
+  } | ConvertTo-Json -Depth 20
+
+  $patchResponse = Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $patchBody
+  if (-not $patchResponse.record -or $patchResponse.record.status -ne "review") {
+    throw "Failed to transition task to review: $taskId"
   }
-
-  $now = (Get-Date).ToUniversalTime().ToString("o")
-  $task.status = "review"
-  $task.updatedAt = $now
-
-  if ($null -eq $task.metadata) {
-    $task | Add-Member -MemberType NoteProperty -Name metadata -Value ([pscustomobject]@{})
-  }
-
-  $task.metadata.reviewArtifact = $artifacts.reviewArtifact
-  $task.metadata.verificationArtifact = $artifacts.verificationArtifact
-  $json.updatedAt = $now
-
-  $json | ConvertTo-Json -Depth 100 | Set-Content $taskFilePath
 }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
@@ -165,10 +136,7 @@ if (-not $prUrl) {
 $changedFiles = @(git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" })
 $artifacts = Build-Artifacts -prUrl $prUrl -headSha $headSha -changedFiles $changedFiles
 
-$updated = Update-TaskViaApi -apiBase $ApiBase -taskId $TaskId -artifacts $artifacts
-if (-not $updated) {
-  Update-TaskInFile -taskFilePath $TaskFilePath -taskId $TaskId -artifacts $artifacts
-}
+Update-TaskViaApi -apiBase $ApiBase -taskId $TaskId -artifacts $artifacts
 
 Write-Host "Task $TaskId moved to review."
 Write-Host "Commit: $headSha"
