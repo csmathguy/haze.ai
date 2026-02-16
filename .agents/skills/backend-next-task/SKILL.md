@@ -10,7 +10,7 @@ description: Select and claim the next task from the backend task system. Use wh
 - Prefer highest `priority`.
 - If multiple tasks share highest priority, pick one at random.
 - Mark selected task as `planning`.
-- After claim, continue with `workflow-start-task` to capture planning artifact and advance lifecycle.
+- After claim, run `scripts/begin-task.ps1` to create branch + planning artifact immediately.
 
 ## Procedure
 1. Set API base URL:
@@ -21,7 +21,11 @@ $base = if ($env:HAZE_API_BASE) { $env:HAZE_API_BASE } else { "http://localhost:
 ```powershell
 ./scripts/claim-next-task.ps1 -ApiBase $base
 ```
-3. Handle no-eligible-task response:
+3. Begin task workflow immediately:
+```powershell
+./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -BranchName "task/<id>-<slug>" -Goals @("...") -Steps @("...") -Risks @("...")
+```
+4. Handle no-eligible-task response:
 - If output is `No eligible task available`, report the same.
 
 ## Validation
@@ -39,7 +43,7 @@ Return:
 - `priority`
 - resulting `status`
 - note if selection came from a tie set (if inferable from task list)
-- explicit next action: run `workflow-start-task`
+- explicit next action: review/approve plan, then transition to `implementing`
 
 ## Optional observability
 To inspect current candidate pool before selecting:
