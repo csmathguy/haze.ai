@@ -26,7 +26,7 @@ import {
   TextField,
   Typography
 } from "@mui/material";
-import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
+import { alpha, keyframes, useColorScheme, useTheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
@@ -298,7 +298,8 @@ function MetaPill({
   icon,
   label,
   tone = "neutral",
-  colors
+  colors,
+  textColor
 }: {
   icon: ReactNode;
   label: string;
@@ -312,6 +313,7 @@ function MetaPill({
     accentBorder: string;
     accentText: string;
   };
+  textColor: string;
 }) {
   return (
     <Box
@@ -337,7 +339,10 @@ function MetaPill({
       </Box>
       <Typography
         variant="caption"
-        sx={{ fontWeight: 600, color: tone === "accent" ? colors.accentText : colors.text }}
+        sx={{
+          fontWeight: 700,
+          color: tone === "accent" ? colors.accentText : textColor
+        }}
       >
         {label}
       </Typography>
@@ -412,7 +417,11 @@ function getTaskDisplayId(task: TaskRecord): string {
 
 function KanbanView() {
   const { mode } = useColorScheme();
+  const theme = useTheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
+  const cardTitleColor = theme.palette.text.primary;
+  const cardBodyColor = theme.palette.text.secondary;
+  const cardMetaColor = mode === "dark" ? "#eaf2ff" : "#1d2a3f";
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -632,11 +641,20 @@ function KanbanView() {
                       data-card-fixed="true"
                       sx={{
                         borderColor: tokens.card.border,
+                        borderWidth: 1.25,
                         backgroundColor: tokens.card.bg,
+                        backgroundImage:
+                          mode === "dark"
+                            ? "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))"
+                            : "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(242,248,255,0.95))",
                         boxShadow: tokens.card.shadow,
-                        height: 176,
+                        height: 196,
+                        minHeight: 196,
+                        maxHeight: 196,
+                        overflow: "hidden",
                         display: "flex",
-                        flexDirection: "column"
+                        flexDirection: "column",
+                        borderRadius: 2
                       }}
                     >
                       <CardContent
@@ -654,18 +672,23 @@ function KanbanView() {
                             type="button"
                             onClick={() => setSelectedTaskId(task.id)}
                             sx={{
-                              all: "unset",
+                              appearance: "none",
+                              background: "transparent",
+                              border: 0,
+                              padding: 0,
+                              margin: 0,
+                              width: "100%",
+                              textAlign: "left",
+                              display: "-webkit-box",
                               cursor: "pointer",
+                              fontSize: "0.98rem",
                               lineHeight: 1.3,
                               wordBreak: "break-word",
-                              color: tokens.card.title,
+                              color: `${cardTitleColor} !important`,
                               fontWeight: 700,
-                              display: "-webkit-box",
                               WebkitBoxOrient: "vertical",
                               WebkitLineClamp: 2,
                               overflow: "hidden",
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
                               "&:focus-visible": {
                                 outline: `2px solid ${tokens.meta.accentBorder}`,
                                 outlineOffset: 2,
@@ -678,7 +701,7 @@ function KanbanView() {
                           {task.description && (
                             <Typography
                               variant="body2"
-                              color={tokens.card.body}
+                              color={`${cardBodyColor} !important`}
                               sx={{
                                 lineHeight: 1.5,
                                 wordBreak: "break-word",
@@ -696,17 +719,20 @@ function KanbanView() {
                               icon={<HistoryRounded />}
                               label={`ID ${getTaskDisplayId(task)}`}
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             <MetaPill
                               icon={<FlagRounded />}
                               label={`P${task.priority}`}
                               tone="accent"
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             <MetaPill
                               icon={<HubRounded />}
                               label={`deps ${task.dependencies.length}`}
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             {task.tags.slice(0, 2).map((tag) => (
                               <MetaPill
@@ -714,6 +740,7 @@ function KanbanView() {
                                 icon={<LocalOfferRounded />}
                                 label={tag}
                                 colors={tokens.meta}
+                                textColor={cardMetaColor}
                               />
                             ))}
                             {task.tags.length > 2 && (
@@ -721,6 +748,7 @@ function KanbanView() {
                                 icon={<LocalOfferRounded />}
                                 label={`+${task.tags.length - 2}`}
                                 colors={tokens.meta}
+                                textColor={cardMetaColor}
                               />
                             )}
                           </Stack>

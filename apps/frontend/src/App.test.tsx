@@ -327,6 +327,6 @@ describe("App", () => {
     const card = screen.getByText(/dense lane item/i).closest(".MuiCard-root");
     expect(card).toBeTruthy();
     expect(card).toHaveAttribute("data-card-fixed", "true");
-    expect(card).toHaveStyle({ height: "176px" });
+    expect(card).toHaveStyle({ height: "196px" });
   });
 });
