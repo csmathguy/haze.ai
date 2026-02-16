@@ -50,7 +50,7 @@ Coverage thresholds are enforced at `>= 60%` for lines/functions/branches/statem
   - `HEARTBEAT_STALL_THRESHOLD_MS`
 
 ## Task storage
-- Tasks are persisted to local JSON at `data/tasks/tasks.json` by default.
+- Tasks are persisted to local JSON at `apps/backend/data/tasks/tasks.json` by default.
 - Configure task file path with `TASKS_FILE_PATH`.
 - On backend startup, task folders in `documentation/tasks` are synced into task records.
 - Trigger a resync manually with `POST /agent/actions/sync-tasks-from-codebase`.
