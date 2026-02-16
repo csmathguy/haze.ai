@@ -16,6 +16,7 @@ Use sub-skills in this order:
 ## Stage sequence
 - `backlog -> planning -> implementing -> review -> verification -> done`
 - If blocked by missing input: move to `awaiting_human`.
+- Require explicit plan approval before `planning -> implementing`.
 
 ## Required handoff artifacts
 - Planning: plan goals, steps, risks.

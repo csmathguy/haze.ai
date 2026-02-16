@@ -396,6 +396,14 @@ function normalizeAnswerThread(value: unknown): DetailAnswer[] {
     .filter((entry): entry is DetailAnswer => entry !== null);
 }
 
+function getTaskDisplayId(task: TaskRecord): string {
+  const canonicalId = asRecord(task.metadata)?.canonicalTaskId;
+  if (typeof canonicalId === "string" && canonicalId.trim().length > 0) {
+    return canonicalId;
+  }
+  return task.id;
+}
+
 function KanbanView() {
   const { mode } = useColorScheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
@@ -469,6 +477,7 @@ function KanbanView() {
 
   const selectedPlanningArtifact = asRecord(selectedTask?.metadata.planningArtifact);
   const selectedAwaitingHumanArtifact = asRecord(selectedTask?.metadata.awaitingHumanArtifact);
+  const selectedWorkflow = asRecord(selectedTask?.metadata.workflow);
   const selectedAnswerThread = normalizeAnswerThread(
     selectedTask?.metadata.answerThread ??
       selectedAwaitingHumanArtifact?.answerThread ??
@@ -477,6 +486,11 @@ function KanbanView() {
   const planningGoals = asStringArray(selectedPlanningArtifact?.goals);
   const planningSteps = asStringArray(selectedPlanningArtifact?.implementationSteps);
   const questionnaireOptions = asStringArray(selectedAwaitingHumanArtifact?.options);
+  const selectedTaskDisplayId = selectedTask ? getTaskDisplayId(selectedTask) : "";
+  const selectedWorkflowBranch =
+    selectedWorkflow && typeof selectedWorkflow.branchName === "string"
+      ? selectedWorkflow.branchName
+      : null;
 
   return (
     <Stack spacing={2}>
@@ -607,6 +621,11 @@ function KanbanView() {
                           )}
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <MetaPill
+                              icon={<HistoryRounded />}
+                              label={`ID ${getTaskDisplayId(task)}`}
+                              colors={tokens.meta}
+                            />
+                            <MetaPill
                               icon={<FlagRounded />}
                               label={`P${task.priority}`}
                               tone="accent"
@@ -668,8 +687,16 @@ function KanbanView() {
               <Stack spacing={0.5}>
                 <Typography variant="h6">{selectedTask.title}</Typography>
                 <Typography variant="body2" color="text.secondary">
+                  ID: {selectedTaskDisplayId}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                   Status: {selectedTaskStatusLabel}
                 </Typography>
+                {selectedWorkflowBranch && (
+                  <Typography variant="body2" color="text.secondary">
+                    Branch: {selectedWorkflowBranch}
+                  </Typography>
+                )}
               </Stack>
 
               {selectedTask.description && (

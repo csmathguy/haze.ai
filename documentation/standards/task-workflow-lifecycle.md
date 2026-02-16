@@ -18,6 +18,7 @@ Branch path:
 
 ## Stage gates
 - Enter `planning` only when objective, acceptance criteria, dependencies, and required inputs are present.
+- Enter `implementing` only after planning artifact is reviewed and explicitly approved.
 - Enter `review` only when implementation changes and impact summary are recorded.
 - Enter `verification` only after review feedback is addressed.
 - Enter `done` only after verification passes and merge state is recorded.

@@ -1,6 +1,6 @@
 ---
 name: workflow-start-task
-description: Start work on a selected task by moving it from backlog to planning and attaching the initial agent plan artifact.
+description: Start work on a selected task by creating branch + planning artifact and leaving it in planning for approval.
 ---
 
 # Workflow Start Task
@@ -10,11 +10,18 @@ description: Start work on a selected task by moving it from backlog to planning
 - plan outline: goals, steps, risks
 
 ## Procedure
-1. Ensure task branch exists via `workflow-branch-task`.
-2. Read task via `GET /tasks/:id`.
-3. Patch task to `planning` with `metadata.planningArtifact`.
+1. Run deterministic script:
+```powershell
+./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -BranchName "task/<id>-<slug>" -Goals @("...") -Steps @("...") -Risks @("...")
+```
+2. Verify task includes:
+- `metadata.workflow.branchName`
+- `metadata.workflow.baseBranch`
+- `metadata.workflow.owner`
+- `metadata.planningArtifact`
+3. Keep task in `planning` until plan approval.
 4. If required information is missing, route to `workflow-awaiting-human`.
-5. When planning is complete, transition to `implementing`.
+5. After approval, transition to `implementing`.
 
 ## Output
 - task id

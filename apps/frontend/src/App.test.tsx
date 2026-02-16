@@ -122,6 +122,7 @@ describe("App", () => {
     });
     expect(screen.getByText("P5")).toBeInTheDocument();
     expect(screen.getByText(/deps 0/i)).toBeInTheDocument();
+    expect(screen.getByText(/id t1/i)).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
   });
@@ -184,6 +185,10 @@ describe("App", () => {
         dueAt: null,
         tags: ["workflow"],
         metadata: {
+          canonicalTaskId: "T-00042",
+          workflow: {
+            branchName: "task/t-00042-example"
+          },
           planningArtifact: {
             goals: ["Show detailed panel"],
             implementationSteps: ["Render planning section"]
@@ -218,6 +223,8 @@ describe("App", () => {
       expect(screen.getByText(/task details/i)).toBeInTheDocument();
     });
 
+    expect(screen.getByText(/id: t-00042/i)).toBeInTheDocument();
+    expect(screen.getByText(/branch: task\/t-00042-example/i)).toBeInTheDocument();
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     expect(screen.getByText(/use later window/i)).toBeInTheDocument();

@@ -32,13 +32,14 @@ Establish a skills-first operating model for Codex in this repository so repeate
 ## Workflow orchestration skills
 - `workflow-task-lifecycle`: master flow that sequences lifecycle sub-skills.
 - `workflow-branch-task`: create per-task branch from `main` and persist branch metadata on task.
-- `workflow-start-task`: initialize planning for selected task and attach plan artifact.
+- `workflow-start-task`: initialize planning for selected task via begin-task automation and attach plan artifact.
 - `workflow-awaiting-human`: raise structured questionnaire payload when blocked.
 - `workflow-verify-commit-pr`: run verify, commit, and open PR deterministically.
 
 ## Deterministic helper scripts
 - `scripts/next-task-id.ps1`: suggest next `T-#####` id from current task data.
 - `scripts/claim-next-task.ps1`: claim highest-priority eligible `backlog` task, transition it to `planning`, and print next workflow step.
+- `scripts/begin-task.ps1`: create task branch, assign owner, and attach planning artifact while keeping task in `planning` pending approval.
 - `scripts/start-task-branch.ps1`: create task branch from `main` and patch task workflow branch metadata.
 - `scripts/create-pr.ps1`: run verify and create PR through `gh pr create`.
 - `scripts/finish-task.ps1`: run verify, commit, push, create PR, and transition task to `review` with review/verification artifacts.

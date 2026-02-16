@@ -37,5 +37,5 @@ $tieCount = @($eligible | Where-Object { $_.priority -eq $record.priority }).Cou
   priority = $record.priority
   status = $record.status
   tieCount = $tieCount
-  nextStep = "Run workflow-start-task for this task to capture planningArtifact, then continue lifecycle transitions."
+  nextStep = "Run scripts/begin-task.ps1 for this task to create branch + planningArtifact, then await plan approval before implementing."
 } | ConvertTo-Json -Depth 8
