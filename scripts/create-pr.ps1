@@ -16,6 +16,12 @@ if (-not $branch) {
   throw "Unable to determine current git branch"
 }
 
+# Push current branch so PR references the latest remote commit.
+git push origin HEAD
+if ($LASTEXITCODE -ne 0) {
+  throw "git push origin HEAD failed"
+}
+
 $args = @("pr", "create", "--base", $Base, "--head", $branch, "--title", $Title)
 if ($BodyFile -and (Test-Path $BodyFile)) {
   $args += @("--body-file", $BodyFile)
