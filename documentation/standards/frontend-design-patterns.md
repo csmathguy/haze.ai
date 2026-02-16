@@ -15,6 +15,7 @@ Last updated: 2026-02-16
 
 ## Implementation rules for this repo
 - Theme and tokens belong in `apps/frontend/src/theme.ts`.
+- Kanban-specific visual tokens belong in `apps/frontend/src/kanban-ui-tokens.ts` so contrast tuning is centralized.
 - API calls belong in `apps/frontend/src/api.ts`.
 - UI components should consume typed data models; avoid inline fetch logic where practical.
 - Use semantic MUI controls and preserve keyboard-accessible interactions.

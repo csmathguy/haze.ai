@@ -31,6 +31,7 @@ import {
   type OrchestratorStatus,
   type TaskRecord
 } from "./api";
+import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
 type ViewName = "dashboard" | "kanban";
@@ -288,41 +289,48 @@ const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
 function MetaPill({
   icon,
   label,
-  tone = "neutral"
+  tone = "neutral",
+  colors
 }: {
   icon: ReactNode;
   label: string;
   tone?: "neutral" | "accent";
+  colors: {
+    bg: string;
+    border: string;
+    text: string;
+    icon: string;
+    accentBg: string;
+    accentBorder: string;
+    accentText: string;
+  };
 }) {
   return (
     <Box
-      sx={(theme) => ({
+      sx={{
         display: "inline-flex",
         alignItems: "center",
         gap: 0.5,
         borderRadius: 999,
         px: 1,
         py: 0.25,
-        border: `1px solid ${alpha(
-          tone === "accent" ? theme.palette.secondary.main : theme.palette.primary.main,
-          theme.palette.mode === "dark" ? 0.42 : 0.24
-        )}`,
-        backgroundColor: alpha(
-          tone === "accent" ? theme.palette.secondary.main : theme.palette.background.paper,
-          theme.palette.mode === "dark" ? 0.18 : 0.72
-        )
-      })}
+        border: `1px solid ${tone === "accent" ? colors.accentBorder : colors.border}`,
+        backgroundColor: tone === "accent" ? colors.accentBg : colors.bg
+      }}
     >
       <Box
         sx={{
           display: "inline-flex",
-          color: tone === "accent" ? "secondary.main" : "text.secondary",
+          color: tone === "accent" ? colors.accentText : colors.icon,
           "& svg": { fontSize: 13 }
         }}
       >
         {icon}
       </Box>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 600, color: tone === "accent" ? colors.accentText : colors.text }}
+      >
         {label}
       </Typography>
     </Box>
@@ -331,7 +339,7 @@ function MetaPill({
 
 function KanbanView() {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === "dark";
+  const tokens = getKanbanUiTokens(theme.palette.mode);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -423,13 +431,8 @@ function KanbanView() {
               key={column.status}
               sx={{
                 minWidth: 0,
-                border: (activeTheme) =>
-                  `1px solid ${alpha(activeTheme.palette.primary.main, isDarkMode ? 0.28 : 0.16)}`,
-                backgroundImage: (activeTheme) =>
-                  `linear-gradient(180deg, ${alpha(
-                    activeTheme.palette.background.paper,
-                    isDarkMode ? 0.96 : 0.88
-                  )}, ${alpha(activeTheme.palette.background.paper, isDarkMode ? 0.9 : 0.82)})`
+                border: `1px solid ${tokens.lane.border}`,
+                backgroundColor: tokens.lane.bg
               }}
             >
             <CardContent>
@@ -442,17 +445,21 @@ function KanbanView() {
                     position: "sticky",
                     top: 0,
                     zIndex: 1,
-                    backgroundColor: "background.paper",
+                    backgroundColor: tokens.lane.headerBg,
                     py: 0.5
                   }}
                 >
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: tokens.lane.title }}>
                     {column.label}
                   </Typography>
                   <Chip
                     size="small"
                     label={tasksByStatus.get(column.status)?.length ?? 0}
-                    color="primary"
+                    sx={{
+                      backgroundColor: tokens.lane.countBg,
+                      color: tokens.lane.countText,
+                      fontWeight: 700
+                    }}
                   />
                 </Stack>
                 <Divider />
@@ -462,37 +469,23 @@ function KanbanView() {
                       key={task.id}
                       variant="outlined"
                       sx={{
-                        borderColor: (activeTheme) =>
-                          alpha(activeTheme.palette.primary.main, isDarkMode ? 0.44 : 0.24),
-                        backgroundImage: (activeTheme) =>
-                          isDarkMode
-                            ? `linear-gradient(180deg, ${alpha(
-                                activeTheme.palette.background.paper,
-                                0.94
-                              )}, ${alpha(activeTheme.palette.background.default, 0.9)})`
-                            : `linear-gradient(180deg, ${alpha(
-                                activeTheme.palette.background.paper,
-                                0.98
-                              )}, ${alpha(activeTheme.palette.background.default, 0.92)})`,
-                        boxShadow: (activeTheme) =>
-                          `0 8px 18px ${alpha(
-                            activeTheme.palette.common.black,
-                            isDarkMode ? 0.28 : 0.1
-                          )}`
+                        borderColor: tokens.card.border,
+                        backgroundColor: tokens.card.bg,
+                        boxShadow: tokens.card.shadow
                       }}
                     >
                       <CardContent sx={{ "&:last-child": { pb: 2 } }}>
                         <Stack spacing={1}>
                           <Typography
                             fontWeight={700}
-                            sx={{ lineHeight: 1.3, wordBreak: "break-word", color: "text.primary" }}
+                            sx={{ lineHeight: 1.3, wordBreak: "break-word", color: tokens.card.title }}
                           >
                             {task.title}
                           </Typography>
                           {task.description && (
                             <Typography
                               variant="body2"
-                              color="text.secondary"
+                              color={tokens.card.body}
                               sx={{
                                 lineHeight: 1.5,
                                 wordBreak: "break-word",
@@ -506,18 +499,30 @@ function KanbanView() {
                             </Typography>
                           )}
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <MetaPill icon={<FlagRounded />} label={`P${task.priority}`} tone="accent" />
+                            <MetaPill
+                              icon={<FlagRounded />}
+                              label={`P${task.priority}`}
+                              tone="accent"
+                              colors={tokens.meta}
+                            />
                             <MetaPill
                               icon={<HubRounded />}
                               label={`deps ${task.dependencies.length}`}
+                              colors={tokens.meta}
                             />
                             {task.tags.slice(0, 2).map((tag) => (
-                              <MetaPill key={tag} icon={<LocalOfferRounded />} label={tag} />
+                              <MetaPill
+                                key={tag}
+                                icon={<LocalOfferRounded />}
+                                label={tag}
+                                colors={tokens.meta}
+                              />
                             ))}
                             {task.tags.length > 2 && (
                               <MetaPill
                                 icon={<LocalOfferRounded />}
                                 label={`+${task.tags.length - 2}`}
+                                colors={tokens.meta}
                               />
                             )}
                           </Stack>
@@ -526,7 +531,7 @@ function KanbanView() {
                     </Card>
                   ))}
                   {(tasksByStatus.get(column.status) ?? []).length === 0 && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: tokens.lane.empty }}>
                       No tasks in this lane.
                     </Typography>
                   )}
