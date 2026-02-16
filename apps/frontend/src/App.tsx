@@ -298,7 +298,8 @@ function MetaPill({
   icon,
   label,
   tone = "neutral",
-  colors
+  colors,
+  textColor
 }: {
   icon: ReactNode;
   label: string;
@@ -312,6 +313,7 @@ function MetaPill({
     accentBorder: string;
     accentText: string;
   };
+  textColor: string;
 }) {
   return (
     <Box
@@ -337,7 +339,10 @@ function MetaPill({
       </Box>
       <Typography
         variant="caption"
-        sx={{ fontWeight: 600, color: tone === "accent" ? colors.accentText : colors.text }}
+        sx={{
+          fontWeight: 700,
+          color: tone === "accent" ? colors.accentText : textColor
+        }}
       >
         {label}
       </Typography>
@@ -413,6 +418,10 @@ function getTaskDisplayId(task: TaskRecord): string {
 function KanbanView() {
   const { mode } = useColorScheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
+  const isDarkMode = mode === "dark";
+  const cardTitleColor = isDarkMode ? "#edf3ff" : "#142034";
+  const cardBodyColor = isDarkMode ? "#c4d2e8" : "#44516a";
+  const cardMetaColor = isDarkMode ? "#eaf2ff" : "#1d2a3f";
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -583,12 +592,15 @@ function KanbanView() {
               key={column.status}
               sx={{
                 minWidth: 0,
+                minHeight: { xs: 420, md: 500 },
                 border: `1px solid ${tokens.lane.border}`,
-                backgroundColor: tokens.lane.bg
+                backgroundColor: tokens.lane.bg,
+                display: "flex",
+                flexDirection: "column"
               }}
             >
-            <CardContent>
-              <Stack spacing={1.5}>
+            <CardContent sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+              <Stack spacing={1.5} sx={{ minHeight: 0, flexGrow: 1 }}>
                 <Stack
                   direction="row"
                   justifyContent="space-between"
@@ -615,33 +627,68 @@ function KanbanView() {
                   />
                 </Stack>
                 <Divider />
-                <Stack spacing={1.25} sx={{ maxHeight: 520, overflowY: "auto", pr: 0.5 }}>
+                <Stack
+                  data-testid={`lane-scroll-${column.status}`}
+                  data-lane-scroll="true"
+                  spacing={1.25}
+                  style={{ height: "520px", minHeight: "360px", overflowY: "scroll" }}
+                  sx={{ pr: 0.5 }}
+                >
                   {(tasksByStatus.get(column.status) ?? []).map((task) => (
                     <Card
                       key={task.id}
                       variant="outlined"
+                      data-card-fixed="true"
                       sx={{
                         borderColor: tokens.card.border,
+                        borderWidth: 1.25,
                         backgroundColor: tokens.card.bg,
-                        boxShadow: tokens.card.shadow
+                        backgroundImage:
+                          mode === "dark"
+                            ? "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))"
+                            : "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(242,248,255,0.95))",
+                        boxShadow: tokens.card.shadow,
+                        height: 196,
+                        minHeight: 196,
+                        maxHeight: 196,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        borderRadius: 2
                       }}
                     >
-                      <CardContent sx={{ "&:last-child": { pb: 2 } }}>
-                        <Stack spacing={1}>
+                      <CardContent
+                        sx={{
+                          "&:last-child": { pb: 1.5 },
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%"
+                        }}
+                      >
+                        <Stack spacing={1} sx={{ minHeight: 0, justifyContent: "space-between", flexGrow: 1 }}>
                           <Typography
                             fontWeight={700}
                             component="button"
                             type="button"
                             onClick={() => setSelectedTaskId(task.id)}
                             sx={{
-                              all: "unset",
+                              appearance: "none",
+                              background: "transparent",
+                              border: 0,
+                              padding: 0,
+                              margin: 0,
+                              width: "100%",
+                              textAlign: "left",
+                              display: "-webkit-box",
                               cursor: "pointer",
+                              fontSize: "0.98rem",
                               lineHeight: 1.3,
                               wordBreak: "break-word",
-                              color: tokens.card.title,
+                              color: `${cardTitleColor} !important`,
                               fontWeight: 700,
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
+                              WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: 2,
+                              overflow: "hidden",
                               "&:focus-visible": {
                                 outline: `2px solid ${tokens.meta.accentBorder}`,
                                 outlineOffset: 2,
@@ -654,13 +701,13 @@ function KanbanView() {
                           {task.description && (
                             <Typography
                               variant="body2"
-                              color={tokens.card.body}
+                              color={`${cardBodyColor} !important`}
                               sx={{
                                 lineHeight: 1.5,
                                 wordBreak: "break-word",
                                 display: "-webkit-box",
                                 WebkitBoxOrient: "vertical",
-                                WebkitLineClamp: 4,
+                                WebkitLineClamp: 2,
                                 overflow: "hidden"
                               }}
                             >
@@ -672,17 +719,20 @@ function KanbanView() {
                               icon={<HistoryRounded />}
                               label={`ID ${getTaskDisplayId(task)}`}
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             <MetaPill
                               icon={<FlagRounded />}
                               label={`P${task.priority}`}
                               tone="accent"
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             <MetaPill
                               icon={<HubRounded />}
                               label={`deps ${task.dependencies.length}`}
                               colors={tokens.meta}
+                              textColor={cardMetaColor}
                             />
                             {task.tags.slice(0, 2).map((tag) => (
                               <MetaPill
@@ -690,6 +740,7 @@ function KanbanView() {
                                 icon={<LocalOfferRounded />}
                                 label={tag}
                                 colors={tokens.meta}
+                                textColor={cardMetaColor}
                               />
                             ))}
                             {task.tags.length > 2 && (
@@ -697,6 +748,7 @@ function KanbanView() {
                                 icon={<LocalOfferRounded />}
                                 label={`+${task.tags.length - 2}`}
                                 colors={tokens.meta}
+                                textColor={cardMetaColor}
                               />
                             )}
                           </Stack>

@@ -293,4 +293,40 @@ describe("App", () => {
       );
     });
   });
+
+  test("renders lane-level scroll containers with minimum height", async () => {
+    installFetchMock([
+      {
+        id: "t4",
+        title: "Dense lane item",
+        description: "Testing lane container layout",
+        priority: 2,
+        status: "backlog",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["layout"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    const laneScroll = await screen.findByTestId("lane-scroll-backlog");
+    expect(laneScroll).toHaveAttribute("data-lane-scroll", "true");
+    expect(laneScroll).toHaveStyle({
+      height: "520px",
+      minHeight: "360px",
+      overflowY: "scroll"
+    });
+
+    const card = screen.getByText(/dense lane item/i).closest(".MuiCard-root");
+    expect(card).toBeTruthy();
+    expect(card).toHaveAttribute("data-card-fixed", "true");
+    expect(card).toHaveStyle({ height: "196px" });
+  });
 });
