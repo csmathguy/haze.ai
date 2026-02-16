@@ -22,7 +22,25 @@ function renderApp() {
   );
 }
 
-function installFetchMock() {
+function installFetchMock(
+  tasks: Array<Record<string, unknown>> = [
+    {
+      id: "t1",
+      title: "Implement queue",
+      description: "Create queue worker",
+      priority: 5,
+      status: "backlog",
+      dependencies: [],
+      createdAt: "2026-02-16T00:00:00.000Z",
+      updatedAt: "2026-02-16T00:00:00.000Z",
+      startedAt: null,
+      completedAt: null,
+      dueAt: null,
+      tags: ["backend"],
+      metadata: {}
+    }
+  ]
+) {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -52,23 +70,7 @@ function installFetchMock() {
 
     if (url === "/api/tasks" && method === "GET") {
       return mockJsonResponse({
-        records: [
-          {
-            id: "t1",
-            title: "Implement queue",
-            description: "Create queue worker",
-            priority: 5,
-            status: "backlog",
-            dependencies: [],
-            createdAt: "2026-02-16T00:00:00.000Z",
-            updatedAt: "2026-02-16T00:00:00.000Z",
-            startedAt: null,
-            completedAt: null,
-            dueAt: null,
-            tags: ["backend"],
-            metadata: {}
-          }
-        ]
+        records: tasks
       });
     }
 
@@ -164,5 +166,60 @@ describe("App", () => {
     await waitFor(() => {
       expect(window.location.search).toContain("view=kanban");
     });
+  });
+
+  test("opens task detail panel with plan, questionnaire, and answer thread", async () => {
+    installFetchMock([
+      {
+        id: "t2",
+        title: "Awaiting human review",
+        description: "Need a decision to proceed",
+        priority: 4,
+        status: "awaiting_human",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {
+          planningArtifact: {
+            goals: ["Show detailed panel"],
+            implementationSteps: ["Render planning section"]
+          },
+          awaitingHumanArtifact: {
+            question: "Which deployment window should we use?",
+            options: ["Now", "Later"],
+            recommendedDefault: "Later",
+            blockingReason: "Need operator approval"
+          },
+          answerThread: [
+            {
+              actor: "human",
+              answer: "Use later window",
+              timestamp: "2026-02-16T12:00:00.000Z"
+            }
+          ]
+        }
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/awaiting human review/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /awaiting human review/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/task details/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
+    expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
+    expect(screen.getByText(/use later window/i)).toBeInTheDocument();
   });
 });
