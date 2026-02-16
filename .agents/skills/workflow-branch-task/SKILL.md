@@ -10,7 +10,7 @@ Ensure no implementation happens on `main` and each task has a traceable branch 
 
 ## Procedure
 1. Ensure working tree is clean.
-2. Checkout and fast-forward `main`.
+2. Checkout `main`, fetch latest remote, and fast-forward local branch.
 3. Create branch named with task reference.
 4. Record branch metadata on the task.
 

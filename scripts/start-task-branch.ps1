@@ -18,6 +18,11 @@ if ($current -ne $BaseBranch) {
   }
 }
 
+git fetch origin $BaseBranch --prune
+if ($LASTEXITCODE -ne 0) {
+  throw "Failed to fetch origin/$BaseBranch"
+}
+
 git pull --ff-only
 if ($LASTEXITCODE -ne 0) {
   throw "Failed to fast-forward pull on $BaseBranch"
