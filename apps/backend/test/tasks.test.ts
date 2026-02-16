@@ -27,7 +27,7 @@ describe("TaskWorkflowService", () => {
     expect(service.get(child.id).dependencies).toEqual([parent.id]);
 
     await service.update(parent.id, { status: "done" });
-    await service.update(child.id, { status: "ready" });
+    await service.update(child.id, { status: "backlog" });
     const claimed = await service.claimNextTask();
     expect(claimed?.id).toBe(child.id);
 
@@ -74,9 +74,9 @@ describe("TaskWorkflowService", () => {
     const low = await service.create({ title: "Low", priority: 2 });
     const tieOne = await service.create({ title: "Tie one", priority: 5 });
     const tieTwo = await service.create({ title: "Tie two", priority: 5 });
-    await service.update(low.id, { status: "ready" });
-    await service.update(tieOne.id, { status: "ready" });
-    await service.update(tieTwo.id, { status: "ready" });
+    await service.update(low.id, { status: "backlog" });
+    await service.update(tieOne.id, { status: "backlog" });
+    await service.update(tieTwo.id, { status: "backlog" });
 
     const selected = await service.claimNextTask();
     expect(selected?.id).toBe(tieTwo.id);
@@ -90,7 +90,7 @@ describe("TaskWorkflowService", () => {
 
     const parent = await service.create({ title: "Parent" });
     await service.create({ title: "Blocked child", dependencies: [parent.id], priority: 5 });
-    await service.update(parent.id, { status: "ready" });
+    await service.update(parent.id, { status: "backlog" });
 
     const result = await service.claimNextTask();
     expect(result?.id).toBe(parent.id);
@@ -137,12 +137,28 @@ describe("TaskWorkflowService", () => {
           dueAt: null,
           tags: [],
           metadata: {}
+        },
+        {
+          id: "legacy-ready",
+          title: "Legacy ready",
+          description: "",
+          priority: 3,
+          status: "ready" as never,
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
         }
       ]
     });
 
     expect(service.get("legacy-todo").status).toBe("backlog");
     expect(service.get("legacy-in-progress").status).toBe("implementing");
+    expect(service.get("legacy-ready").status).toBe("backlog");
   });
 });
 

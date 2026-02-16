@@ -96,11 +96,11 @@ export class TaskFileStore {
   private normalizeStatus(statusRaw: string): TaskStatus {
     switch (statusRaw) {
       case "todo":
+      case "ready":
         return "backlog";
       case "in_progress":
         return "implementing";
       case "backlog":
-      case "ready":
       case "planning":
       case "implementing":
       case "review":

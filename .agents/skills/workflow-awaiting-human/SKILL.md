@@ -15,7 +15,7 @@ Write `metadata.awaitingHumanArtifact`:
 ## Procedure
 1. Patch task status to `awaiting_human`.
 2. Attach questionnaire payload.
-3. After user answer, summarize decision and transition task to `ready` (or `planning` if continuing same plan).
+3. After user answer, summarize decision and transition task to `backlog` (or `planning` if continuing same plan).
 
 ## Output
 - task id

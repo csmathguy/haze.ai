@@ -3,11 +3,11 @@
 Last updated: 2026-02-16
 
 ## Status flow
-`backlog -> ready -> planning -> implementing -> review -> verification -> done`
+`backlog -> planning -> implementing -> review -> verification -> done`
 
 Branch path:
 - `awaiting_human` can be entered from `planning`, `implementing`, `review`, or `verification` when required input is missing.
-- Human response returns task to `ready` (or `planning` if scope stays unchanged).
+- Human response returns task to `backlog` (or `planning` if scope stays unchanged).
 
 ## Required stage artifacts
 - `planning`: `metadata.planningArtifact`
@@ -17,10 +17,10 @@ Branch path:
 - `done`: `metadata.doneArtifact`
 
 ## Stage gates
-- Enter `ready` only when objective, acceptance criteria, dependencies, and required inputs are present.
+- Enter `planning` only when objective, acceptance criteria, dependencies, and required inputs are present.
 - Enter `review` only when implementation changes and impact summary are recorded.
 - Enter `verification` only after review feedback is addressed.
-- Enter `done` only after verification passes and merge/merge-ready state is recorded.
+- Enter `done` only after verification passes and merge state is recorded.
 
 ## Git and PR flow
 1. Start from clean branch named with task id (for example: `task/T-00042-kanban-card-readability`).
@@ -32,7 +32,7 @@ Branch path:
 4. Finish implementation handoff with deterministic automation:
    - `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`
 5. Automation must run verify, commit, push, create PR, and transition task to `review` with artifacts.
-6. Move task to `done` only after PR approval and merge (or explicit merge-ready policy).
+6. Move task to `done` only after PR approval and merge.
 
 Mandatory rule:
 - Never implement directly on `main`.

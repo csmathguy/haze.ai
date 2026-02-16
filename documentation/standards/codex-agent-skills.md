@@ -25,7 +25,7 @@ Establish a skills-first operating model for Codex in this repository so repeate
 ## Backend task skills baseline
 - `backend-add-task`: create a task using `POST /tasks` and verify it appears in `GET /tasks`.
 - `backend-update-task`: patch a task using `PATCH /tasks/:id` and verify status/fields via `GET /tasks/:id`.
-- `backend-next-task`: claim next task from `ready` by highest priority with random tie-break; selected task moves to `planning`.
+- `backend-next-task`: claim next task from `backlog` by highest priority with random tie-break; selected task moves to `planning`.
 - `backend-transition-task-status`: move tasks between workflow statuses with explicit transition notes.
 - `workflow-stage-artifact`: attach stage-specific evidence artifacts into task metadata.
 
@@ -38,6 +38,7 @@ Establish a skills-first operating model for Codex in this repository so repeate
 
 ## Deterministic helper scripts
 - `scripts/next-task-id.ps1`: suggest next `T-#####` id from current task data.
+- `scripts/claim-next-task.ps1`: claim highest-priority eligible `backlog` task, transition it to `planning`, and print next workflow step.
 - `scripts/start-task-branch.ps1`: create task branch from `main` and patch task workflow branch metadata.
 - `scripts/create-pr.ps1`: run verify and create PR through `gh pr create`.
 - `scripts/finish-task.ps1`: run verify, commit, push, create PR, and transition task to `review` with review/verification artifacts.

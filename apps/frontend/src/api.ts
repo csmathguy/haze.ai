@@ -10,7 +10,6 @@ export interface TaskRecord {
   priority: number;
   status:
     | "backlog"
-    | "ready"
     | "planning"
     | "implementing"
     | "review"

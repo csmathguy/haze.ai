@@ -1,6 +1,6 @@
 ---
 name: workflow-start-task
-description: Start work on a selected task by moving it from ready/backlog to planning and attaching the initial agent plan artifact.
+description: Start work on a selected task by moving it from backlog to planning and attaching the initial agent plan artifact.
 ---
 
 # Workflow Start Task
