@@ -5,16 +5,17 @@ param(
   [string]$PrBodyFile = "",
   [string]$Base = "main",
   [string]$ApiBase = "http://localhost:3001",
+  [string]$TaskFilePath = "apps/backend/data/tasks/tasks.json",
   [switch]$Draft
 )
 
 $ErrorActionPreference = "Stop"
 
-function Exec([string]$command) {
-  Write-Host "> $command"
-  Invoke-Expression $command
+function Run-Command([string]$file, [string[]]$args) {
+  Write-Host "> $file $($args -join ' ')"
+  & $file @args
   if ($LASTEXITCODE -ne 0) {
-    throw "Command failed: $command"
+    throw "Command failed: $file $($args -join ' ')"
   }
 }
 
@@ -27,6 +28,82 @@ function Copy-Metadata([object]$source) {
     $result[$p.Name] = $p.Value
   }
   return $result
+}
+
+function Build-Artifacts([string]$prUrl, [string]$headSha, [string[]]$changedFiles) {
+  return @{
+    reviewArtifact = @{
+      changeSummary = @(
+        "Automated finish-task flow executed: verify, commit, push, and PR creation",
+        "PR created: $prUrl"
+      )
+      filesTouched = $changedFiles
+      knownRisks = @(
+        "Coverage comment assumes coverage-summary files are generated in both workspaces"
+      )
+    }
+    verificationArtifact = @{
+      commands = @(
+        "npm run verify"
+      )
+      result = "passed"
+      notes = @(
+        "Automated via scripts/finish-task.ps1",
+        "Commit: $headSha",
+        "PR: $prUrl"
+      )
+    }
+  }
+}
+
+function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifacts) {
+  try {
+    $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
+    if (-not $taskResponse.record) {
+      return $false
+    }
+
+    $task = $taskResponse.record
+    $metadata = Copy-Metadata $task.metadata
+    $metadata.reviewArtifact = $artifacts.reviewArtifact
+    $metadata.verificationArtifact = $artifacts.verificationArtifact
+
+    $patchBody = @{
+      status = "review"
+      metadata = $metadata
+    } | ConvertTo-Json -Depth 20
+
+    $patchResponse = Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $patchBody
+    return ($patchResponse.record -and $patchResponse.record.status -eq "review")
+  } catch {
+    return $false
+  }
+}
+
+function Update-TaskInFile([string]$taskFilePath, [string]$taskId, [hashtable]$artifacts) {
+  if (-not (Test-Path $taskFilePath)) {
+    throw "Task file not found: $taskFilePath"
+  }
+
+  $json = Get-Content -Raw $taskFilePath | ConvertFrom-Json
+  $task = $json.tasks | Where-Object { $_.id -eq $taskId } | Select-Object -First 1
+  if (-not $task) {
+    throw "Task not found in file: $taskId"
+  }
+
+  $now = (Get-Date).ToUniversalTime().ToString("o")
+  $task.status = "review"
+  $task.updatedAt = $now
+
+  if ($null -eq $task.metadata) {
+    $task | Add-Member -MemberType NoteProperty -Name metadata -Value ([pscustomobject]@{})
+  }
+
+  $task.metadata.reviewArtifact = $artifacts.reviewArtifact
+  $task.metadata.verificationArtifact = $artifacts.verificationArtifact
+  $json.updatedAt = $now
+
+  $json | ConvertTo-Json -Depth 100 | Set-Content $taskFilePath
 }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
@@ -42,24 +119,22 @@ if (-not $dirty) {
   throw "No local changes to commit"
 }
 
-Exec "npm run verify"
-
-Exec "git add -A"
+Run-Command "npm" @("run", "verify")
+Run-Command "git" @("add", "-A")
 
 $staged = git diff --cached --name-only
 if (-not $staged) {
   throw "No staged changes after git add"
 }
 
-$escapedCommitMessage = $CommitMessage.Replace('"', '\"')
-Exec "git commit -m \"$escapedCommitMessage\""
+Run-Command "git" @("commit", "-m", $CommitMessage)
 
 $headSha = (git rev-parse HEAD).Trim()
 if (-not $headSha) {
   throw "Unable to determine HEAD sha"
 }
 
-Exec "git push origin HEAD"
+Run-Command "git" @("push", "origin", "HEAD")
 
 $prArgs = @("pr", "create", "--base", $Base, "--head", $branch, "--title", $PrTitle)
 if ($PrBodyFile -and (Test-Path $PrBodyFile)) {
@@ -71,51 +146,28 @@ if ($Draft) {
   $prArgs += "--draft"
 }
 
-$prUrl = (& gh @prArgs | Select-Object -Last 1).Trim()
+Write-Host "> gh $($prArgs -join ' ')"
+$prUrl = ""
+try {
+  $prUrl = (& gh @prArgs | Select-Object -Last 1).Trim()
+} catch {
+  # If a PR already exists for this branch, reuse it.
+  $existingUrl = (& gh pr view $branch --json url --jq ".url" 2>$null).Trim()
+  if (-not $existingUrl) {
+    throw
+  }
+  $prUrl = $existingUrl
+}
 if (-not $prUrl) {
   throw "Unable to determine PR URL"
 }
 
-$changedFiles = git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" }
-$changedFilesArray = @($changedFiles)
+$changedFiles = @(git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" })
+$artifacts = Build-Artifacts -prUrl $prUrl -headSha $headSha -changedFiles $changedFiles
 
-$taskResponse = Invoke-RestMethod -Method Get -Uri "$ApiBase/tasks/$TaskId"
-if (-not $taskResponse.record) {
-  throw "Task $TaskId not found at $ApiBase"
-}
-
-$task = $taskResponse.record
-$metadata = Copy-Metadata $task.metadata
-$metadata.reviewArtifact = @{
-  changeSummary = @(
-    "Automated finish-task flow executed: verify, commit, push, and PR creation",
-    "PR created: $prUrl"
-  )
-  filesTouched = $changedFilesArray
-  knownRisks = @(
-    "Coverage comment assumes coverage-summary files are generated in both workspaces"
-  )
-}
-$metadata.verificationArtifact = @{
-  commands = @(
-    "npm run verify"
-  )
-  result = "passed"
-  notes = @(
-    "Automated via scripts/finish-task.ps1",
-    "Commit: $headSha",
-    "PR: $prUrl"
-  )
-}
-
-$patchBody = @{
-  status = "review"
-  metadata = $metadata
-} | ConvertTo-Json -Depth 20
-
-$patchResponse = Invoke-RestMethod -Method Patch -Uri "$ApiBase/tasks/$TaskId" -ContentType "application/json" -Body $patchBody
-if (-not $patchResponse.record -or $patchResponse.record.status -ne "review") {
-  throw "Failed to transition task $TaskId to review"
+$updated = Update-TaskViaApi -apiBase $ApiBase -taskId $TaskId -artifacts $artifacts
+if (-not $updated) {
+  Update-TaskInFile -taskFilePath $TaskFilePath -taskId $TaskId -artifacts $artifacts
 }
 
 Write-Host "Task $TaskId moved to review."
