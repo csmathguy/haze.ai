@@ -118,6 +118,8 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/implement queue/i)).toBeInTheDocument();
     });
+    expect(screen.getByText("P5")).toBeInTheDocument();
+    expect(screen.getByText(/deps 0/i)).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
   });

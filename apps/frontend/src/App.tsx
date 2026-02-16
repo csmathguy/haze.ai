@@ -1,7 +1,10 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
+import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import HubRounded from "@mui/icons-material/HubRounded";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
 import WindowRounded from "@mui/icons-material/WindowRounded";
 import {
@@ -16,8 +19,8 @@ import {
   Stack,
   Typography
 } from "@mui/material";
-import { alpha, keyframes } from "@mui/material/styles";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { alpha, keyframes, useTheme } from "@mui/material/styles";
+import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
   fetchStatus,
@@ -282,7 +285,53 @@ const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
   { status: "cancelled", label: "Cancelled" }
 ];
 
+function MetaPill({
+  icon,
+  label,
+  tone = "neutral"
+}: {
+  icon: ReactNode;
+  label: string;
+  tone?: "neutral" | "accent";
+}) {
+  return (
+    <Box
+      sx={(theme) => ({
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.5,
+        borderRadius: 999,
+        px: 1,
+        py: 0.25,
+        border: `1px solid ${alpha(
+          tone === "accent" ? theme.palette.secondary.main : theme.palette.primary.main,
+          theme.palette.mode === "dark" ? 0.42 : 0.24
+        )}`,
+        backgroundColor: alpha(
+          tone === "accent" ? theme.palette.secondary.main : theme.palette.background.paper,
+          theme.palette.mode === "dark" ? 0.18 : 0.72
+        )
+      })}
+    >
+      <Box
+        sx={{
+          display: "inline-flex",
+          color: tone === "accent" ? "secondary.main" : "text.secondary",
+          "& svg": { fontSize: 13 }
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
 function KanbanView() {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -370,7 +419,19 @@ function KanbanView() {
           }}
         >
           {columns.map((column) => (
-            <Card key={column.status} sx={{ minWidth: 0 }}>
+            <Card
+              key={column.status}
+              sx={{
+                minWidth: 0,
+                border: (activeTheme) =>
+                  `1px solid ${alpha(activeTheme.palette.primary.main, isDarkMode ? 0.28 : 0.16)}`,
+                backgroundImage: (activeTheme) =>
+                  `linear-gradient(180deg, ${alpha(
+                    activeTheme.palette.background.paper,
+                    isDarkMode ? 0.96 : 0.88
+                  )}, ${alpha(activeTheme.palette.background.paper, isDarkMode ? 0.9 : 0.82)})`
+              }}
+            >
             <CardContent>
               <Stack spacing={1.5}>
                 <Stack
@@ -401,34 +462,64 @@ function KanbanView() {
                       key={task.id}
                       variant="outlined"
                       sx={{
-                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.22),
-                        backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.82)
+                        borderColor: (activeTheme) =>
+                          alpha(activeTheme.palette.primary.main, isDarkMode ? 0.44 : 0.24),
+                        backgroundImage: (activeTheme) =>
+                          isDarkMode
+                            ? `linear-gradient(180deg, ${alpha(
+                                activeTheme.palette.background.paper,
+                                0.94
+                              )}, ${alpha(activeTheme.palette.background.default, 0.9)})`
+                            : `linear-gradient(180deg, ${alpha(
+                                activeTheme.palette.background.paper,
+                                0.98
+                              )}, ${alpha(activeTheme.palette.background.default, 0.92)})`,
+                        boxShadow: (activeTheme) =>
+                          `0 8px 18px ${alpha(
+                            activeTheme.palette.common.black,
+                            isDarkMode ? 0.28 : 0.1
+                          )}`
                       }}
                     >
                       <CardContent sx={{ "&:last-child": { pb: 2 } }}>
-                        <Stack spacing={0.8}>
-                          <Typography fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                        <Stack spacing={1}>
+                          <Typography
+                            fontWeight={700}
+                            sx={{ lineHeight: 1.3, wordBreak: "break-word", color: "text.primary" }}
+                          >
                             {task.title}
                           </Typography>
                           {task.description && (
                             <Typography
                               variant="body2"
                               color="text.secondary"
-                              sx={{ lineHeight: 1.45, wordBreak: "break-word" }}
+                              sx={{
+                                lineHeight: 1.5,
+                                wordBreak: "break-word",
+                                display: "-webkit-box",
+                                WebkitBoxOrient: "vertical",
+                                WebkitLineClamp: 4,
+                                overflow: "hidden"
+                              }}
                             >
                               {task.description}
                             </Typography>
                           )}
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Chip size="small" label={`P${task.priority}`} color="secondary" />
-                            <Chip
-                              size="small"
+                            <MetaPill icon={<FlagRounded />} label={`P${task.priority}`} tone="accent" />
+                            <MetaPill
+                              icon={<HubRounded />}
                               label={`deps ${task.dependencies.length}`}
-                              variant="outlined"
                             />
                             {task.tags.slice(0, 2).map((tag) => (
-                              <Chip key={tag} size="small" label={tag} variant="outlined" />
+                              <MetaPill key={tag} icon={<LocalOfferRounded />} label={tag} />
                             ))}
+                            {task.tags.length > 2 && (
+                              <MetaPill
+                                icon={<LocalOfferRounded />}
+                                label={`+${task.tags.length - 2}`}
+                              />
+                            )}
                           </Stack>
                         </Stack>
                       </CardContent>
