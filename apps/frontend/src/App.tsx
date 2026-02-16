@@ -1,6 +1,7 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
 import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import HubRounded from "@mui/icons-material/HubRounded";
@@ -16,6 +17,8 @@ import {
   Chip,
   Container,
   Divider,
+  Drawer,
+  IconButton,
   Stack,
   Typography
 } from "@mui/material";
@@ -336,12 +339,70 @@ function MetaPill({
   );
 }
 
+type DetailAnswer = {
+  actor: string;
+  message: string;
+  timestamp: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function normalizeAnswerThread(value: unknown): DetailAnswer[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return {
+          actor: "human",
+          message: entry,
+          timestamp: null
+        };
+      }
+
+      const item = asRecord(entry);
+      if (!item) {
+        return null;
+      }
+
+      const actor = typeof item.actor === "string" ? item.actor : "human";
+      const messageCandidate = ["message", "answer", "response", "text"]
+        .map((key) => item[key])
+        .find((candidate) => typeof candidate === "string");
+      if (typeof messageCandidate !== "string") {
+        return null;
+      }
+
+      return {
+        actor,
+        message: messageCandidate,
+        timestamp: typeof item.timestamp === "string" ? item.timestamp : null
+      };
+    })
+    .filter((entry): entry is DetailAnswer => entry !== null);
+}
+
 function KanbanView() {
   const { mode } = useColorScheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -386,6 +447,36 @@ function KanbanView() {
 
     return grouped;
   }, [tasks]);
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
+    [selectedTaskId, tasks]
+  );
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      return;
+    }
+
+    if (!tasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [selectedTaskId, tasks]);
+
+  const selectedTaskStatusLabel = selectedTask
+    ? columns.find((column) => column.status === selectedTask.status)?.label ?? selectedTask.status
+    : "";
+
+  const selectedPlanningArtifact = asRecord(selectedTask?.metadata.planningArtifact);
+  const selectedAwaitingHumanArtifact = asRecord(selectedTask?.metadata.awaitingHumanArtifact);
+  const selectedAnswerThread = normalizeAnswerThread(
+    selectedTask?.metadata.answerThread ??
+      selectedAwaitingHumanArtifact?.answerThread ??
+      selectedAwaitingHumanArtifact?.answers
+  );
+  const planningGoals = asStringArray(selectedPlanningArtifact?.goals);
+  const planningSteps = asStringArray(selectedPlanningArtifact?.implementationSteps);
+  const questionnaireOptions = asStringArray(selectedAwaitingHumanArtifact?.options);
 
   return (
     <Stack spacing={2}>
@@ -477,7 +568,24 @@ function KanbanView() {
                         <Stack spacing={1}>
                           <Typography
                             fontWeight={700}
-                            sx={{ lineHeight: 1.3, wordBreak: "break-word", color: tokens.card.title }}
+                            component="button"
+                            type="button"
+                            onClick={() => setSelectedTaskId(task.id)}
+                            sx={{
+                              all: "unset",
+                              cursor: "pointer",
+                              lineHeight: 1.3,
+                              wordBreak: "break-word",
+                              color: tokens.card.title,
+                              fontWeight: 700,
+                              textDecoration: "underline",
+                              textUnderlineOffset: "2px",
+                              "&:focus-visible": {
+                                outline: `2px solid ${tokens.meta.accentBorder}`,
+                                outlineOffset: 2,
+                                borderRadius: 1
+                              }
+                            }}
                           >
                             {task.title}
                           </Typography>
@@ -541,6 +649,131 @@ function KanbanView() {
           ))}
         </Box>
       </Box>
+
+      <Drawer
+        anchor="right"
+        open={Boolean(selectedTask)}
+        onClose={() => setSelectedTaskId(null)}
+      >
+        <Box sx={{ width: { xs: "100vw", sm: 460 }, p: 2.5 }}>
+          {selectedTask && (
+            <Stack spacing={2}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6">Task Details</Typography>
+                <IconButton aria-label="Close task details" onClick={() => setSelectedTaskId(null)}>
+                  <CloseRounded />
+                </IconButton>
+              </Stack>
+              <Divider />
+              <Stack spacing={0.5}>
+                <Typography variant="h6">{selectedTask.title}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Status: {selectedTaskStatusLabel}
+                </Typography>
+              </Stack>
+
+              {selectedTask.description && (
+                <Typography variant="body2">{selectedTask.description}</Typography>
+              )}
+
+              <Divider />
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Plan
+                </Typography>
+                {planningGoals.length === 0 && planningSteps.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No planning artifact recorded.
+                  </Typography>
+                )}
+                {planningGoals.length > 0 && (
+                  <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                    {planningGoals.map((goal) => (
+                      <Typography component="li" key={goal} variant="body2">
+                        {goal}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+                {planningSteps.length > 0 && (
+                  <>
+                    <Typography variant="caption" color="text.secondary">
+                      Implementation steps
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                      {planningSteps.map((step) => (
+                        <Typography component="li" key={step} variant="body2">
+                          {step}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </>
+                )}
+              </Stack>
+
+              <Divider />
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Questionnaire
+                </Typography>
+                {selectedAwaitingHumanArtifact ? (
+                  <Stack spacing={1}>
+                    {typeof selectedAwaitingHumanArtifact.question === "string" && (
+                      <Typography variant="body2">
+                        {selectedAwaitingHumanArtifact.question}
+                      </Typography>
+                    )}
+                    {typeof selectedAwaitingHumanArtifact.blockingReason === "string" && (
+                      <Typography variant="caption" color="text.secondary">
+                        Blocking reason: {selectedAwaitingHumanArtifact.blockingReason}
+                      </Typography>
+                    )}
+                    {typeof selectedAwaitingHumanArtifact.recommendedDefault === "string" && (
+                      <Typography variant="caption" color="text.secondary">
+                        Recommended default: {selectedAwaitingHumanArtifact.recommendedDefault}
+                      </Typography>
+                    )}
+                    {questionnaireOptions.length > 0 && (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {questionnaireOptions.map((option) => (
+                          <Chip key={option} label={option} size="small" />
+                        ))}
+                      </Stack>
+                    )}
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No questionnaire state recorded.
+                  </Typography>
+                )}
+              </Stack>
+
+              <Divider />
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Answer Thread
+                </Typography>
+                {selectedAnswerThread.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No human answers recorded.
+                  </Typography>
+                )}
+                {selectedAnswerThread.map((entry, index) => (
+                  <Card key={`${entry.actor}-${entry.message}-${index}`} variant="outlined">
+                    <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {entry.actor}
+                        {entry.timestamp ? ` • ${new Date(entry.timestamp).toLocaleString()}` : ""}
+                      </Typography>
+                      <Typography variant="body2">{entry.message}</Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            </Stack>
+          )}
+        </Box>
+      </Drawer>
     </Stack>
   );
 }
