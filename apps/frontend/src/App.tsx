@@ -19,7 +19,7 @@ import {
   Stack,
   Typography
 } from "@mui/material";
-import { alpha, keyframes, useTheme } from "@mui/material/styles";
+import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
@@ -338,8 +338,8 @@ function MetaPill({
 }
 
 function KanbanView() {
-  const theme = useTheme();
-  const tokens = getKanbanUiTokens(theme.palette.mode);
+  const { mode } = useColorScheme();
+  const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

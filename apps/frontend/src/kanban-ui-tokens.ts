@@ -30,28 +30,28 @@ export const getKanbanUiTokens = (mode: "light" | "dark"): KanbanUiTokens => {
   if (mode === "dark") {
     return {
       lane: {
-        bg: "#111d33",
-        border: "#2a3f63",
-        headerBg: "#172744",
-        title: "#f2f7ff",
-        empty: "#c6d4ea",
-        countBg: "#6ea2ff",
-        countText: "#071935"
+        bg: "#0f1728",
+        border: "#2a3f61",
+        headerBg: "#14203a",
+        title: "#e9f1ff",
+        empty: "#b7c7e0",
+        countBg: "#5f88d6",
+        countText: "#f1f6ff"
       },
       card: {
-        bg: "#1a2c49",
-        border: "#8fb8ff",
-        title: "#f5f9ff",
-        body: "#d1def0",
+        bg: "#15253d",
+        border: "#6f93cf",
+        title: "#edf3ff",
+        body: "#c4d2e8",
         shadow: "0 8px 16px rgba(2, 8, 24, 0.42)"
       },
       meta: {
-        bg: "#24395b",
-        border: "#83aef2",
-        text: "#e9f0fc",
-        icon: "#b8d0f8",
-        accentBg: "#1f8e71",
-        accentBorder: "#59d4ad",
+        bg: "#213551",
+        border: "#6f93cf",
+        text: "#e4ecfb",
+        icon: "#a8c3ee",
+        accentBg: "#1a7c63",
+        accentBorder: "#4ec8a3",
         accentText: "#ecfff9"
       }
     };
