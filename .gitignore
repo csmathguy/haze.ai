@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+coverage/
+.vscode/
+.DS_Store
+data/
+apps/backend/data/*
+!apps/backend/data/.gitkeep
+documentation/tasks/

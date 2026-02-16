@@ -1,0 +1,522 @@
+import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
+import BoltRounded from "@mui/icons-material/BoltRounded";
+import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
+import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
+import WindowRounded from "@mui/icons-material/WindowRounded";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Container,
+  Divider,
+  Stack,
+  Typography
+} from "@mui/material";
+import { alpha, keyframes } from "@mui/material/styles";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import {
+  fetchRecentAudit,
+  fetchStatus,
+  fetchTasks,
+  postJson,
+  subscribeAudit,
+  type AuditEventRecord,
+  type OrchestratorStatus,
+  type TaskRecord
+} from "./api";
+import { ModeToggle } from "./components/ModeToggle";
+
+type ViewName = "dashboard" | "kanban";
+
+const resolveViewFromLocation = (): ViewName => {
+  if (typeof window === "undefined") {
+    return "dashboard";
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get("view") === "kanban" ? "kanban" : "dashboard";
+};
+
+const syncViewToLocation = (view: ViewName): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("view") === view) {
+    return;
+  }
+
+  url.searchParams.set("view", view);
+  window.history.pushState({ view }, "", `${url.pathname}${url.search}${url.hash}`);
+};
+
+interface DashboardState {
+  status: OrchestratorStatus | null;
+  loading: boolean;
+  error: string | null;
+  audit: AuditEventRecord[];
+}
+
+type DashboardAction =
+  | { type: "request-start" }
+  | { type: "request-success"; status: OrchestratorStatus }
+  | { type: "request-error"; message: string }
+  | { type: "audit-seed"; records: AuditEventRecord[] }
+  | { type: "audit-add"; record: AuditEventRecord };
+
+const initialDashboardState: DashboardState = {
+  status: null,
+  loading: false,
+  error: null,
+  audit: []
+};
+
+function dashboardReducer(
+  state: DashboardState,
+  action: DashboardAction
+): DashboardState {
+  switch (action.type) {
+    case "request-start":
+      return { ...state, loading: true, error: null };
+    case "request-success":
+      return { ...state, status: action.status, loading: false, error: null };
+    case "request-error":
+      return { ...state, loading: false, error: action.message };
+    case "audit-seed":
+      return { ...state, audit: action.records };
+    case "audit-add":
+      return { ...state, audit: [action.record, ...state.audit].slice(0, 100) };
+    default:
+      return state;
+  }
+}
+
+const pulseAnimation = keyframes`
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -5px, 0) scale(1.01); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+`;
+
+function DashboardView() {
+  const [state, dispatch] = useReducer(dashboardReducer, initialDashboardState);
+
+  const refresh = async () => {
+    dispatch({ type: "request-start" });
+    try {
+      const next = await fetchStatus();
+      dispatch({ type: "request-success", status: next });
+    } catch (error) {
+      dispatch({ type: "request-error", message: (error as Error).message });
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadAudit = async () => {
+      try {
+        const records = await fetchRecentAudit(50);
+        if (mounted) {
+          dispatch({ type: "audit-seed", records });
+        }
+      } catch (error) {
+        if (mounted) {
+          dispatch({ type: "request-error", message: (error as Error).message });
+        }
+      }
+    };
+
+    void loadAudit();
+    const unsubscribe = subscribeAudit((record) => {
+      dispatch({ type: "audit-add", record });
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const wake = async () => {
+    await postJson("/api/orchestrator/wake", { reason: "frontend_manual_wake" });
+    await refresh();
+  };
+
+  const pulse = async () => {
+    await postJson("/api/heartbeat/pulse", { source: "frontend_manual_pulse" });
+    await refresh();
+  };
+
+  return (
+    <Stack spacing={3}>
+      {state.error && <Alert severity="error">{state.error}</Alert>}
+
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+        <Card
+          sx={{
+            flex: 1,
+            border: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
+            backgroundImage: (theme) =>
+              `linear-gradient(125deg, ${alpha(theme.palette.primary.main, 0.08)}, ${alpha(theme.palette.secondary.main, 0.12)})`,
+            animation: `${pulseAnimation} 7s ease-in-out infinite`,
+            "@media (prefers-reduced-motion: reduce)": {
+              animation: "none"
+            }
+          }}
+        >
+          <CardContent>
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <FavoriteRounded color="secondary" />
+                <Typography variant="h6">Orchestrator Status</Typography>
+              </Stack>
+              {state.status ? (
+                <>
+                  <Chip
+                    label={state.status.busy ? "Running" : "Idle"}
+                    color={state.status.busy ? "secondary" : "primary"}
+                    sx={{ width: "fit-content" }}
+                  />
+                  <Typography>
+                    <strong>Last wake reason:</strong> {state.status.lastWakeReason}
+                  </Typography>
+                </>
+              ) : (
+                <Typography color="text.secondary">No status loaded yet.</Typography>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ width: { xs: "100%", md: 340 } }}>
+          <CardContent>
+            <Stack spacing={2}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <BoltRounded color="primary" />
+                <Typography variant="h6">Control Actions</Typography>
+              </Stack>
+              <Button variant="contained" onClick={() => void wake()} disabled={state.loading}>
+                Wake Orchestrator
+              </Button>
+              <Button variant="outlined" onClick={() => void pulse()} disabled={state.loading}>
+                Send Heartbeat Pulse
+              </Button>
+              <Button
+                variant="text"
+                startIcon={<AutorenewRounded />}
+                onClick={() => void refresh()}
+                disabled={state.loading}
+              >
+                Refresh
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Stack>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <HistoryRounded color="primary" />
+              <Typography variant="h6">Live Audit Feed</Typography>
+              <Chip label="Live" color="secondary" size="small" />
+            </Stack>
+            <Stack
+              spacing={1}
+              sx={{
+                maxHeight: 320,
+                overflowY: "auto",
+                pr: 1
+              }}
+            >
+              {state.audit.length === 0 && (
+                <Typography color="text.secondary">No audit events yet.</Typography>
+              )}
+              {state.audit.map((event) => (
+                <Box key={event.id}>
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(event.timestamp).toLocaleString()} | {event.actor}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {event.eventType}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    request: {event.requestId.slice(0, 8)}... trace: {event.traceId.slice(0, 8)}
+                    ...
+                  </Typography>
+                  <Divider sx={{ mt: 1 }} />
+                </Box>
+              ))}
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
+  );
+}
+
+const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
+  { status: "backlog", label: "Backlog" },
+  { status: "ready", label: "Ready" },
+  { status: "planning", label: "Planning" },
+  { status: "implementing", label: "Implementing" },
+  { status: "review", label: "Review" },
+  { status: "verification", label: "Verification" },
+  { status: "awaiting_human", label: "Awaiting Human" },
+  { status: "done", label: "Done" },
+  { status: "cancelled", label: "Cancelled" }
+];
+
+function KanbanView() {
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await fetchTasks();
+      setTasks(next);
+    } catch (nextError) {
+      setError((nextError as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const tasksByStatus = useMemo(() => {
+    const grouped = new Map<TaskRecord["status"], TaskRecord[]>();
+    for (const column of columns) {
+      grouped.set(column.status, []);
+    }
+
+    for (const task of tasks) {
+      const lane = grouped.get(task.status) ?? [];
+      lane.push(task);
+      grouped.set(task.status, lane);
+    }
+
+    for (const [status, lane] of grouped.entries()) {
+      grouped.set(
+        status,
+        lane.sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
+      );
+    }
+
+    return grouped;
+  }, [tasks]);
+
+  return (
+    <Stack spacing={2}>
+      {error && <Alert severity="error">{error}</Alert>}
+
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Typography color="text.secondary">
+          Real-time workflow board for orchestrator and agent task execution.
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<AutorenewRounded />}
+          onClick={() => void refresh()}
+          disabled={loading}
+        >
+          Refresh Board
+        </Button>
+      </Stack>
+
+      <Box
+        sx={{
+          overflowX: "auto",
+          pb: 1
+        }}
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridAutoFlow: "column",
+            gridAutoColumns: {
+              xs: "minmax(260px, 84vw)",
+              sm: "minmax(280px, 68vw)",
+              md: "minmax(300px, 340px)"
+            },
+            gap: 2,
+            minWidth: "max-content",
+            alignItems: "start"
+          }}
+        >
+          {columns.map((column) => (
+            <Card key={column.status} sx={{ minWidth: 0 }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 1,
+                    backgroundColor: "background.paper",
+                    py: 0.5
+                  }}
+                >
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    {column.label}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={tasksByStatus.get(column.status)?.length ?? 0}
+                    color="primary"
+                  />
+                </Stack>
+                <Divider />
+                <Stack spacing={1.25} sx={{ maxHeight: 520, overflowY: "auto", pr: 0.5 }}>
+                  {(tasksByStatus.get(column.status) ?? []).map((task) => (
+                    <Card
+                      key={task.id}
+                      variant="outlined"
+                      sx={{
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.22),
+                        backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.82)
+                      }}
+                    >
+                      <CardContent sx={{ "&:last-child": { pb: 2 } }}>
+                        <Stack spacing={0.8}>
+                          <Typography fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                            {task.title}
+                          </Typography>
+                          {task.description && (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ lineHeight: 1.45, wordBreak: "break-word" }}
+                            >
+                              {task.description}
+                            </Typography>
+                          )}
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip size="small" label={`P${task.priority}`} color="secondary" />
+                            <Chip
+                              size="small"
+                              label={`deps ${task.dependencies.length}`}
+                              variant="outlined"
+                            />
+                            {task.tags.slice(0, 2).map((tag) => (
+                              <Chip key={tag} size="small" label={tag} variant="outlined" />
+                            ))}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {(tasksByStatus.get(column.status) ?? []).length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No tasks in this lane.
+                    </Typography>
+                  )}
+                </Stack>
+              </Stack>
+            </CardContent>
+            </Card>
+          ))}
+        </Box>
+      </Box>
+    </Stack>
+  );
+}
+
+export function App() {
+  const [activeView, setActiveView] = useState<ViewName>(() =>
+    resolveViewFromLocation()
+  );
+
+  useEffect(() => {
+    const onPopState = () => {
+      setActiveView(resolveViewFromLocation());
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const navigateToView = (nextView: ViewName) => {
+    setActiveView(nextView);
+    syncViewToLocation(nextView);
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        py: { xs: 4, md: 8 },
+        position: "relative",
+        overflow: "hidden",
+        "&::before": {
+          content: "\"\"",
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 85% 5%, rgba(30, 144, 255, 0.18), transparent 45%), radial-gradient(circle at 10% 95%, rgba(26, 163, 122, 0.2), transparent 35%)"
+        }
+      }}
+    >
+      <Container maxWidth="xl" sx={{ position: "relative", zIndex: 1 }}>
+        <Stack spacing={3}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+            <Box>
+              <Typography variant="h3">Haze Agent Monitor</Typography>
+              <Typography color="text.secondary" sx={{ mt: 1 }}>
+                Orchestrator dashboard and Kanban workflow board for agent execution.
+              </Typography>
+            </Box>
+            <ModeToggle />
+          </Stack>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <Button
+              variant={activeView === "dashboard" ? "contained" : "outlined"}
+              startIcon={<WindowRounded />}
+              onClick={() => navigateToView("dashboard")}
+            >
+              Dashboard
+            </Button>
+            <Button
+              variant={activeView === "kanban" ? "contained" : "outlined"}
+              startIcon={<ViewKanbanRounded />}
+              onClick={() => navigateToView("kanban")}
+            >
+              Kanban Board
+            </Button>
+          </Stack>
+
+          {activeView === "dashboard" ? <DashboardView /> : <KanbanView />}
+        </Stack>
+      </Container>
+    </Box>
+  );
+}

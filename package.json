@@ -1,0 +1,33 @@
+{
+  "name": "haze-ai",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "check:circular": "madge --circular --extensions ts,tsx --warning apps/backend/src apps/frontend/src",
+    "dev": "npm run -ws --if-present --parallel dev",
+    "dev:backend": "npm --workspace @haze/backend run dev",
+    "dev:frontend": "npm --workspace @haze/frontend run dev",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test",
+    "test:coverage": "npm run -ws test:coverage",
+    "typecheck": "npm run -ws typecheck",
+    "verify": "npm run lint && npm run typecheck && npm run check:circular && npm run test:coverage && npm run build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "madge": "^8.0.0",
+    "typescript-eslint": "^8.25.0"
+  }
+}
