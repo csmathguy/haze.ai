@@ -29,6 +29,16 @@ Establish a skills-first operating model for Codex in this repository so repeate
 - `backend-transition-task-status`: move tasks between workflow statuses with explicit transition notes.
 - `workflow-stage-artifact`: attach stage-specific evidence artifacts into task metadata.
 
+## Workflow orchestration skills
+- `workflow-task-lifecycle`: master flow that sequences lifecycle sub-skills.
+- `workflow-start-task`: initialize planning for selected task and attach plan artifact.
+- `workflow-awaiting-human`: raise structured questionnaire payload when blocked.
+- `workflow-verify-commit-pr`: run verify, commit, and open PR deterministically.
+
+## Deterministic helper scripts
+- `scripts/next-task-id.ps1`: suggest next `T-#####` id from current task data.
+- `scripts/create-pr.ps1`: run verify and create PR through `gh pr create`.
+
 ## Reliability and safety requirements
 - Read required inputs first (title, status, dependencies, due date, tags).
 - Validate dependency IDs exist before submit.

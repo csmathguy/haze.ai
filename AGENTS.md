@@ -45,6 +45,9 @@ Run these at repo root:
 ## Agent collaboration rules
 - Keep task decomposition in `apps/backend/data/tasks/tasks.json` using dependency links and tags.
 - Keep discovery and open questions in task `metadata.discoveryQuestions` on the related task record.
+- Move tasks through lifecycle statuses explicitly: `ready -> planning -> implementing -> review -> verification -> done`.
+- Use `awaiting_human` whenever required user input blocks progress; include `metadata.awaitingHumanArtifact`.
+- Attach stage artifacts during handoffs: `planningArtifact`, `reviewArtifact`, `verificationArtifact`, `doneArtifact`.
 - Each agent PR/change must include:
   - scope and assumptions,
   - tests added/updated,
