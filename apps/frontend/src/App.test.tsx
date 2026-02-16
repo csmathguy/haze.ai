@@ -41,6 +41,7 @@ function installFetchMock(
     }
   ]
 ) {
+  const taskStore = tasks.map((task) => ({ ...task })) as Array<Record<string, unknown>>;
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -70,8 +71,26 @@ function installFetchMock(
 
     if (url === "/api/tasks" && method === "GET") {
       return mockJsonResponse({
-        records: tasks
+        records: taskStore
       });
+    }
+
+    if (url.startsWith("/api/tasks/") && method === "PATCH") {
+      const taskId = url.split("/").pop();
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        status?: string;
+        metadata?: Record<string, unknown>;
+      };
+      const index = taskStore.findIndex((task) => String(task.id) === taskId);
+      if (index === -1) {
+        return mockJsonResponse({}, false);
+      }
+      taskStore[index] = {
+        ...taskStore[index],
+        status: body.status ?? taskStore[index].status,
+        metadata: body.metadata ?? taskStore[index].metadata
+      };
+      return mockJsonResponse({ record: taskStore[index] });
     }
 
     if (url === "/api/orchestrator/wake" && method === "POST") {
@@ -228,5 +247,50 @@ describe("App", () => {
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     expect(screen.getByText(/use later window/i)).toBeInTheDocument();
+  });
+
+  test("allows human to update task status from detail drawer", async () => {
+    const fetchMock = installFetchMock([
+      {
+        id: "t3",
+        title: "Needs human update",
+        description: "Move status after human review",
+        priority: 3,
+        status: "awaiting_human",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/needs human update/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /needs human update/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/task details/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/update status/i), {
+      target: { value: "backlog" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save status change/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/t3",
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
   });
 });

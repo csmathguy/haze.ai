@@ -8,15 +8,7 @@ export interface TaskRecord {
   title: string;
   description: string;
   priority: number;
-  status:
-    | "backlog"
-    | "planning"
-    | "implementing"
-    | "review"
-    | "verification"
-    | "awaiting_human"
-    | "done"
-    | "cancelled";
+  status: TaskStatus;
   dependencies: string[];
   createdAt: string;
   updatedAt: string;
@@ -26,6 +18,16 @@ export interface TaskRecord {
   tags: string[];
   metadata: Record<string, unknown>;
 }
+
+export type TaskStatus =
+  | "backlog"
+  | "planning"
+  | "implementing"
+  | "review"
+  | "verification"
+  | "awaiting_human"
+  | "done"
+  | "cancelled";
 
 export interface AuditEventRecord {
   id: string;
@@ -97,4 +99,24 @@ export async function postJson(
   if (!response.ok) {
     throw new Error(`POST failed for ${path}: ${response.status}`);
   }
+}
+
+export async function patchTask(
+  taskId: string,
+  payload: Partial<Pick<TaskRecord, "status" | "metadata">>
+): Promise<TaskRecord> {
+  const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`PATCH failed for /api/tasks/${taskId}: ${response.status}`);
+  }
+
+  const json = (await response.json()) as { record: TaskRecord };
+  return json.record;
 }
