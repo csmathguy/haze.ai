@@ -1,7 +1,10 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
+import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import HubRounded from "@mui/icons-material/HubRounded";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
 import WindowRounded from "@mui/icons-material/WindowRounded";
 import {
@@ -16,8 +19,8 @@ import {
   Stack,
   Typography
 } from "@mui/material";
-import { alpha, keyframes } from "@mui/material/styles";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
+import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
   fetchStatus,
@@ -28,6 +31,7 @@ import {
   type OrchestratorStatus,
   type TaskRecord
 } from "./api";
+import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
 type ViewName = "dashboard" | "kanban";
@@ -282,7 +286,60 @@ const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
   { status: "cancelled", label: "Cancelled" }
 ];
 
+function MetaPill({
+  icon,
+  label,
+  tone = "neutral",
+  colors
+}: {
+  icon: ReactNode;
+  label: string;
+  tone?: "neutral" | "accent";
+  colors: {
+    bg: string;
+    border: string;
+    text: string;
+    icon: string;
+    accentBg: string;
+    accentBorder: string;
+    accentText: string;
+  };
+}) {
+  return (
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.5,
+        borderRadius: 999,
+        px: 1,
+        py: 0.25,
+        border: `1px solid ${tone === "accent" ? colors.accentBorder : colors.border}`,
+        backgroundColor: tone === "accent" ? colors.accentBg : colors.bg
+      }}
+    >
+      <Box
+        sx={{
+          display: "inline-flex",
+          color: tone === "accent" ? colors.accentText : colors.icon,
+          "& svg": { fontSize: 13 }
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 600, color: tone === "accent" ? colors.accentText : colors.text }}
+      >
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
 function KanbanView() {
+  const { mode } = useColorScheme();
+  const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -370,7 +427,14 @@ function KanbanView() {
           }}
         >
           {columns.map((column) => (
-            <Card key={column.status} sx={{ minWidth: 0 }}>
+            <Card
+              key={column.status}
+              sx={{
+                minWidth: 0,
+                border: `1px solid ${tokens.lane.border}`,
+                backgroundColor: tokens.lane.bg
+              }}
+            >
             <CardContent>
               <Stack spacing={1.5}>
                 <Stack
@@ -381,17 +445,21 @@ function KanbanView() {
                     position: "sticky",
                     top: 0,
                     zIndex: 1,
-                    backgroundColor: "background.paper",
+                    backgroundColor: tokens.lane.headerBg,
                     py: 0.5
                   }}
                 >
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: tokens.lane.title }}>
                     {column.label}
                   </Typography>
                   <Chip
                     size="small"
                     label={tasksByStatus.get(column.status)?.length ?? 0}
-                    color="primary"
+                    sx={{
+                      backgroundColor: tokens.lane.countBg,
+                      color: tokens.lane.countText,
+                      fontWeight: 700
+                    }}
                   />
                 </Stack>
                 <Divider />
@@ -401,41 +469,69 @@ function KanbanView() {
                       key={task.id}
                       variant="outlined"
                       sx={{
-                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.22),
-                        backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.82)
+                        borderColor: tokens.card.border,
+                        backgroundColor: tokens.card.bg,
+                        boxShadow: tokens.card.shadow
                       }}
                     >
                       <CardContent sx={{ "&:last-child": { pb: 2 } }}>
-                        <Stack spacing={0.8}>
-                          <Typography fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                        <Stack spacing={1}>
+                          <Typography
+                            fontWeight={700}
+                            sx={{ lineHeight: 1.3, wordBreak: "break-word", color: tokens.card.title }}
+                          >
                             {task.title}
                           </Typography>
                           {task.description && (
                             <Typography
                               variant="body2"
-                              color="text.secondary"
-                              sx={{ lineHeight: 1.45, wordBreak: "break-word" }}
+                              color={tokens.card.body}
+                              sx={{
+                                lineHeight: 1.5,
+                                wordBreak: "break-word",
+                                display: "-webkit-box",
+                                WebkitBoxOrient: "vertical",
+                                WebkitLineClamp: 4,
+                                overflow: "hidden"
+                              }}
                             >
                               {task.description}
                             </Typography>
                           )}
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Chip size="small" label={`P${task.priority}`} color="secondary" />
-                            <Chip
-                              size="small"
+                            <MetaPill
+                              icon={<FlagRounded />}
+                              label={`P${task.priority}`}
+                              tone="accent"
+                              colors={tokens.meta}
+                            />
+                            <MetaPill
+                              icon={<HubRounded />}
                               label={`deps ${task.dependencies.length}`}
-                              variant="outlined"
+                              colors={tokens.meta}
                             />
                             {task.tags.slice(0, 2).map((tag) => (
-                              <Chip key={tag} size="small" label={tag} variant="outlined" />
+                              <MetaPill
+                                key={tag}
+                                icon={<LocalOfferRounded />}
+                                label={tag}
+                                colors={tokens.meta}
+                              />
                             ))}
+                            {task.tags.length > 2 && (
+                              <MetaPill
+                                icon={<LocalOfferRounded />}
+                                label={`+${task.tags.length - 2}`}
+                                colors={tokens.meta}
+                              />
+                            )}
                           </Stack>
                         </Stack>
                       </CardContent>
                     </Card>
                   ))}
                   {(tasksByStatus.get(column.status) ?? []).length === 0 && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: tokens.lane.empty }}>
                       No tasks in this lane.
                     </Typography>
                   )}
