@@ -40,6 +40,7 @@ Establish a skills-first operating model for Codex in this repository so repeate
 - `scripts/next-task-id.ps1`: suggest next `T-#####` id from current task data.
 - `scripts/start-task-branch.ps1`: create task branch from `main` and patch task workflow branch metadata.
 - `scripts/create-pr.ps1`: run verify and create PR through `gh pr create`.
+- `scripts/finish-task.ps1`: run verify, commit, push, create PR, and transition task to `review` with review/verification artifacts.
 
 ## Reliability and safety requirements
 - Read required inputs first (title, status, dependencies, due date, tags).

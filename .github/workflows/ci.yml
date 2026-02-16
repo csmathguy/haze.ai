@@ -1,4 +1,4 @@
-﻿name: ci
+name: ci
 
 on:
   pull_request:
@@ -7,8 +7,12 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
-  verify:
+  tsc_no_emit:
+    name: tsc --noEmit
     runs-on: ubuntu-latest
 
     steps:
@@ -24,5 +28,190 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify
-        run: npm run verify
+      - name: Typecheck
+        run: npm run typecheck
+
+  eslint:
+    name: eslint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  unit_test:
+    name: unit test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test
+
+  check_circular:
+    name: circular dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Circular dependency check
+        run: npm run check:circular
+
+  code_coverage:
+    name: code coverage
+    runs-on: ubuntu-latest
+    outputs:
+      backend_lines: ${{ steps.coverage_summary.outputs.backend_lines }}
+      frontend_lines: ${{ steps.coverage_summary.outputs.frontend_lines }}
+      combined_lines: ${{ steps.coverage_summary.outputs.combined_lines }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Coverage
+        run: npm run test:coverage
+
+      - name: Summarize coverage
+        id: coverage_summary
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          function readSummary(relativePath) {
+            const filePath = path.resolve(relativePath);
+            const raw = fs.readFileSync(filePath, "utf8");
+            return JSON.parse(raw);
+          }
+
+          const backend = readSummary("apps/backend/coverage/coverage-summary.json").total.lines;
+          const frontend = readSummary("apps/frontend/coverage/coverage-summary.json").total.lines;
+          const combinedPct = Number(
+            (((backend.covered + frontend.covered) / (backend.total + frontend.total)) * 100).toFixed(2)
+          );
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `backend_lines=${backend.pct}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `frontend_lines=${frontend.pct}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `combined_lines=${combinedPct}\n`);
+          NODE
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  coverage_pr_comment:
+    name: coverage comment
+    runs-on: ubuntu-latest
+    needs:
+      - code_coverage
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Upsert coverage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- haze-ci-coverage -->";
+            const status = "${{ needs.code_coverage.result }}" === "success" ? "PASS" : "FAIL";
+            const backend = "${{ needs.code_coverage.outputs.backend_lines }}";
+            const frontend = "${{ needs.code_coverage.outputs.frontend_lines }}";
+            const combined = "${{ needs.code_coverage.outputs.combined_lines }}";
+
+            const body = `${marker}
+            ## CI Coverage Status
+            - Gate result: **${status}**
+            - Backend lines: **${backend}%**
+            - Frontend lines: **${frontend}%**
+            - Combined lines: **${combined}%**
+            - Policy: per-app coverage thresholds must remain >= 60% (lines/functions/branches/statements).`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number
+            });
+            const existing = comments.find((comment) =>
+              comment.user?.type === "Bot" && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+            }

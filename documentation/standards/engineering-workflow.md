@@ -17,7 +17,24 @@ Codify an implementation workflow that keeps coding-agent output verifiable, mai
 - Unit tests: domain logic and service behavior.
 - Integration tests: API and infrastructure boundaries.
 - Build checks: production compile for backend/frontend.
-- CI: same local verify command executed in GitHub Actions.
+- CI:
+  - `ci / tsc --noEmit`: `npm run typecheck`
+  - `ci / eslint`: `npm run lint`
+  - `ci / unit test`: `npm run test`
+  - `ci / circular dependencies`: `npm run check:circular`
+  - `ci / code coverage`: `npm run test:coverage`
+  - `ci / build`: `npm run build`
+  - `ci / coverage comment` (PR only): posts current backend/frontend/combined line coverage to the PR thread.
+
+## Merge gating
+- Branch protection should require these checks:
+  - `ci / tsc --noEmit`
+  - `ci / eslint`
+  - `ci / unit test`
+  - `ci / circular dependencies`
+  - `ci / code coverage`
+  - `ci / build`
+- `ci / coverage comment` is informational and should not be required.
 
 ## Design guardrails
 - Single responsibility per module/service.

@@ -29,10 +29,10 @@ Branch path:
    - `metadata.workflow.baseBranch`
    - `metadata.workflow.branchCreatedAt`
 3. Implement and verify locally (`npm run verify`).
-4. Commit with task reference.
-5. Push branch with `git push origin HEAD`.
-6. Create PR using deterministic command path (see `scripts/create-pr.ps1`).
-7. Move task to `done` only after PR approval and merge (or explicit merge-ready policy).
+4. Finish implementation handoff with deterministic automation:
+   - `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`
+5. Automation must run verify, commit, push, create PR, and transition task to `review` with artifacts.
+6. Move task to `done` only after PR approval and merge (or explicit merge-ready policy).
 
 Mandatory rule:
 - Never implement directly on `main`.

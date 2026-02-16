@@ -32,7 +32,16 @@ if ($Draft) {
   $args += "--draft"
 }
 
-& gh @args
-if ($LASTEXITCODE -ne 0) {
-  throw "gh pr create failed"
+try {
+  & gh @args
+  if ($LASTEXITCODE -ne 0) {
+    throw "gh pr create failed"
+  }
+} catch {
+  # If a PR already exists for this branch, reuse it instead of failing.
+  $existing = & gh pr view $branch --json url --jq ".url" 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $existing) {
+    throw "gh pr create failed"
+  }
+  Write-Output $existing
 }

@@ -6,20 +6,20 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 # Workflow Verify Commit PR
 
 ## Inputs
+- task id
 - commit message
 - PR title
 - optional PR body file path
 
 ## Procedure
-1. Run `npm run verify`.
-2. Stage files with `git add`.
-3. Commit with task-linked message.
-4. Push branch to remote with `git push origin HEAD`.
-5. Run `scripts/create-pr.ps1 -Title "<TITLE>" [-BodyFile <path>]`.
-6. Record PR URL in task metadata review or done artifact.
+1. Run `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`.
+2. Confirm command output includes commit SHA, PR URL, and task status transitioned to `review`.
+3. If automation cannot reach backend API, use `backend-transition-task-status` + `workflow-stage-artifact` as fallback.
 
 ## Guardrails
 - Stop if verification fails.
 - Stop if `git push origin HEAD` fails.
 - Do not open PR with unverified changes.
 - Keep commit scope limited to active task.
+- Never mark `done` from this skill; it should stop at `review`.
+- Update task stage through backend API only (`PATCH /tasks/:id`); do not edit task JSON files directly.
