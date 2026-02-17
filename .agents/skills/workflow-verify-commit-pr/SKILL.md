@@ -14,7 +14,11 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 ## Procedure
 1. Run `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`.
 2. Confirm command output includes commit SHA, PR URL, and task status transitioned to `review`.
-3. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
+3. Confirm task metadata now includes PR link fields for UI surfacing:
+   - `metadata.workflow.pullRequestUrl`
+   - `metadata.workflow.pullRequestNumber` (if parseable)
+   - `metadata.github.prUrl`
+4. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
 
 ## Guardrails
 - Stop if verification fails.

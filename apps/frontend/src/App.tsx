@@ -1,6 +1,9 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
 import AccountTreeRounded from "@mui/icons-material/AccountTreeRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import CodeRounded from "@mui/icons-material/CodeRounded";
+import EditNoteRounded from "@mui/icons-material/EditNoteRounded";
+import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import BlockRounded from "@mui/icons-material/BlockRounded";
@@ -9,9 +12,15 @@ import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import HubRounded from "@mui/icons-material/HubRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
+import ManageSearchRounded from "@mui/icons-material/ManageSearchRounded";
+import RuleRounded from "@mui/icons-material/RuleRounded";
+import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import ViewKanbanRounded from "@mui/icons-material/ViewKanbanRounded";
 import WindowRounded from "@mui/icons-material/WindowRounded";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -26,6 +35,11 @@ import {
   InputLabel,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
   TextField,
   Tooltip,
   Typography
@@ -430,6 +444,63 @@ function getTaskDisplayId(task: TaskRecord): string {
   return task.id;
 }
 
+function formatShortTimestamp(value: string | null): string {
+  if (!value) {
+    return "N/A";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function formatVerboseTimestamp(value: string | null): string {
+  if (!value) {
+    return "N/A";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function DetailSection({
+  title,
+  icon,
+  children,
+  defaultExpanded = false
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+  defaultExpanded?: boolean;
+}) {
+  return (
+    <Accordion disableGutters variant="outlined" defaultExpanded={defaultExpanded}>
+      <AccordionSummary
+        expandIcon={<ExpandMoreRounded />}
+        aria-label={title}
+        sx={{
+          px: 1.5,
+          "& .MuiAccordionSummary-content": { my: 1 }
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Box sx={{ display: "inline-flex", "& svg": { fontSize: 18 } }}>{icon}</Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            {title}
+          </Typography>
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 1.5, pt: 0 }}>{children}</AccordionDetails>
+    </Accordion>
+  );
+}
+
 function KanbanView() {
   const { mode } = useColorScheme();
   const tokens = getKanbanUiTokens(mode === "dark" ? "dark" : "light");
@@ -545,16 +616,66 @@ function KanbanView() {
       selectedAwaitingHumanArtifact?.answers
   );
   const planningGoals = asStringArray(selectedPlanningArtifact?.goals);
-  const planningSteps = asStringArray(selectedPlanningArtifact?.implementationSteps);
+  const planningSteps = asStringArray(
+    selectedPlanningArtifact?.implementationSteps ?? selectedPlanningArtifact?.steps
+  );
+  const selectedAcceptanceCriteria = asStringArray(selectedTask?.metadata.acceptanceCriteria);
   const questionnaireOptions = asStringArray(selectedAwaitingHumanArtifact?.options);
   const selectedTaskDisplayId = selectedTask ? getTaskDisplayId(selectedTask) : "";
   const selectedWorkflowBranch =
     selectedWorkflow && typeof selectedWorkflow.branchName === "string"
       ? selectedWorkflow.branchName
       : null;
+  const selectedWorkflowPullRequest = asRecord(selectedWorkflow?.pullRequest);
+  const selectedGithubMetadata = asRecord(selectedTask?.metadata.github);
+  const selectedPullRequestUrl =
+    asString(selectedWorkflow?.pullRequestUrl) ??
+    asString(selectedWorkflow?.prUrl) ??
+    asString(selectedWorkflowPullRequest?.url) ??
+    asString(selectedWorkflowPullRequest?.link) ??
+    asString(selectedGithubMetadata?.pullRequestUrl) ??
+    asString(selectedGithubMetadata?.prUrl);
+  const selectedPullRequestNumber =
+    asString(selectedWorkflow?.pullRequestNumber) ??
+    asString(selectedWorkflowPullRequest?.number) ??
+    asString(selectedGithubMetadata?.pullRequestNumber);
+  const selectedGithubRepo =
+    asString(selectedWorkflow?.repository) ??
+    asString(selectedWorkflow?.repo) ??
+    asString(selectedGithubMetadata?.repository) ??
+    asString(selectedGithubMetadata?.repo);
   const selectedTaskStatus = selectedTask?.status;
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
+  const timelineRows = selectedTask
+    ? [
+        {
+          label: "Created",
+          shortValue: formatShortTimestamp(selectedTask.createdAt),
+          fullValue: formatVerboseTimestamp(selectedTask.createdAt)
+        },
+        {
+          label: "Updated",
+          shortValue: formatShortTimestamp(selectedTask.updatedAt),
+          fullValue: formatVerboseTimestamp(selectedTask.updatedAt)
+        },
+        {
+          label: "Started",
+          shortValue: formatShortTimestamp(selectedTask.startedAt),
+          fullValue: formatVerboseTimestamp(selectedTask.startedAt)
+        },
+        {
+          label: "Due",
+          shortValue: formatShortTimestamp(selectedTask.dueAt),
+          fullValue: formatVerboseTimestamp(selectedTask.dueAt)
+        },
+        {
+          label: "Completed",
+          shortValue: formatShortTimestamp(selectedTask.completedAt),
+          fullValue: formatVerboseTimestamp(selectedTask.completedAt)
+        }
+      ]
+    : [];
 
   useEffect(() => {
     if (!selectedTaskId || !selectedTaskStatus) {
@@ -852,47 +973,120 @@ function KanbanView() {
         <Box sx={{ width: { xs: "100vw", sm: 460 }, p: 2.5 }}>
           {selectedTask && (
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.5}>
+                <Stack direction="row" spacing={0.5} alignItems="center">
                   {taskDetailStack.length > 1 && (
                     <IconButton
+                      size="small"
                       aria-label="Back to previous task"
                       onClick={navigateBackInTaskDetails}
                     >
                       <ArrowBackRounded />
                     </IconButton>
                   )}
-                  <Typography variant="h6">Task Details</Typography>
+                  <Typography variant="h6">{selectedTask.title}</Typography>
                 </Stack>
-                <IconButton aria-label="Close task details" onClick={closeTaskDetails}>
+                <IconButton
+                  size="small"
+                  aria-label="Close task details"
+                  onClick={closeTaskDetails}
+                  sx={{ mt: -0.25, mr: -0.25 }}
+                >
                   <CloseRounded />
                 </IconButton>
               </Stack>
-              <Divider />
-              <Stack spacing={0.5}>
-                <Typography variant="h6">{selectedTask.title}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ID: {selectedTaskDisplayId}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Status: {selectedTaskStatusLabel}
-                </Typography>
-                {selectedWorkflowBranch && (
-                  <Typography variant="body2" color="text.secondary">
-                    Branch: {selectedWorkflowBranch}
-                  </Typography>
-                )}
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <MetaPill
+                  icon={<HistoryRounded />}
+                  label={`ID ${selectedTaskDisplayId}`}
+                  colors={tokens.meta}
+                  textColor={cardMetaColor}
+                />
+                <MetaPill
+                  icon={<FlagRounded />}
+                  label={selectedTaskStatusLabel}
+                  tone="accent"
+                  colors={tokens.meta}
+                  textColor={cardMetaColor}
+                  tooltip={`Current status: ${selectedTaskStatusLabel}`}
+                />
               </Stack>
 
               {selectedTask.description && (
                 <Typography variant="body2">{selectedTask.description}</Typography>
               )}
 
-              <Divider />
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Task Links
-                </Typography>
+              <DetailSection title="Timeline" icon={<ScheduleRounded />} defaultExpanded>
+                <TableContainer>
+                  <Table size="small" aria-label="Timeline details">
+                    <TableBody>
+                      {timelineRows.map((row) => (
+                        <TableRow key={row.label}>
+                          <TableCell sx={{ fontWeight: 700, width: "40%", borderBottom: 0, px: 0 }}>
+                            {row.label}
+                          </TableCell>
+                          <TableCell sx={{ borderBottom: 0, px: 0 }}>
+                            <Tooltip title={row.fullValue}>
+                              <Box component="span">{row.shortValue}</Box>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </DetailSection>
+
+              <DetailSection title="GitHub" icon={<CodeRounded />} defaultExpanded>
+                <Stack spacing={1}>
+                  <Typography variant="body2">
+                    <strong>Branch:</strong> {selectedWorkflowBranch ?? "N/A"}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Repository:</strong> {selectedGithubRepo ?? "N/A"}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Pull Request:</strong>{" "}
+                    {selectedPullRequestNumber ? `#${selectedPullRequestNumber}` : "N/A"}
+                  </Typography>
+                  {selectedPullRequestUrl ? (
+                    <Button
+                      component="a"
+                      href={selectedPullRequestUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      size="small"
+                      variant="outlined"
+                      sx={{ width: "fit-content" }}
+                    >
+                      View PR
+                    </Button>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      PR link not available yet.
+                    </Typography>
+                  )}
+                </Stack>
+              </DetailSection>
+
+              <DetailSection title="Acceptance Criteria" icon={<RuleRounded />} defaultExpanded>
+                {selectedAcceptanceCriteria.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No acceptance criteria recorded.
+                  </Typography>
+                )}
+                {selectedAcceptanceCriteria.length > 0 && (
+                  <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                    {selectedAcceptanceCriteria.map((criterion) => (
+                      <Typography component="li" key={criterion} variant="body2">
+                        {criterion}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+              </DetailSection>
+
+              <DetailSection title="Task Links" icon={<HubRounded />} defaultExpanded>
                 <Typography variant="body2" color="text.secondary">
                   {selectedTaskDependencies.length > 0
                     ? "Blocked by dependencies."
@@ -950,53 +1144,9 @@ function KanbanView() {
                     );
                   })}
                 </Stack>
-              </Stack>
+              </DetailSection>
 
-              <Divider />
-              <Stack spacing={1.25}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Human Status Update
-                </Typography>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="task-status-select-label">Update status</InputLabel>
-                  <Select
-                    native
-                    labelId="task-status-select-label"
-                    value={selectedStatus}
-                    label="Update status"
-                    onChange={(event) => setSelectedStatus(event.target.value as TaskStatus)}
-                    inputProps={{ "aria-label": "Update status" }}
-                  >
-                    {columns.map((column) => (
-                      <option key={column.status} value={column.status}>
-                        {column.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <TextField
-                  size="small"
-                  label="Transition note (optional)"
-                  value={statusNote}
-                  onChange={(event) => setStatusNote(event.target.value)}
-                  multiline
-                  minRows={2}
-                />
-                <Button
-                  variant="contained"
-                  onClick={() => void handleStatusUpdate()}
-                  disabled={statusUpdating || selectedStatus === selectedTask.status}
-                >
-                  Save Status Change
-                </Button>
-                {statusUpdateError && <Alert severity="error">{statusUpdateError}</Alert>}
-              </Stack>
-
-              <Divider />
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Plan
-                </Typography>
+              <DetailSection title="Plan" icon={<RuleRounded />}>
                 {planningGoals.length === 0 && planningSteps.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
                     No planning artifact recorded.
@@ -1025,13 +1175,9 @@ function KanbanView() {
                     </Box>
                   </>
                 )}
-              </Stack>
+              </DetailSection>
 
-              <Divider />
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Questionnaire
-                </Typography>
+              <DetailSection title="Questionnaire" icon={<ManageSearchRounded />}>
                 {selectedAwaitingHumanArtifact ? (
                   <Stack spacing={1}>
                     {typeof selectedAwaitingHumanArtifact.question === "string" && (
@@ -1062,13 +1208,9 @@ function KanbanView() {
                     No questionnaire state recorded.
                   </Typography>
                 )}
-              </Stack>
+              </DetailSection>
 
-              <Divider />
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Answer Thread
-                </Typography>
+              <DetailSection title="Answer Thread" icon={<HistoryRounded />}>
                 {selectedAnswerThread.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
                     No human answers recorded.
@@ -1079,13 +1221,54 @@ function KanbanView() {
                     <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
                       <Typography variant="caption" color="text.secondary">
                         {entry.actor}
-                        {entry.timestamp ? ` • ${new Date(entry.timestamp).toLocaleString()}` : ""}
+                        {entry.timestamp ? ` | ${new Date(entry.timestamp).toLocaleString()}` : ""}
                       </Typography>
                       <Typography variant="body2">{entry.message}</Typography>
                     </CardContent>
                   </Card>
                 ))}
-              </Stack>
+              </DetailSection>
+
+              <DetailSection title="Actions" icon={<EditNoteRounded />}>
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Human Status Update
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="task-status-select-label">Update status</InputLabel>
+                    <Select
+                      native
+                      labelId="task-status-select-label"
+                      value={selectedStatus}
+                      label="Update status"
+                      onChange={(event) => setSelectedStatus(event.target.value as TaskStatus)}
+                      inputProps={{ "aria-label": "Update status" }}
+                    >
+                      {columns.map((column) => (
+                        <option key={column.status} value={column.status}>
+                          {column.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    size="small"
+                    label="Transition note (optional)"
+                    value={statusNote}
+                    onChange={(event) => setStatusNote(event.target.value)}
+                    multiline
+                    minRows={2}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={() => void handleStatusUpdate()}
+                    disabled={statusUpdating || selectedStatus === selectedTask.status}
+                  >
+                    Save Status Change
+                  </Button>
+                  {statusUpdateError && <Alert severity="error">{statusUpdateError}</Alert>}
+                </Stack>
+              </DetailSection>
             </Stack>
           )}
         </Box>
@@ -1164,3 +1347,4 @@ export function App() {
     </Box>
   );
 }
+
