@@ -98,6 +98,11 @@ function To-StringArray([object]$value) {
   return @("$value")
 }
 
+function Merge-StringArrays([object]$current, [string[]]$additional) {
+  $combined = @((To-StringArray $current) + $additional)
+  return Unique-Strings $combined
+}
+
 function Resolve-ChangeType([object]$task, [string[]]$changedFiles) {
   $tags = @()
   if ($task.tags) {
@@ -256,6 +261,24 @@ function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifa
 
   $metadata.reviewArtifact = $artifacts.reviewArtifact
   $metadata.verificationArtifact = $artifacts.verificationArtifact
+  $testingArtifacts = Copy-Metadata $metadata.testingArtifacts
+  $testingPlanned = Copy-Metadata $testingArtifacts.planned
+  $testingImplemented = Copy-Metadata $testingArtifacts.implemented
+
+  $testingImplemented.testsAddedOrUpdated = Merge-StringArrays `
+    -current $testingImplemented.testsAddedOrUpdated `
+    -additional @($artifacts.reviewArtifact.filesTouched)
+  $testingImplemented.commandsRun = Merge-StringArrays `
+    -current $testingImplemented.commandsRun `
+    -additional @($artifacts.verificationArtifact.commands)
+  if (-not $testingImplemented.notes) {
+    $testingImplemented.notes = "Captured during finish-task verification handoff."
+  }
+
+  $testingArtifacts.schemaVersion = "1.0"
+  $testingArtifacts.planned = $testingPlanned
+  $testingArtifacts.implemented = $testingImplemented
+  $metadata.testingArtifacts = $testingArtifacts
 
   # Step 1: persist metadata artifacts first so transition validation can read them.
   $metadataPatchBody = @{

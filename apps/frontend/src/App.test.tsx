@@ -253,6 +253,21 @@ describe("App", () => {
             goals: ["Show detailed panel"],
             steps: ["Render planning section"]
           },
+          testingArtifacts: {
+            schemaVersion: "1.0",
+            planned: {
+              gherkinScenarios: ["Given X, When Y, Then Z"],
+              unitTestIntent: ["Cover scenario edge case"],
+              integrationTestIntent: ["Validate end-to-end transition behavior"],
+              notes: "Initial planning draft"
+            },
+            implemented: {
+              testsAddedOrUpdated: ["apps/frontend/src/App.test.tsx"],
+              evidenceLinks: ["https://example.com/test-run/123"],
+              commandsRun: ["npm run test --workspace apps/frontend -- App.test.tsx"],
+              notes: "Implemented and validated"
+            }
+          },
           acceptanceCriteria: [
             "Task detail panel shows acceptance criteria",
             "Task detail panel surfaces timeline metadata"
@@ -311,6 +326,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /plan/i }));
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
     expect(screen.getByText(/render planning section/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /testing traceability/i }));
+    expect(screen.getByText(/given x, when y, then z/i)).toBeInTheDocument();
+    expect(screen.getByText(/apps\/frontend\/src\/app\.test\.tsx/i)).toBeInTheDocument();
+    expect(screen.getByText(/planned items/i)).toBeInTheDocument();
+    expect(screen.getByText(/implemented evidence/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /questionnaire/i }));
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));
