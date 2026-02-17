@@ -170,9 +170,30 @@ export class TaskWorkflowService {
 
   async create(input: CreateTaskInput): Promise<TaskRecord> {
     const now = this.now().toISOString();
+    const normalizedTitle = this.normalizeTitle(input.title);
+    const duplicate = this.findDuplicateByTitle(normalizedTitle);
+    if (duplicate) {
+      const previousPriority = duplicate.priority;
+      duplicate.priority = Math.min(5, duplicate.priority + 1);
+      duplicate.updatedAt = now;
+
+      await this.commitChange();
+      await this.audit.record({
+        eventType: "task_duplicate_detected",
+        actor: "task_workflow",
+        payload: {
+          taskId: duplicate.id,
+          previousPriority,
+          nextPriority: duplicate.priority
+        }
+      });
+
+      return this.cloneTask(duplicate);
+    }
+
     const task: TaskRecord = {
       id: randomUUID(),
-      title: this.normalizeTitle(input.title),
+      title: normalizedTitle,
       description: input.description?.trim() ?? "",
       priority: this.normalizePriority(input.priority),
       status: "backlog",
@@ -421,6 +442,27 @@ export class TaskWorkflowService {
       default:
         throw new TaskServiceError(`Invalid task status: ${String(status)}`, 400);
     }
+  }
+
+  private findDuplicateByTitle(title: string): TaskRecord | undefined {
+    const normalizedInput = this.normalizeDuplicateTitle(title);
+    const matches = [...this.tasks.values()].filter(
+      (task) => this.normalizeDuplicateTitle(task.title) === normalizedInput
+    );
+    if (matches.length === 0) {
+      return undefined;
+    }
+
+    return matches.sort((a, b) => {
+      if (a.createdAt !== b.createdAt) {
+        return a.createdAt.localeCompare(b.createdAt);
+      }
+      return a.id.localeCompare(b.id);
+    })[0];
+  }
+
+  private normalizeDuplicateTitle(title: string): string {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   }
 
   private shouldAssignCanonicalTaskId(metadata: Record<string, unknown> | undefined): boolean {
