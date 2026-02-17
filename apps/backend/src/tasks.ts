@@ -744,6 +744,14 @@ export class TaskWorkflowService {
           nextActionCount: nextActions.length,
           blockingReasonCount: blockingReasons.length
         });
+        await this.executeNextActions(
+          task.id,
+          runtime,
+          nextActions,
+          step.phase,
+          step.status,
+          transitionAt
+        );
       } catch (error) {
         runtime.actionHistory.push({
           at: transitionAt,
@@ -755,21 +763,46 @@ export class TaskWorkflowService {
           error: error instanceof Error ? error.message : String(error)
         });
       }
-
-      await this.executeNextActions(runtime, step.phase, step.status, transitionAt);
     }
 
     task.metadata = metadata;
   }
 
   private async executeNextActions(
+    taskId: string,
     runtime: WorkflowRuntimeState,
+    actions: WorkflowNextAction[],
     phase: "onEnter" | "onExit",
     status: TaskStatus,
     transitionAt: string
   ): Promise<void> {
-    for (const action of runtime.nextActions) {
+    for (const action of actions) {
+      if (this.wasActionHandled(runtime, action.id, phase, status)) {
+        continue;
+      }
+
       if (!this.isCommandAction(action)) {
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase,
+          status,
+          result: "ok",
+          nextActionCount: 0,
+          blockingReasonCount: 0,
+          actionId: action.id,
+          actionType: action.type
+        });
+        await this.audit.record({
+          eventType: "task_action_scheduled",
+          actor: "task_workflow",
+          payload: {
+            taskId,
+            actionId: action.id,
+            actionType: action.type,
+            phase,
+            status
+          }
+        });
         continue;
       }
 
@@ -789,6 +822,18 @@ export class TaskWorkflowService {
           actionId,
           actionType: action.type,
           error: "command_not_allowed"
+        });
+        await this.audit.record({
+          eventType: "task_action_blocked",
+          actor: "task_workflow",
+          payload: {
+            taskId,
+            actionId,
+            actionType: action.type,
+            phase,
+            status,
+            reason: "COMMAND_NOT_ALLOWED"
+          }
         });
         continue;
       }
@@ -815,6 +860,18 @@ export class TaskWorkflowService {
             actionType: action.type,
             error: `exit_code_${result.exitCode}`
           });
+          await this.audit.record({
+            eventType: "task_action_failed",
+            actor: "task_workflow",
+            payload: {
+              taskId,
+              actionId,
+              actionType: action.type,
+              phase,
+              status,
+              reason: `exit_code_${result.exitCode}`
+            }
+          });
           continue;
         }
 
@@ -827,6 +884,17 @@ export class TaskWorkflowService {
           blockingReasonCount: 0,
           actionId,
           actionType: action.type
+        });
+        await this.audit.record({
+          eventType: "task_action_executed",
+          actor: "task_workflow",
+          payload: {
+            taskId,
+            actionId,
+            actionType: action.type,
+            phase,
+            status
+          }
         });
       } catch (error) {
         runtime.blockingReasons.push({
@@ -844,8 +912,31 @@ export class TaskWorkflowService {
           actionType: action.type,
           error: error instanceof Error ? error.message : String(error)
         });
+        await this.audit.record({
+          eventType: "task_action_failed",
+          actor: "task_workflow",
+          payload: {
+            taskId,
+            actionId,
+            actionType: action.type,
+            phase,
+            status,
+            reason: error instanceof Error ? error.message : String(error)
+          }
+        });
       }
     }
+  }
+
+  private wasActionHandled(
+    runtime: WorkflowRuntimeState,
+    actionId: string,
+    phase: "onEnter" | "onExit",
+    status: TaskStatus
+  ): boolean {
+    return runtime.actionHistory.some(
+      (entry) => entry.actionId === actionId && entry.phase === phase && entry.status === status
+    );
   }
 
   private isCommandAction(

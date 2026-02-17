@@ -397,7 +397,7 @@ describe("TaskWorkflowService", () => {
     expect(lastTransition.to).toBe("planning");
     expect(nextActions).toHaveLength(1);
     expect(blockingReasons).toHaveLength(1);
-    expect(actionHistory).toHaveLength(2);
+    expect(actionHistory).toHaveLength(3);
   });
 
   test("blocks invalid status transitions with deterministic code and runtime reason", async () => {
@@ -539,6 +539,70 @@ describe("TaskWorkflowService", () => {
     expect(nextActions.some((action) => action.id === "manual-review" && action.type === "skill")).toBe(
       true
     );
+  });
+
+  test("schedules skill actions as first-class next actions and audits scheduling", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const commandExecutor = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: ""
+    }));
+    const service = new TaskWorkflowService(audit, {
+      random: () => 0,
+      commandExecutor
+    });
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => ({
+            nextActions: [{ id: "manual-review", type: "skill", skill: "workflow-stage-artifact" }]
+          })
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Skill action task" });
+    const updated = await service.update(task.id, { status: "planning" });
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
+
+    expect(commandExecutor).not.toHaveBeenCalled();
+    expect(
+      actionHistory.some(
+        (entry) => entry.actionId === "manual-review" && entry.actionType === "skill"
+      )
+    ).toBe(true);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "task_action_scheduled" })
+    );
+  });
+
+  test("dedupes duplicate action ids emitted in one transition context", async () => {
+    const commandExecutor = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: ""
+    }));
+    const service = buildService(() => 0, { commandExecutor });
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => ({
+            nextActions: [
+              { id: "dup", type: "command", command: "npm", args: ["run", "verify"] },
+              { id: "dup", type: "command", command: "npm", args: ["run", "verify"] }
+            ]
+          })
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Duplicate action id task" });
+    await service.update(task.id, { status: "planning" });
+    expect(commandExecutor).toHaveBeenCalledTimes(1);
   });
 });
 
