@@ -873,7 +873,9 @@ function KanbanView() {
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
         <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 260 } }}>
-          <InputLabel id="kanban-filter-tag-label">Filter by tag</InputLabel>
+          <InputLabel id="kanban-filter-tag-label" shrink>
+            Filter by tag
+          </InputLabel>
           <Select
             native
             labelId="kanban-filter-tag-label"
