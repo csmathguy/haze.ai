@@ -145,6 +145,76 @@ describe("TaskWorkflowService", () => {
     expect(review.completedAt).toBeNull();
   });
 
+  test("assigns canonicalTaskId on create and increments deterministically", async () => {
+    const service = buildService();
+
+    const first = await service.create({ title: "First task" });
+    const second = await service.create({
+      title: "Second task",
+      metadata: { canonicalTaskId: "invalid" }
+    });
+
+    expect(first.metadata.canonicalTaskId).toBe("T-00001");
+    expect(second.metadata.canonicalTaskId).toBe("T-00002");
+  });
+
+  test("preserves canonicalTaskId when metadata is updated", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Task with canonical id" });
+
+    expect(task.metadata.canonicalTaskId).toBe("T-00001");
+
+    const updated = await service.update(task.id, {
+      metadata: { source: "manual", canonicalTaskId: "bad-value" }
+    });
+
+    expect(updated.metadata.canonicalTaskId).toBe("T-00001");
+  });
+
+  test("backfills canonicalTaskId for legacy loaded tasks", () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+
+    const service = new TaskWorkflowService(audit, {
+      initialTasks: [
+        {
+          id: "legacy-1",
+          title: "Legacy 1",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
+        },
+        {
+          id: "legacy-2",
+          title: "Legacy 2",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:01:00.000Z",
+          updatedAt: "2026-02-16T00:01:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: { canonicalTaskId: "T-00005" }
+        }
+      ]
+    });
+
+    expect(service.get("legacy-1").metadata.canonicalTaskId).toBe("T-00001");
+    expect(service.get("legacy-2").metadata.canonicalTaskId).toBe("T-00005");
+  });
+
   test("normalizes legacy statuses when loading existing records", () => {
     const audit = {
       record: vi.fn(async () => {})

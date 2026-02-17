@@ -20,6 +20,7 @@ const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
   "verification",
   "awaiting_human"
 ]);
+const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
 
 export interface TaskRecord {
   id: string;
@@ -133,7 +134,11 @@ export class TaskWorkflowService {
     this.tasks.clear();
 
     for (const record of records) {
-      this.tasks.set(record.id, this.cloneTask(record));
+      const next = this.cloneTask(record);
+      if (this.shouldAssignCanonicalTaskId(next.metadata)) {
+        next.metadata = this.ensureCanonicalTaskId(next.metadata, next.id);
+      }
+      this.tasks.set(next.id, next);
     }
 
     if (this.hasAnyCycle()) {
@@ -178,7 +183,9 @@ export class TaskWorkflowService {
       completedAt: null,
       dueAt: input.dueAt ?? null,
       tags: this.normalizeTags(input.tags),
-      metadata: input.metadata ?? {}
+      metadata: this.shouldAssignCanonicalTaskId(input.metadata)
+        ? this.ensureCanonicalTaskId(input.metadata, null)
+        : input.metadata ?? {}
     };
 
     this.ensureDependenciesExist(task.dependencies);
@@ -254,7 +261,15 @@ export class TaskWorkflowService {
     }
 
     if (input.metadata !== undefined) {
-      existing.metadata = input.metadata;
+      if (this.shouldAssignCanonicalTaskId(existing.metadata)) {
+        existing.metadata = this.ensureCanonicalTaskId(
+          input.metadata,
+          existing.id,
+          existing.metadata
+        );
+      } else {
+        existing.metadata = input.metadata;
+      }
     }
 
     existing.updatedAt = this.now().toISOString();
@@ -406,6 +421,65 @@ export class TaskWorkflowService {
       default:
         throw new TaskServiceError(`Invalid task status: ${String(status)}`, 400);
     }
+  }
+
+  private shouldAssignCanonicalTaskId(metadata: Record<string, unknown> | undefined): boolean {
+    return metadata?.source !== "documentation";
+  }
+
+  private ensureCanonicalTaskId(
+    metadata: Record<string, unknown> | undefined,
+    taskId: string | null,
+    existingMetadata?: Record<string, unknown>
+  ): Record<string, unknown> {
+    const nextMetadata = { ...(metadata ?? {}) };
+    const currentCanonical = this.getCanonicalTaskId(existingMetadata ?? nextMetadata, taskId);
+    if (currentCanonical) {
+      nextMetadata.canonicalTaskId = currentCanonical;
+      return nextMetadata;
+    }
+
+    nextMetadata.canonicalTaskId = this.generateNextCanonicalTaskId();
+    return nextMetadata;
+  }
+
+  private getCanonicalTaskId(
+    metadata: Record<string, unknown> | undefined,
+    taskId: string | null
+  ): string | null {
+    const metadataCandidate = metadata?.canonicalTaskId;
+    if (
+      typeof metadataCandidate === "string" &&
+      CANONICAL_TASK_ID_PATTERN.test(metadataCandidate)
+    ) {
+      return metadataCandidate;
+    }
+
+    if (taskId && CANONICAL_TASK_ID_PATTERN.test(taskId)) {
+      return taskId;
+    }
+
+    return null;
+  }
+
+  private generateNextCanonicalTaskId(): string {
+    let max = 0;
+
+    for (const task of this.tasks.values()) {
+      const match = this.getCanonicalTaskId(task.metadata, task.id)?.match(
+        CANONICAL_TASK_ID_PATTERN
+      );
+      if (!match) {
+        continue;
+      }
+
+      const current = Number.parseInt(match[1], 10);
+      if (current > max) {
+        max = current;
+      }
+    }
+
+    return `T-${String(max + 1).padStart(5, "0")}`;
   }
 
   private ensureDependenciesExist(dependencies: string[]): void {
