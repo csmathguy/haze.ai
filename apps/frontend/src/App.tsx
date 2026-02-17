@@ -785,6 +785,11 @@ function KanbanView() {
     plannedGherkinScenarios.length + plannedUnitTestIntent.length + plannedIntegrationTestIntent.length;
   const implementedTestingItemCount =
     implementedTests.length + implementedEvidenceLinks.length + implementedCommandsRun.length;
+  const selectedRetrospectives = Array.isArray(selectedTask?.metadata.retrospectives)
+    ? selectedTask.metadata.retrospectives
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null)
+    : [];
   const timelineRows = selectedTask
     ? [
         {
@@ -1477,6 +1482,62 @@ function KanbanView() {
                   {implementedTestingNotes && (
                     <Typography variant="body2">Implementation notes: {implementedTestingNotes}</Typography>
                   )}
+                </Stack>
+              </DetailSection>
+
+              <DetailSection title="Retrospectives" icon={<ManageSearchRounded />}>
+                {selectedRetrospectives.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No retrospectives recorded.
+                  </Typography>
+                )}
+                <Stack spacing={1}>
+                  {selectedRetrospectives.map((entry, index) => {
+                    const scope = asString(entry.scope) ?? "Retrospective";
+                    const createdAt = asString(entry.createdAt);
+                    const wentWell = asStringArray(entry.wentWell);
+                    const didNotGoWell = asStringArray(entry.didNotGoWell);
+                    const couldBeBetter = asStringArray(entry.couldBeBetter);
+                    return (
+                      <Card key={`retrospective-${index}`} variant="outlined">
+                        <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {scope}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {createdAt ? new Date(createdAt).toLocaleString() : "Timestamp unavailable"}
+                          </Typography>
+                          {wentWell.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {wentWell.map((item) => (
+                                <Typography component="li" key={`retrospective-good-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                          {didNotGoWell.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {didNotGoWell.map((item) => (
+                                <Typography component="li" key={`retrospective-bad-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                          {couldBeBetter.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {couldBeBetter.map((item) => (
+                                <Typography component="li" key={`retrospective-better-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </Stack>
               </DetailSection>
 

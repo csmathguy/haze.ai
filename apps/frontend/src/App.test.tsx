@@ -284,6 +284,20 @@ describe("App", () => {
               answer: "Use later window",
               timestamp: "2026-02-16T12:00:00.000Z"
             }
+          ],
+          retrospectives: [
+            {
+              createdAt: "2026-02-17T00:00:00.000Z",
+              scope: "Context checkpoint",
+              wentWell: ["Testing loop stayed tight"],
+              didNotGoWell: ["Some duplicate reads happened"],
+              couldBeBetter: ["Batch exploratory reads earlier"],
+              missingSkills: [],
+              missingDataPoints: [],
+              efficiencyNotes: [],
+              actionItems: [],
+              sources: []
+            }
           ]
         }
       }
@@ -331,6 +345,9 @@ describe("App", () => {
     expect(screen.getByText(/apps\/frontend\/src\/app\.test\.tsx/i)).toBeInTheDocument();
     expect(screen.getByText(/planned items/i)).toBeInTheDocument();
     expect(screen.getByText(/implemented evidence/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retrospectives/i }));
+    expect(screen.getByText(/context checkpoint/i)).toBeInTheDocument();
+    expect(screen.getByText(/testing loop stayed tight/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /questionnaire/i }));
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));

@@ -687,5 +687,60 @@ describe("TaskWorkflowService", () => {
       onExitCount: 0
     });
   });
+
+  test("records retrospective artifact and emits audit event", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const service = new TaskWorkflowService(audit, { random: () => 0 });
+    const task = await service.create({ title: "Retrospective target task" });
+
+    const updated = await service.recordRetrospective(task.id, {
+      scope: "Context window checkpoint",
+      wentWell: ["Verification discipline stayed consistent"],
+      didNotGoWell: ["Some redundant test reruns occurred"],
+      couldBeBetter: ["Batch related checks earlier"],
+      missingSkills: ["Dedicated retrospective skill"],
+      missingDataPoints: ["Per-step token/time budget snapshots"],
+      efficiencyNotes: ["Prefer grouped reads before edits"],
+      actionItems: [
+        {
+          title: "Add retrospective skill",
+          owner: "agent",
+          priority: "low",
+          notes: "Create deterministic template workflow"
+        }
+      ],
+      sources: ["https://www.scrum.org/resources/what-is-a-sprint-retrospective"]
+    });
+
+    const latest = (updated.metadata.latestRetrospective as Record<string, unknown>) ?? {};
+    expect(latest.scope).toBe("Context window checkpoint");
+    expect(updated.metadata.retrospectives).toBeDefined();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "task_retrospective_recorded" })
+    );
+  });
+
+  test("rejects retrospective with no insight content", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Retrospective validation task" });
+
+    await expect(
+      service.recordRetrospective(task.id, {
+        scope: "Context checkpoint",
+        wentWell: [],
+        didNotGoWell: [],
+        couldBeBetter: [],
+        missingSkills: [],
+        missingDataPoints: [],
+        efficiencyNotes: [],
+        actionItems: [],
+        sources: []
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400
+    });
+  });
 });
 
