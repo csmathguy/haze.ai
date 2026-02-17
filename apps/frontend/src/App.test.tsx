@@ -181,6 +181,20 @@ describe("App", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
   });
 
+  test("uses full-width shell container for large displays", async () => {
+    installFetchMock();
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText(/haze agent monitor/i)).toBeInTheDocument();
+    });
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell.className).toContain("MuiContainer-disableGutters");
+    expect(shell.className).not.toContain("MuiContainer-maxWidthXl");
+  });
+
   test("wakes orchestrator from dashboard action", async () => {
     const fetchMock = installFetchMock();
 
