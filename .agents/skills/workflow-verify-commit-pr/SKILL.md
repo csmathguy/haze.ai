@@ -14,7 +14,7 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 ## Procedure
 1. Run `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`.
 2. Confirm command output includes commit SHA, PR URL, and task status transitioned to `review`.
-3. If automation cannot reach backend API, use `backend-transition-task-status` + `workflow-stage-artifact` as fallback.
+3. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
 
 ## Guardrails
 - Stop if verification fails.
@@ -23,3 +23,4 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 - Keep commit scope limited to active task.
 - Never mark `done` from this skill; it should stop at `review`.
 - Update task stage through backend API only (`PATCH /tasks/:id`); do not edit task JSON files directly.
+- Treat `scripts/finish-task.ps1` as the single deterministic completion path for this repository workflow.

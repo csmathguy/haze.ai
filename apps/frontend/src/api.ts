@@ -10,6 +10,7 @@ export interface TaskRecord {
   priority: number;
   status: TaskStatus;
   dependencies: string[];
+  dependents?: string[];
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;

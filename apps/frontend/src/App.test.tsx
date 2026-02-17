@@ -140,7 +140,8 @@ describe("App", () => {
       expect(screen.getByText(/implement queue/i)).toBeInTheDocument();
     });
     expect(screen.getByText("P5")).toBeInTheDocument();
-    expect(screen.getByText(/deps 0/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/dependencies: 0/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/dependents: 0/i)).toBeInTheDocument();
     expect(screen.getByText(/id t1/i)).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
@@ -328,5 +329,81 @@ describe("App", () => {
     expect(card).toBeTruthy();
     expect(card).toHaveAttribute("data-card-fixed", "true");
     expect(card).toHaveStyle({ height: "196px" });
+  });
+
+  test("shows dependency links in task details and supports related-task back navigation", async () => {
+    installFetchMock([
+      {
+        id: "parent-1",
+        title: "Parent dependency task",
+        description: "Must complete before child",
+        priority: 4,
+        status: "backlog",
+        dependencies: [],
+        dependents: ["child-1"],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      },
+      {
+        id: "child-1",
+        title: "Child blocked task",
+        description: "Blocked until parent is done",
+        priority: 3,
+        status: "backlog",
+        dependencies: ["parent-1"],
+        dependents: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/child blocked task/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText(/blocked by dependencies/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /child blocked task/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/task links/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/blocked by dependencies/i)).toBeInTheDocument();
+    expect(screen.getByText(/dependencies \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/dependents \(0\)/i)).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /open related task parent-1 - parent dependency task/i
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 6, name: /parent dependency task/i })
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/dependents \(1\)/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/back to previous task/i));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 6, name: /child blocked task/i })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/dependencies \(1\)/i)).toBeInTheDocument();
+    });
   });
 });

@@ -85,6 +85,39 @@ describe("TaskWorkflowService", () => {
     expect(tieOne.id).not.toBe(selected?.id);
   });
 
+  test("prefers tasks with more dependents after priority tie", async () => {
+    const service = buildService(() => 0.9);
+
+    const parentA = await service.create({ title: "Parent A", priority: 5 });
+    const parentB = await service.create({ title: "Parent B", priority: 5 });
+    await service.create({ title: "Parent C", priority: 5 });
+    await service.create({ title: "Child A1", dependencies: [parentA.id], priority: 1 });
+    await service.create({ title: "Child A2", dependencies: [parentA.id], priority: 1 });
+    await service.create({ title: "Child B1", dependencies: [parentB.id], priority: 1 });
+
+    const selected = await service.claimNextTask();
+    expect(selected?.id).toBe(parentA.id);
+    expect(selected?.status).toBe("planning");
+  });
+
+  test("computes dependents as a read-only reverse view", async () => {
+    const service = buildService();
+
+    const parent = await service.create({ title: "Parent task" });
+    const child = await service.create({
+      title: "Child task",
+      dependencies: [parent.id]
+    });
+
+    const parentWithDependents = service.getWithDependents(parent.id);
+    expect(parentWithDependents.dependents).toEqual([child.id]);
+
+    const childWithDependents = service.getWithDependents(child.id);
+    expect(childWithDependents.dependents).toEqual([]);
+
+    expect(service.get(parent.id).dependencies).toEqual([]);
+  });
+
   test("returns null when no eligible task exists", async () => {
     const service = buildService();
 

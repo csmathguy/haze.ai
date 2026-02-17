@@ -1,6 +1,9 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
+import AccountTreeRounded from "@mui/icons-material/AccountTreeRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
+import BlockRounded from "@mui/icons-material/BlockRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
@@ -24,6 +27,7 @@ import {
   Select,
   Stack,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material";
 import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
@@ -299,7 +303,9 @@ function MetaPill({
   label,
   tone = "neutral",
   colors,
-  textColor
+  textColor,
+  tooltip,
+  ariaLabel
 }: {
   icon: ReactNode;
   label: string;
@@ -314,9 +320,12 @@ function MetaPill({
     accentText: string;
   };
   textColor: string;
+  tooltip?: string;
+  ariaLabel?: string;
 }) {
-  return (
+  const content = (
     <Box
+      aria-label={ariaLabel}
       sx={{
         display: "inline-flex",
         alignItems: "center",
@@ -348,6 +357,12 @@ function MetaPill({
       </Typography>
     </Box>
   );
+
+  if (!tooltip) {
+    return content;
+  }
+
+  return <Tooltip title={tooltip}>{content}</Tooltip>;
 }
 
 type DetailAnswer = {
@@ -425,7 +440,7 @@ function KanbanView() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskDetailStack, setTaskDetailStack] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>("backlog");
   const [statusNote, setStatusNote] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -452,6 +467,27 @@ function KanbanView() {
 
     return () => clearInterval(timer);
   }, []);
+
+  const selectedTaskId = taskDetailStack.length > 0 ? taskDetailStack[taskDetailStack.length - 1] : null;
+
+  const openTaskDetails = (taskId: string): void => {
+    setTaskDetailStack((previous) => {
+      if (previous[previous.length - 1] === taskId) {
+        return previous;
+      }
+      return [...previous, taskId];
+    });
+  };
+
+  const closeTaskDetails = (): void => {
+    setTaskDetailStack([]);
+  };
+
+  const navigateBackInTaskDetails = (): void => {
+    setTaskDetailStack((previous) =>
+      previous.length > 1 ? previous.slice(0, previous.length - 1) : previous
+    );
+  };
 
   const tasksByStatus = useMemo(() => {
     const grouped = new Map<TaskRecord["status"], TaskRecord[]>();
@@ -480,13 +516,19 @@ function KanbanView() {
     [selectedTaskId, tasks]
   );
 
+  const tasksById = useMemo(
+    () => new Map(tasks.map((task) => [task.id, task])),
+    [tasks]
+  );
+
   useEffect(() => {
     if (!selectedTaskId) {
       return;
     }
 
-    if (!tasks.some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(null);
+    const validTaskIds = new Set(tasks.map((task) => task.id));
+    if (!validTaskIds.has(selectedTaskId)) {
+      setTaskDetailStack((previous) => previous.filter((taskId) => validTaskIds.has(taskId)));
     }
   }, [selectedTaskId, tasks]);
 
@@ -511,6 +553,8 @@ function KanbanView() {
       ? selectedWorkflow.branchName
       : null;
   const selectedTaskStatus = selectedTask?.status;
+  const selectedTaskDependencies = selectedTask?.dependencies ?? [];
+  const selectedTaskDependents = selectedTask?.dependents ?? [];
 
   useEffect(() => {
     if (!selectedTaskId || !selectedTaskStatus) {
@@ -670,7 +714,7 @@ function KanbanView() {
                             fontWeight={700}
                             component="button"
                             type="button"
-                            onClick={() => setSelectedTaskId(task.id)}
+                            onClick={() => openTaskDetails(task.id)}
                             sx={{
                               appearance: "none",
                               background: "transparent",
@@ -730,10 +774,41 @@ function KanbanView() {
                             />
                             <MetaPill
                               icon={<HubRounded />}
-                              label={`deps ${task.dependencies.length}`}
+                              label={`${task.dependencies.length}`}
                               colors={tokens.meta}
                               textColor={cardMetaColor}
+                              tooltip="Dependencies"
+                              ariaLabel={`Dependencies: ${task.dependencies.length}`}
                             />
+                            <MetaPill
+                              icon={<AccountTreeRounded />}
+                              label={`${(task.dependents ?? []).length}`}
+                              colors={tokens.meta}
+                              textColor={cardMetaColor}
+                              tooltip="Dependents"
+                              ariaLabel={`Dependents: ${(task.dependents ?? []).length}`}
+                            />
+                            {task.dependencies.length > 0 && (
+                              <Tooltip title="Blocked by dependencies">
+                                <Box
+                                  aria-label="Blocked by dependencies"
+                                  sx={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderRadius: 999,
+                                    px: 0.75,
+                                    py: 0.25,
+                                    border: "1px solid #f48c8c",
+                                    backgroundColor: "rgba(191, 47, 47, 0.2)",
+                                    color: "#ffb3b3",
+                                    "& svg": { fontSize: 13 }
+                                  }}
+                                >
+                                  <BlockRounded />
+                                </Box>
+                              </Tooltip>
+                            )}
                             {task.tags.slice(0, 2).map((tag) => (
                               <MetaPill
                                 key={tag}
@@ -772,14 +847,24 @@ function KanbanView() {
       <Drawer
         anchor="right"
         open={Boolean(selectedTask)}
-        onClose={() => setSelectedTaskId(null)}
+        onClose={closeTaskDetails}
       >
         <Box sx={{ width: { xs: "100vw", sm: 460 }, p: 2.5 }}>
           {selectedTask && (
             <Stack spacing={2}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">Task Details</Typography>
-                <IconButton aria-label="Close task details" onClick={() => setSelectedTaskId(null)}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {taskDetailStack.length > 1 && (
+                    <IconButton
+                      aria-label="Back to previous task"
+                      onClick={navigateBackInTaskDetails}
+                    >
+                      <ArrowBackRounded />
+                    </IconButton>
+                  )}
+                  <Typography variant="h6">Task Details</Typography>
+                </Stack>
+                <IconButton aria-label="Close task details" onClick={closeTaskDetails}>
                   <CloseRounded />
                 </IconButton>
               </Stack>
@@ -802,6 +887,70 @@ function KanbanView() {
               {selectedTask.description && (
                 <Typography variant="body2">{selectedTask.description}</Typography>
               )}
+
+              <Divider />
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Task Links
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedTaskDependencies.length > 0
+                    ? "Blocked by dependencies."
+                    : "No blocking dependencies."}
+                </Typography>
+                <Stack spacing={0.75}>
+                  <Typography variant="caption" color="text.secondary">
+                    Dependencies ({selectedTaskDependencies.length})
+                  </Typography>
+                  {selectedTaskDependencies.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      None
+                    </Typography>
+                  )}
+                  {selectedTaskDependencies.map((taskId) => {
+                    const relatedTask = tasksById.get(taskId);
+                    const display = relatedTask ? `${getTaskDisplayId(relatedTask)} - ${relatedTask.title}` : taskId;
+                    return (
+                      <Button
+                        key={`dependency-${taskId}`}
+                        variant="outlined"
+                        size="small"
+                        sx={{ justifyContent: "flex-start" }}
+                        onClick={() => openTaskDetails(taskId)}
+                        aria-label={`Open related task ${display}`}
+                      >
+                        {display}
+                      </Button>
+                    );
+                  })}
+                </Stack>
+                <Stack spacing={0.75}>
+                  <Typography variant="caption" color="text.secondary">
+                    Dependents ({selectedTaskDependents.length})
+                  </Typography>
+                  {selectedTaskDependents.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      None
+                    </Typography>
+                  )}
+                  {selectedTaskDependents.map((taskId) => {
+                    const relatedTask = tasksById.get(taskId);
+                    const display = relatedTask ? `${getTaskDisplayId(relatedTask)} - ${relatedTask.title}` : taskId;
+                    return (
+                      <Button
+                        key={`dependent-${taskId}`}
+                        variant="outlined"
+                        size="small"
+                        sx={{ justifyContent: "flex-start" }}
+                        onClick={() => openTaskDetails(taskId)}
+                        aria-label={`Open related task ${display}`}
+                      >
+                        {display}
+                      </Button>
+                    );
+                  })}
+                </Stack>
+              </Stack>
 
               <Divider />
               <Stack spacing={1.25}>

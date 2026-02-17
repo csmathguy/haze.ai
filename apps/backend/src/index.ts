@@ -123,14 +123,14 @@ async function bootstrap(): Promise<void> {
 
   app.get("/tasks", (req, res) => {
     const status = req.query.status as string | undefined;
-    const all = tasks.list();
+    const all = tasks.listWithDependents();
     const records = status ? all.filter((task) => task.status === status) : all;
     res.json({ records });
   });
 
   app.get("/tasks/:id", (req, res) => {
     try {
-      const record = tasks.get(req.params.id);
+      const record = tasks.getWithDependents(req.params.id);
       res.json({ record });
     } catch (error) {
       if (!handleTaskError(error, res)) {
@@ -143,7 +143,7 @@ async function bootstrap(): Promise<void> {
     try {
       const input = (req.body ?? {}) as CreateTaskInput;
       const record = await tasks.create(input);
-      res.status(201).json({ record });
+      res.status(201).json({ record: tasks.getWithDependents(record.id) });
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "create_task");
@@ -154,7 +154,7 @@ async function bootstrap(): Promise<void> {
   app.patch("/tasks/:id", async (req, res) => {
     try {
       const record = await tasks.update(req.params.id, req.body ?? {});
-      res.json({ record });
+      res.json({ record: tasks.getWithDependents(record.id) });
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "update_task");
@@ -180,14 +180,14 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
-    res.json({ record });
+    res.json({ record: tasks.getWithDependents(record.id) });
   });
 
   app.post("/agent/actions/add-task", async (req, res) => {
     try {
       const input = (req.body ?? {}) as CreateTaskInput;
       const record = await taskActions.addTask(input);
-      res.status(201).json({ record });
+      res.status(201).json({ record: tasks.getWithDependents(record.id) });
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "agent_add_task");

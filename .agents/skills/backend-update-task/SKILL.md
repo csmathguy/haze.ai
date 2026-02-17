@@ -9,6 +9,8 @@ description: Update an existing task in the local backend task system via HTTP A
 Collect:
 - `taskId` (required)
 - fields to patch (one or more): `title`, `description`, `priority`, `status`, `dependencies`, `dueAt`, `tags`, `metadata`
+- For dependency updates, pass full dependency list (replace semantics), e.g. `dependencies = @("task-a", "task-b")`.
+- `dependents` is read-only and computed by backend responses; do not patch it directly.
 
 ## Procedure
 1. Set API base URL:
