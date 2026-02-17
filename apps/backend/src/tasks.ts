@@ -24,7 +24,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = 
   backlog: new Set(["planning", "implementing", "done", "cancelled"]),
   planning: new Set(["backlog", "implementing", "awaiting_human", "cancelled"]),
   implementing: new Set(["backlog", "review", "awaiting_human", "cancelled"]),
-  review: new Set(["implementing", "verification", "awaiting_human", "cancelled"]),
+  review: new Set(["implementing", "verification", "done", "awaiting_human", "cancelled"]),
   verification: new Set(["implementing", "done", "awaiting_human", "cancelled"]),
   awaiting_human: new Set(["planning", "implementing", "review", "cancelled"]),
   done: new Set(["review", "cancelled"]),
@@ -334,7 +334,9 @@ export class TaskWorkflowService {
       const status = this.normalizeStatus(input.status);
       if (previousStatus !== status) {
         await this.validateStatusTransition(existing, previousStatus, status);
-        existing.status = status;
+      }
+      existing.status = status;
+      if (previousStatus !== status) {
         await this.executeStatusHooks(existing, previousStatus, status);
       }
       if (ACTIVE_TASK_STATUSES.has(status) && !existing.startedAt) {
@@ -634,7 +636,6 @@ export class TaskWorkflowService {
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-
   private createWorkflowRuntimeState(): WorkflowRuntimeState {
     return {
       schemaVersion: WORKFLOW_RUNTIME_SCHEMA_VERSION,

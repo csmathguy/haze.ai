@@ -396,7 +396,6 @@ describe("TaskWorkflowService", () => {
     expect(blockingReasons).toHaveLength(1);
     expect(actionHistory).toHaveLength(2);
   });
-
   test("blocks invalid status transitions with deterministic code and runtime reason", async () => {
     const service = buildService();
     const task = await service.create({ title: "Invalid transition task" });
