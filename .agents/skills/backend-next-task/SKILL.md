@@ -8,7 +8,8 @@ description: Select and claim the next task from the backend task system. Use wh
 ## Behavior
 - Select only tasks with `status = backlog`.
 - Prefer highest `priority`.
-- If multiple tasks share highest priority, pick one at random.
+- For priority ties, prefer tasks with the highest `dependents` count (tasks unblocked by finishing this task).
+- If still tied, pick one at random.
 - Mark selected task as `planning`.
 - After claim, run `scripts/begin-task.ps1` to create branch + planning artifact immediately.
 

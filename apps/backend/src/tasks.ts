@@ -37,6 +37,10 @@ export interface TaskRecord {
   metadata: Record<string, unknown>;
 }
 
+export interface TaskRecordWithDependents extends TaskRecord {
+  dependents: string[];
+}
+
 export interface CreateTaskInput {
   title: string;
   description?: string;
@@ -99,6 +103,14 @@ export class TaskWorkflowService {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
+  listWithDependents(): TaskRecordWithDependents[] {
+    const dependentsByTask = this.buildDependentsMap();
+    return this.list().map((task) => ({
+      ...task,
+      dependents: dependentsByTask.get(task.id) ?? []
+    }));
+  }
+
   get(id: string): TaskRecord {
     const task = this.tasks.get(id);
     if (!task) {
@@ -106,6 +118,15 @@ export class TaskWorkflowService {
     }
 
     return this.cloneTask(task);
+  }
+
+  getWithDependents(id: string): TaskRecordWithDependents {
+    const record = this.get(id);
+    const dependentsByTask = this.buildDependentsMap();
+    return {
+      ...record,
+      dependents: dependentsByTask.get(id) ?? []
+    };
   }
 
   importAll(records: TaskRecord[]): void {
@@ -292,9 +313,16 @@ export class TaskWorkflowService {
     }
 
     const highestPriority = Math.max(...eligible.map((task) => task.priority));
-    const ties = eligible.filter((task) => task.priority === highestPriority);
-    const index = Math.floor(this.random() * ties.length);
-    const selected = ties[index];
+    const priorityTies = eligible.filter((task) => task.priority === highestPriority);
+    const dependentsByTask = this.buildDependentsMap();
+    const maxDependentCount = Math.max(
+      ...priorityTies.map((task) => (dependentsByTask.get(task.id) ?? []).length)
+    );
+    const dependentTies = priorityTies.filter(
+      (task) => (dependentsByTask.get(task.id) ?? []).length === maxDependentCount
+    );
+    const index = Math.floor(this.random() * dependentTies.length);
+    const selected = dependentTies[index];
 
     selected.status = "planning";
     selected.startedAt = selected.startedAt ?? this.now().toISOString();
@@ -307,7 +335,9 @@ export class TaskWorkflowService {
       payload: {
         taskId: selected.id,
         priority: selected.priority,
-        tieCount: ties.length
+        tieCount: dependentTies.length,
+        priorityTieCount: priorityTies.length,
+        dependentCount: (dependentsByTask.get(selected.id) ?? []).length
       }
     });
 
@@ -421,5 +451,28 @@ export class TaskWorkflowService {
     }
 
     return false;
+  }
+
+  private buildDependentsMap(): Map<string, string[]> {
+    const dependentsByTask = new Map<string, string[]>();
+
+    for (const taskId of this.tasks.keys()) {
+      dependentsByTask.set(taskId, []);
+    }
+
+    for (const task of this.tasks.values()) {
+      for (const dependencyId of task.dependencies) {
+        if (!dependentsByTask.has(dependencyId)) {
+          dependentsByTask.set(dependencyId, []);
+        }
+        dependentsByTask.get(dependencyId)?.push(task.id);
+      }
+    }
+
+    for (const [taskId, dependents] of dependentsByTask.entries()) {
+      dependentsByTask.set(taskId, [...new Set(dependents)]);
+    }
+
+    return dependentsByTask;
   }
 }

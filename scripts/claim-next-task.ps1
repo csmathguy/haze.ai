@@ -29,7 +29,12 @@ if (-not $record) {
   exit 0
 }
 
-$tieCount = @($eligible | Where-Object { $_.priority -eq $record.priority }).Count
+$priorityTies = @($eligible | Where-Object { $_.priority -eq $record.priority })
+$maxDependentCount = 0
+if ($priorityTies.Count -gt 0) {
+  $maxDependentCount = ($priorityTies | ForEach-Object { @($_.dependents).Count } | Measure-Object -Maximum).Maximum
+}
+$tieCount = @($priorityTies | Where-Object { @($_.dependents).Count -eq $maxDependentCount }).Count
 
 [PSCustomObject]@{
   taskId = $record.id
