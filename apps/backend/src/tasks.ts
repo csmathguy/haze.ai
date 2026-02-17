@@ -594,15 +594,24 @@ export class TaskWorkflowService {
       });
     }
 
-    if (
-      fromStatus === "implementing" &&
-      toStatus === "review" &&
-      !this.hasReviewTransitionArtifacts(task.metadata)
-    ) {
-      blockingReasons.push({
-        code: "MISSING_REVIEW_ARTIFACTS",
-        message: "implementing->review requires reviewArtifact and verificationArtifact"
-      });
+    if (fromStatus === "implementing" && toStatus === "review") {
+      if (!this.hasReviewTransitionArtifacts(task.metadata)) {
+        const reviewReason: WorkflowBlockingReason = {
+          code: "MISSING_REVIEW_ARTIFACTS",
+          message: "implementing->review requires reviewArtifact and verificationArtifact"
+        };
+        await this.redirectTransitionToAwaitingHuman(
+          task,
+          fromStatus,
+          toStatus,
+          reviewReason
+        );
+        throw new TaskServiceError(
+          `Transition redirected from ${fromStatus} to awaiting_human`,
+          409,
+          "TASK_TRANSITION_REDIRECTED"
+        );
+      }
     }
 
     if (toStatus === "awaiting_human" && !this.hasAwaitingHumanArtifact(task.metadata)) {
@@ -661,6 +670,69 @@ export class TaskWorkflowService {
 
   private hasAwaitingHumanArtifact(metadata: Record<string, unknown>): boolean {
     return this.isRecord(metadata.awaitingHumanArtifact);
+  }
+
+  private async redirectTransitionToAwaitingHuman(
+    task: TaskRecord,
+    fromStatus: TaskStatus,
+    attemptedStatus: TaskStatus,
+    reason: WorkflowBlockingReason
+  ): Promise<void> {
+    const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    const runtime = metadata.workflowRuntime as WorkflowRuntimeState;
+    const transitionAt = this.now().toISOString();
+    runtime.lastTransition = {
+      from: fromStatus,
+      to: attemptedStatus,
+      at: transitionAt
+    };
+    runtime.blockingReasons.push(reason);
+    runtime.actionHistory.push({
+      at: transitionAt,
+      phase: "onExit",
+      status: fromStatus,
+      result: "error",
+      nextActionCount: 0,
+      blockingReasonCount: 1,
+      error: "status_transition_redirected"
+    });
+
+    metadata.awaitingHumanArtifact = {
+      question:
+        "Review transition blocked. Attach reviewArtifact and verificationArtifact, then retry transition to review.",
+      options: [
+        {
+          label: "Provide artifacts and retry (Recommended)",
+          description: "Add review + verification metadata and transition again."
+        },
+        {
+          label: "Cancel transition",
+          description: "Keep implementing and postpone review."
+        }
+      ],
+      recommendedOption: "Provide artifacts and retry (Recommended)",
+      requestedAt: transitionAt,
+      blockingReason: reason
+    };
+    metadata.transitionNote =
+      "Auto-redirected to awaiting_human because implementing->review requirements were not met.";
+
+    task.metadata = metadata;
+    task.status = "awaiting_human";
+    task.updatedAt = transitionAt;
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "task_transition_redirected",
+      actor: "task_workflow",
+      payload: {
+        taskId: task.id,
+        fromStatus,
+        attemptedStatus,
+        redirectedTo: "awaiting_human",
+        reason
+      }
+    });
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

@@ -415,17 +415,26 @@ describe("TaskWorkflowService", () => {
     expect(blockingReasons[0]?.code).toBe("INVALID_STATUS_TRANSITION");
   });
 
-  test("blocks implementing to review without required artifacts and allows with artifacts", async () => {
+  test("redirects implementing to review failures into awaiting_human with remediation metadata", async () => {
     const service = buildService();
     const task = await service.create({ title: "Review gate task" });
     await service.update(task.id, { status: "implementing" });
 
     await expect(service.update(task.id, { status: "review" })).rejects.toMatchObject({
       statusCode: 409,
-      code: "TASK_TRANSITION_BLOCKED"
+      code: "TASK_TRANSITION_REDIRECTED"
     });
 
-    const withArtifacts = await service.update(task.id, {
+    const redirected = service.get(task.id);
+    expect(redirected.status).toBe("awaiting_human");
+    expect((redirected.metadata.awaitingHumanArtifact as Record<string, unknown>).question).toBeTypeOf(
+      "string"
+    );
+
+    const backToImplementing = await service.update(task.id, {
+      status: "implementing"
+    });
+    const withArtifacts = await service.update(backToImplementing.id, {
       metadata: {
         reviewArtifact: { changeSummary: ["done"] },
         verificationArtifact: { commands: ["npm run verify"], result: "passed" }
@@ -603,147 +612,6 @@ describe("TaskWorkflowService", () => {
     const task = await service.create({ title: "Duplicate action id task" });
     await service.update(task.id, { status: "planning" });
     expect(commandExecutor).toHaveBeenCalledTimes(1);
-  });
-
-  test("blocks invalid status transitions with deterministic code and runtime reason", async () => {
-    const service = buildService();
-    const task = await service.create({ title: "Invalid transition task" });
-
-    await expect(service.update(task.id, { status: "verification" })).rejects.toMatchObject({
-      statusCode: 409,
-      code: "TASK_TRANSITION_BLOCKED"
-    });
-
-    const persisted = service.get(task.id);
-    const runtime = persisted.metadata.workflowRuntime as Record<string, unknown>;
-    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
-    expect(blockingReasons[0]?.code).toBe("INVALID_STATUS_TRANSITION");
-  });
-
-  test("blocks implementing to review without required artifacts and allows with artifacts", async () => {
-    const service = buildService();
-    const task = await service.create({ title: "Review gate task" });
-    await service.update(task.id, { status: "implementing" });
-
-    await expect(service.update(task.id, { status: "review" })).rejects.toMatchObject({
-      statusCode: 409,
-      code: "TASK_TRANSITION_BLOCKED"
-    });
-
-    const withArtifacts = await service.update(task.id, {
-      metadata: {
-        reviewArtifact: { changeSummary: ["done"] },
-        verificationArtifact: { commands: ["npm run verify"], result: "passed" }
-      }
-    });
-    const allowed = await service.update(withArtifacts.id, { status: "review" });
-    expect(allowed.status).toBe("review");
-  });
-
-  test("executes allow-listed command actions and records success", async () => {
-    const commandExecutor = vi.fn(async () => ({
-      exitCode: 0,
-      stdout: "ok",
-      stderr: ""
-    }));
-    const service = buildService(() => 0, { commandExecutor });
-    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
-      backlog: {
-        onExit: [
-          () => ({
-            nextActions: [
-              { id: "verify", type: "command", command: "npm", args: ["run", "verify"] }
-            ]
-          })
-        ]
-      }
-    };
-
-    const task = await service.create({ title: "Command action task" });
-    const updated = await service.update(task.id, { status: "planning" });
-    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
-    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
-
-    expect(commandExecutor).toHaveBeenCalledTimes(1);
-    expect(actionHistory.some((entry) => entry.actionId === "verify" && entry.result === "ok")).toBe(
-      true
-    );
-  });
-
-  test("records blocking reason when command action is not allow-listed", async () => {
-    const commandExecutor = vi.fn(async () => ({
-      exitCode: 0,
-      stdout: "ok",
-      stderr: ""
-    }));
-    const service = buildService(() => 0, { commandExecutor });
-    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
-      backlog: {
-        onExit: [
-          () => ({
-            nextActions: [
-              {
-                id: "forbidden",
-                type: "command",
-                command: "powershell",
-                args: ["-NoProfile", "-Command", "echo hi"]
-              }
-            ]
-          })
-        ]
-      }
-    };
-
-    const task = await service.create({ title: "Denied command action task" });
-    const updated = await service.update(task.id, { status: "planning" });
-    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
-    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
-    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
-
-    expect(commandExecutor).not.toHaveBeenCalled();
-    expect(blockingReasons.some((reason) => reason.code === "COMMAND_NOT_ALLOWED")).toBe(true);
-    expect(
-      actionHistory.some(
-        (entry) => entry.actionId === "forbidden" && entry.error === "command_not_allowed"
-      )
-    ).toBe(true);
-  });
-
-  test("records command execution failure and keeps emitted skill actions", async () => {
-    const commandExecutor = vi.fn(async () => {
-      throw new Error("timeout");
-    });
-    const service = buildService(() => 0, { commandExecutor });
-    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
-      backlog: {
-        onExit: [
-          () => ({
-            nextActions: [
-              { id: "timeout-cmd", type: "command", command: "npm", args: ["run", "verify"] },
-              { id: "manual-review", type: "skill", skill: "workflow-verify-commit-pr" }
-            ]
-          })
-        ]
-      }
-    };
-
-    const task = await service.create({ title: "Command failure task" });
-    const updated = await service.update(task.id, { status: "planning" });
-    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
-    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
-    const nextActions = runtime.nextActions as Array<Record<string, unknown>>;
-    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
-
-    expect(commandExecutor).toHaveBeenCalledTimes(1);
-    expect(blockingReasons.some((reason) => reason.code === "COMMAND_EXECUTION_FAILED")).toBe(
-      true
-    );
-    expect(
-      actionHistory.some((entry) => entry.actionId === "timeout-cmd" && entry.result === "error")
-    ).toBe(true);
-    expect(nextActions.some((action) => action.id === "manual-review" && action.type === "skill")).toBe(
-      true
-    );
   });
 });
 
