@@ -39,6 +39,7 @@ function Build-Artifacts([string]$prUrl, [string]$headSha, [string[]]$changedFil
         "Automated finish-task flow executed: verify, commit, push, and PR creation",
         "PR created: $prUrl"
       )
+      pullRequestUrl = $prUrl
       filesTouched = $changedFiles
       knownRisks = @(
         "Coverage comment assumes coverage-summary files are generated in both workspaces"
@@ -58,6 +59,16 @@ function Build-Artifacts([string]$prUrl, [string]$headSha, [string[]]$changedFil
   }
 }
 
+function Get-PrNumberFromUrl([string]$prUrl) {
+  if (-not $prUrl) {
+    return $null
+  }
+  if ($prUrl -match "/pull/(\d+)") {
+    return $Matches[1]
+  }
+  return $null
+}
+
 function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifacts) {
   $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
   if (-not $taskResponse.record) {
@@ -66,6 +77,23 @@ function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifa
 
   $task = $taskResponse.record
   $metadata = Copy-Metadata $task.metadata
+  $workflow = Copy-Metadata $metadata.workflow
+  $github = Copy-Metadata $metadata.github
+  $prUrl = $artifacts.reviewArtifact.pullRequestUrl
+  $prNumber = Get-PrNumberFromUrl -prUrl $prUrl
+
+  $workflow.pullRequestUrl = $prUrl
+  if ($prNumber) {
+    $workflow.pullRequestNumber = $prNumber
+  }
+  $metadata.workflow = $workflow
+
+  $github.prUrl = $prUrl
+  if ($prNumber) {
+    $github.pullRequestNumber = $prNumber
+  }
+  $metadata.github = $github
+
   $metadata.reviewArtifact = $artifacts.reviewArtifact
   $metadata.verificationArtifact = $artifacts.verificationArtifact
 

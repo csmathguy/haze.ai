@@ -134,6 +134,17 @@ describe("TaskWorkflowService", () => {
     expect(none).toBeNull();
   });
 
+  test("sets completedAt when entering done and clears it when exiting done", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Lifecycle task" });
+
+    const done = await service.update(task.id, { status: "done" });
+    expect(done.completedAt).not.toBeNull();
+
+    const review = await service.update(task.id, { status: "review" });
+    expect(review.completedAt).toBeNull();
+  });
+
   test("normalizes legacy statuses when loading existing records", () => {
     const audit = {
       record: vi.fn(async () => {})

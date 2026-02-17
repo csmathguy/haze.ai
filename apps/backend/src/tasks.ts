@@ -224,6 +224,7 @@ export class TaskWorkflowService {
     }
 
     if (input.status !== undefined) {
+      const previousStatus = existing.status;
       const status = this.normalizeStatus(input.status);
       existing.status = status;
       if (ACTIVE_TASK_STATUSES.has(status) && !existing.startedAt) {
@@ -231,6 +232,8 @@ export class TaskWorkflowService {
       }
       if (status === "done") {
         existing.completedAt = this.now().toISOString();
+      } else if (previousStatus === "done") {
+        existing.completedAt = null;
       }
     }
 

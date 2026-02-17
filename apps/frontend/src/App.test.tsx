@@ -207,12 +207,19 @@ describe("App", () => {
         metadata: {
           canonicalTaskId: "T-00042",
           workflow: {
-            branchName: "task/t-00042-example"
+            branchName: "task/t-00042-example",
+            repository: "csmathguy/haze.ai",
+            pullRequestNumber: "27",
+            pullRequestUrl: "https://github.com/csmathguy/haze.ai/pull/27"
           },
           planningArtifact: {
             goals: ["Show detailed panel"],
-            implementationSteps: ["Render planning section"]
+            steps: ["Render planning section"]
           },
+          acceptanceCriteria: [
+            "Task detail panel shows acceptance criteria",
+            "Task detail panel surfaces timeline metadata"
+          ],
           awaitingHumanArtifact: {
             question: "Which deployment window should we use?",
             options: ["Now", "Later"],
@@ -240,13 +247,36 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /awaiting human review/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/task details/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 6, name: /awaiting human review/i })
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText(/^task details$/i)).not.toBeInTheDocument();
 
-    expect(screen.getByText(/id: t-00042/i)).toBeInTheDocument();
-    expect(screen.getByText(/branch: task\/t-00042-example/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /acceptance criteria/i })).toBeInTheDocument();
+    expect(screen.getByText(/task detail panel shows acceptance criteria/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /github/i })).toBeInTheDocument();
+    expect(screen.getByText(/created/i)).toBeInTheDocument();
+    expect(screen.getByText(/updated/i)).toBeInTheDocument();
+    expect(screen.getAllByText("N/A").length).toBeGreaterThan(0);
+    expect(screen.getByText(/branch:/i)).toBeInTheDocument();
+    expect(screen.getByText(/task\/t-00042-example/i)).toBeInTheDocument();
+    expect(screen.getByText(/repository:/i)).toBeInTheDocument();
+    expect(screen.getByText("csmathguy/haze.ai")).toBeInTheDocument();
+    expect(screen.getByText(/pull request:/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /github.com\/csmathguy\/haze.ai\/pull\/27/i })
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/csmathguy/haze.ai/pull/27"
+    );
+    fireEvent.click(screen.getByRole("button", { name: /plan/i }));
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
+    expect(screen.getByText(/render planning section/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /questionnaire/i }));
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));
     expect(screen.getByText(/use later window/i)).toBeInTheDocument();
   });
 
@@ -279,9 +309,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /needs human update/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/task details/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 6, name: /needs human update/i })
+      ).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByRole("button", { name: /actions/i }));
     fireEvent.change(screen.getByLabelText(/update status/i), {
       target: { value: "backlog" }
     });
