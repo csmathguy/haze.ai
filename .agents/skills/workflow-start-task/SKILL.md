@@ -19,6 +19,7 @@ description: Start work on a selected task by creating branch + planning artifac
 - `metadata.workflow.baseBranch`
 - `metadata.workflow.owner`
 - `metadata.planningArtifact`
+- `metadata.testingArtifacts.planned` (Gherkin + unit/integration testing intent scaffold)
 3. Keep task in `planning` until plan approval.
 4. If required information is missing, route to `workflow-awaiting-human`.
 5. After approval, transition to `implementing`.
