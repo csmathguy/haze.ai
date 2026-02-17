@@ -396,5 +396,39 @@ describe("TaskWorkflowService", () => {
     expect(blockingReasons).toHaveLength(1);
     expect(actionHistory).toHaveLength(2);
   });
+  test("blocks invalid status transitions with deterministic code and runtime reason", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Invalid transition task" });
+
+    await expect(service.update(task.id, { status: "verification" })).rejects.toMatchObject({
+      statusCode: 409,
+      code: "TASK_TRANSITION_BLOCKED"
+    });
+
+    const persisted = service.get(task.id);
+    const runtime = persisted.metadata.workflowRuntime as Record<string, unknown>;
+    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
+    expect(blockingReasons[0]?.code).toBe("INVALID_STATUS_TRANSITION");
+  });
+
+  test("blocks implementing to review without required artifacts and allows with artifacts", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Review gate task" });
+    await service.update(task.id, { status: "implementing" });
+
+    await expect(service.update(task.id, { status: "review" })).rejects.toMatchObject({
+      statusCode: 409,
+      code: "TASK_TRANSITION_BLOCKED"
+    });
+
+    const withArtifacts = await service.update(task.id, {
+      metadata: {
+        reviewArtifact: { changeSummary: ["done"] },
+        verificationArtifact: { commands: ["npm run verify"], result: "passed" }
+      }
+    });
+    const allowed = await service.update(withArtifacts.id, { status: "review" });
+    expect(allowed.status).toBe("review");
+  });
 });
 
