@@ -54,6 +54,7 @@ Run these at repo root:
   - tests added/updated,
   - verification results.
 - Do not skip checks because of “small change” scope.
+- For task completion, use `scripts/finish-task.ps1` as the canonical deterministic path for verify + commit + push + PR + task transition to `review`; do not perform ad-hoc manual PR flows.
 
 ## Security and operations
 - Never commit secrets.

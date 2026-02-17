@@ -29,6 +29,7 @@ Use sub-skills in this order:
 - Commit includes task reference.
 - PR created for human review.
 - Move to `done` only after merge confirmation.
+- Completion handoff must run through `workflow-verify-commit-pr` (`scripts/finish-task.ps1`) instead of manual git/PR commands.
 
 ## Branch gate
 - Never implement on `main`.
