@@ -426,6 +426,17 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function isTaskBlockedByDependencies(
+  task: Pick<TaskRecord, "dependencies">,
+  tasksById: ReadonlyMap<string, TaskRecord>
+): boolean {
+  if (task.dependencies.length === 0) {
+    return false;
+  }
+
+  return task.dependencies.some((dependencyId) => tasksById.get(dependencyId)?.status !== "done");
+}
+
 function normalizeAnswerThread(value: unknown): DetailAnswer[] {
   if (!Array.isArray(value)) {
     return [];
@@ -751,6 +762,9 @@ function KanbanView() {
   const selectedTaskStatus = selectedTask?.status;
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
+  const selectedTaskIsBlocked = selectedTask
+    ? isTaskBlockedByDependencies(selectedTask, tasksById)
+    : false;
   const selectedTaskReferences = uniqueStrings([
     ...asStringArray(selectedTask?.metadata.references),
     ...asStringArray(selectedTask?.metadata.links),
@@ -1055,7 +1069,7 @@ function KanbanView() {
                               tooltip="Dependents"
                               ariaLabel={`Dependents: ${(task.dependents ?? []).length}`}
                             />
-                            {task.dependencies.length > 0 && (
+                            {isTaskBlockedByDependencies(task, tasksById) && (
                               <Tooltip title="Blocked by dependencies">
                                 <Box
                                   aria-label="Blocked by dependencies"
@@ -1265,9 +1279,7 @@ function KanbanView() {
 
               <DetailSection title="Task Dependencies" icon={<HubRounded />} defaultExpanded>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedTaskDependencies.length > 0
-                    ? "Blocked by dependencies."
-                    : "No blocking dependencies."}
+                  {selectedTaskIsBlocked ? "Blocked by dependencies." : "No blocking dependencies."}
                 </Typography>
                 <Stack spacing={0.75}>
                   <Typography variant="caption" color="text.secondary">
