@@ -309,5 +309,92 @@ describe("TaskWorkflowService", () => {
     expect(service.list()).toHaveLength(1);
     expect(service.get(original.id).priority).toBe(5);
   });
+
+  test("initializes workflowRuntime schema on create", async () => {
+    const service = buildService();
+    const created = await service.create({ title: "Runtime init task" });
+    const runtime = created.metadata.workflowRuntime as Record<string, unknown>;
+
+    expect(runtime.schemaVersion).toBe("1.0");
+    expect(runtime.lastTransition).toBeNull();
+    expect(runtime.nextActions).toEqual([]);
+    expect(runtime.blockingReasons).toEqual([]);
+    expect(runtime.actionHistory).toEqual([]);
+  });
+
+  test("backfills workflowRuntime schema for legacy loaded tasks", () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const service = new TaskWorkflowService(audit, {
+      initialTasks: [
+        {
+          id: "legacy-runtime",
+          title: "Legacy runtime",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
+        }
+      ]
+    });
+
+    const runtime = service.get("legacy-runtime").metadata.workflowRuntime as Record<
+      string,
+      unknown
+    >;
+    expect(runtime.schemaVersion).toBe("1.0");
+    expect(runtime.lastTransition).toBeNull();
+  });
+
+  test("runs status hooks in onExit then onEnter order and records runtime", async () => {
+    const service = buildService();
+    const callOrder: string[] = [];
+
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => {
+            callOrder.push("backlog:onExit");
+            return {
+              nextActions: [{ id: "prepare-plan", type: "skill" }]
+            };
+          }
+        ]
+      },
+      planning: {
+        onEnter: [
+          () => {
+            callOrder.push("planning:onEnter");
+            return {
+              blockingReasons: [{ code: "PLAN_MISSING", message: "Plan artifact missing" }]
+            };
+          }
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Hooked transition task" });
+    const updated = await service.update(task.id, { status: "planning" });
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const lastTransition = runtime.lastTransition as Record<string, unknown>;
+    const nextActions = runtime.nextActions as unknown[];
+    const blockingReasons = runtime.blockingReasons as unknown[];
+    const actionHistory = runtime.actionHistory as unknown[];
+
+    expect(callOrder).toEqual(["backlog:onExit", "planning:onEnter"]);
+    expect(lastTransition.from).toBe("backlog");
+    expect(lastTransition.to).toBe("planning");
+    expect(nextActions).toHaveLength(1);
+    expect(blockingReasons).toHaveLength(1);
+    expect(actionHistory).toHaveLength(2);
+  });
 });
 
