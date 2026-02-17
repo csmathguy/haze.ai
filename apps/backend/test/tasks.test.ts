@@ -1,12 +1,15 @@
 ﻿import { describe, expect, test, vi } from "vitest";
 import { TaskWorkflowService } from "../src/tasks.js";
 
-function buildService(random = () => 0): TaskWorkflowService {
+function buildService(
+  random = () => 0,
+  options: ConstructorParameters<typeof TaskWorkflowService>[1] = {}
+): TaskWorkflowService {
   const audit = {
     record: vi.fn(async () => {})
   };
 
-  return new TaskWorkflowService(audit, { random });
+  return new TaskWorkflowService(audit, { random, ...options });
 }
 
 describe("TaskWorkflowService", () => {
@@ -396,6 +399,7 @@ describe("TaskWorkflowService", () => {
     expect(blockingReasons).toHaveLength(1);
     expect(actionHistory).toHaveLength(2);
   });
+
   test("blocks invalid status transitions with deterministic code and runtime reason", async () => {
     const service = buildService();
     const task = await service.create({ title: "Invalid transition task" });
@@ -429,6 +433,112 @@ describe("TaskWorkflowService", () => {
     });
     const allowed = await service.update(withArtifacts.id, { status: "review" });
     expect(allowed.status).toBe("review");
+  });
+
+  test("executes allow-listed command actions and records success", async () => {
+    const commandExecutor = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: ""
+    }));
+    const service = buildService(() => 0, { commandExecutor });
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => ({
+            nextActions: [
+              { id: "verify", type: "command", command: "npm", args: ["run", "verify"] }
+            ]
+          })
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Command action task" });
+    const updated = await service.update(task.id, { status: "planning" });
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
+
+    expect(commandExecutor).toHaveBeenCalledTimes(1);
+    expect(actionHistory.some((entry) => entry.actionId === "verify" && entry.result === "ok")).toBe(
+      true
+    );
+  });
+
+  test("records blocking reason when command action is not allow-listed", async () => {
+    const commandExecutor = vi.fn(async () => ({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: ""
+    }));
+    const service = buildService(() => 0, { commandExecutor });
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => ({
+            nextActions: [
+              {
+                id: "forbidden",
+                type: "command",
+                command: "powershell",
+                args: ["-NoProfile", "-Command", "echo hi"]
+              }
+            ]
+          })
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Denied command action task" });
+    const updated = await service.update(task.id, { status: "planning" });
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
+    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
+
+    expect(commandExecutor).not.toHaveBeenCalled();
+    expect(blockingReasons.some((reason) => reason.code === "COMMAND_NOT_ALLOWED")).toBe(true);
+    expect(
+      actionHistory.some(
+        (entry) => entry.actionId === "forbidden" && entry.error === "command_not_allowed"
+      )
+    ).toBe(true);
+  });
+
+  test("records command execution failure and keeps emitted skill actions", async () => {
+    const commandExecutor = vi.fn(async () => {
+      throw new Error("timeout");
+    });
+    const service = buildService(() => 0, { commandExecutor });
+    (service as unknown as { statusHooks: Record<string, unknown> }).statusHooks = {
+      backlog: {
+        onExit: [
+          () => ({
+            nextActions: [
+              { id: "timeout-cmd", type: "command", command: "npm", args: ["run", "verify"] },
+              { id: "manual-review", type: "skill", skill: "workflow-verify-commit-pr" }
+            ]
+          })
+        ]
+      }
+    };
+
+    const task = await service.create({ title: "Command failure task" });
+    const updated = await service.update(task.id, { status: "planning" });
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
+    const nextActions = runtime.nextActions as Array<Record<string, unknown>>;
+    const actionHistory = runtime.actionHistory as Array<Record<string, unknown>>;
+
+    expect(commandExecutor).toHaveBeenCalledTimes(1);
+    expect(blockingReasons.some((reason) => reason.code === "COMMAND_EXECUTION_FAILED")).toBe(
+      true
+    );
+    expect(
+      actionHistory.some((entry) => entry.actionId === "timeout-cmd" && entry.result === "error")
+    ).toBe(true);
+    expect(nextActions.some((action) => action.id === "manual-review" && action.type === "skill")).toBe(
+      true
+    );
   });
 });
 

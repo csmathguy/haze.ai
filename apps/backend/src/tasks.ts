@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { AuditSink } from "./audit.js";
 
 export type TaskStatus =
@@ -32,6 +34,9 @@ const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = 
 };
 const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
 const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+const DEFAULT_COMMAND_ALLOWLIST = ["npm", "git", "scripts/"];
+const execFileAsync = promisify(execFile);
 
 export interface WorkflowNextAction {
   id: string;
@@ -52,6 +57,8 @@ export interface WorkflowActionHistoryEntry {
   result: "ok" | "error";
   nextActionCount: number;
   blockingReasonCount: number;
+  actionId?: string;
+  actionType?: string;
   error?: string;
 }
 
@@ -80,6 +87,22 @@ export interface TaskStatusHookResult {
   nextActions?: WorkflowNextAction[];
   blockingReasons?: WorkflowBlockingReason[];
 }
+
+export interface WorkflowCommandExecutionRequest {
+  command: string;
+  args: string[];
+  timeoutMs: number;
+}
+
+export interface WorkflowCommandExecutionResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export type WorkflowCommandExecutor = (
+  request: WorkflowCommandExecutionRequest
+) => Promise<WorkflowCommandExecutionResult>;
 
 export type TaskStatusHook = (
   context: TaskStatusHookContext
@@ -149,6 +172,9 @@ interface TaskWorkflowServiceOptions {
   initialTasks?: TaskRecord[];
   onChanged?: (tasks: TaskRecord[]) => Promise<void> | void;
   statusHooks?: TaskStatusHookMap;
+  commandExecutor?: WorkflowCommandExecutor;
+  commandAllowlist?: string[];
+  commandTimeoutMs?: number;
 }
 
 export class TaskWorkflowService {
@@ -157,6 +183,9 @@ export class TaskWorkflowService {
   private readonly random: () => number;
   private readonly onChanged: (tasks: TaskRecord[]) => Promise<void> | void;
   private readonly statusHooks: TaskStatusHookMap;
+  private readonly commandExecutor: WorkflowCommandExecutor;
+  private readonly commandAllowlist: string[];
+  private readonly commandTimeoutMs: number;
 
   constructor(
     private readonly audit: AuditSink,
@@ -166,6 +195,9 @@ export class TaskWorkflowService {
     this.random = options?.random ?? Math.random;
     this.onChanged = options?.onChanged ?? (() => undefined);
     this.statusHooks = options?.statusHooks ?? {};
+    this.commandExecutor = options?.commandExecutor ?? this.executeCommand;
+    this.commandAllowlist = options?.commandAllowlist ?? DEFAULT_COMMAND_ALLOWLIST;
+    this.commandTimeoutMs = options?.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
 
     if (options?.initialTasks?.length) {
       this.importAll(options.initialTasks);
@@ -334,9 +366,7 @@ export class TaskWorkflowService {
       const status = this.normalizeStatus(input.status);
       if (previousStatus !== status) {
         await this.validateStatusTransition(existing, previousStatus, status);
-      }
-      existing.status = status;
-      if (previousStatus !== status) {
+        existing.status = status;
         await this.executeStatusHooks(existing, previousStatus, status);
       }
       if (ACTIVE_TASK_STATUSES.has(status) && !existing.startedAt) {
@@ -636,6 +666,7 @@ export class TaskWorkflowService {
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
+
   private createWorkflowRuntimeState(): WorkflowRuntimeState {
     return {
       schemaVersion: WORKFLOW_RUNTIME_SCHEMA_VERSION,
@@ -724,9 +755,147 @@ export class TaskWorkflowService {
           error: error instanceof Error ? error.message : String(error)
         });
       }
+
+      await this.executeNextActions(runtime, step.phase, step.status, transitionAt);
     }
 
     task.metadata = metadata;
+  }
+
+  private async executeNextActions(
+    runtime: WorkflowRuntimeState,
+    phase: "onEnter" | "onExit",
+    status: TaskStatus,
+    transitionAt: string
+  ): Promise<void> {
+    for (const action of runtime.nextActions) {
+      if (!this.isCommandAction(action)) {
+        continue;
+      }
+
+      const actionId = action.id;
+      if (!this.isCommandAllowed(action.command)) {
+        runtime.blockingReasons.push({
+          code: "COMMAND_NOT_ALLOWED",
+          message: `Command is not allow-listed: ${action.command}`
+        });
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase,
+          status,
+          result: "error",
+          nextActionCount: 0,
+          blockingReasonCount: 1,
+          actionId,
+          actionType: action.type,
+          error: "command_not_allowed"
+        });
+        continue;
+      }
+
+      try {
+        const result = await this.commandExecutor({
+          command: action.command,
+          args: action.args,
+          timeoutMs: this.commandTimeoutMs
+        });
+        if (result.exitCode !== 0) {
+          runtime.blockingReasons.push({
+            code: "COMMAND_EXECUTION_FAILED",
+            message: `Command failed with exit code ${result.exitCode}: ${action.command}`
+          });
+          runtime.actionHistory.push({
+            at: transitionAt,
+            phase,
+            status,
+            result: "error",
+            nextActionCount: 0,
+            blockingReasonCount: 1,
+            actionId,
+            actionType: action.type,
+            error: `exit_code_${result.exitCode}`
+          });
+          continue;
+        }
+
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase,
+          status,
+          result: "ok",
+          nextActionCount: 0,
+          blockingReasonCount: 0,
+          actionId,
+          actionType: action.type
+        });
+      } catch (error) {
+        runtime.blockingReasons.push({
+          code: "COMMAND_EXECUTION_FAILED",
+          message: `Command execution failed: ${action.command}`
+        });
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase,
+          status,
+          result: "error",
+          nextActionCount: 0,
+          blockingReasonCount: 1,
+          actionId,
+          actionType: action.type,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  }
+
+  private isCommandAction(
+    action: WorkflowNextAction
+  ): action is WorkflowNextAction & { command: string; args: string[] } {
+    return (
+      action.type === "command" &&
+      typeof action.command === "string" &&
+      Array.isArray(action.args)
+    );
+  }
+
+  private isCommandAllowed(command: string): boolean {
+    return this.commandAllowlist.some((entry) => {
+      if (entry.endsWith("/")) {
+        return command.startsWith(entry);
+      }
+      return command === entry;
+    });
+  }
+
+  private async executeCommand(
+    request: WorkflowCommandExecutionRequest
+  ): Promise<WorkflowCommandExecutionResult> {
+    try {
+      const result = await execFileAsync(request.command, request.args, {
+        timeout: request.timeoutMs,
+        windowsHide: true
+      });
+      return {
+        exitCode: 0,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? ""
+      };
+    } catch (error) {
+      const failed = error as {
+        code?: number | string;
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      if (typeof failed.code === "number") {
+        return {
+          exitCode: failed.code,
+          stdout: failed.stdout ?? "",
+          stderr: failed.stderr ?? ""
+        };
+      }
+      throw new Error(failed.message ?? "command_execution_failed");
+    }
   }
 
   private shouldAssignCanonicalTaskId(metadata: Record<string, unknown> | undefined): boolean {
