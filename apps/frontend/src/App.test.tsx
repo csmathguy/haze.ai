@@ -574,4 +574,59 @@ describe("App", () => {
       expect(screen.getByText(/dependencies \(1\)/i)).toBeInTheDocument();
     });
   });
+
+  test("auto-clears blocked indicators when all dependencies are done", async () => {
+    installFetchMock([
+      {
+        id: "parent-done",
+        title: "Done parent dependency",
+        description: "Already completed",
+        priority: 4,
+        status: "done",
+        dependencies: [],
+        dependents: ["child-unblocked"],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: "2026-02-16T00:00:00.000Z",
+        completedAt: "2026-02-16T01:00:00.000Z",
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      },
+      {
+        id: "child-unblocked",
+        title: "Child should auto-unblock",
+        description: "Has dependency but it is done",
+        priority: 3,
+        status: "backlog",
+        dependencies: ["parent-done"],
+        dependents: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/child should auto-unblock/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText(/blocked by dependencies/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /child should auto-unblock/i }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 6, name: /child should auto-unblock/i })
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/no blocking dependencies/i)).toBeInTheDocument();
+  });
 });
