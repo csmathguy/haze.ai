@@ -69,6 +69,51 @@ function Get-PrNumberFromUrl([string]$prUrl) {
   return $null
 }
 
+function Resolve-PrBodyFile(
+  [string]$explicitPath,
+  [string]$taskId,
+  [string]$branch,
+  [string]$headSha,
+  [string[]]$changedFiles
+) {
+  if ($explicitPath -and (Test-Path $explicitPath)) {
+    return @{
+      path = $explicitPath
+      isTemp = $false
+    }
+  }
+
+  $templatePath = Join-Path (Get-Location) ".github/pull_request_template.md"
+  if (-not (Test-Path $templatePath)) {
+    return @{
+      path = ""
+      isTemp = $false
+    }
+  }
+
+  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("haze-pr-body-" + [System.Guid]::NewGuid().ToString("N") + ".md")
+  Copy-Item -Path $templatePath -Destination $tempPath -Force
+
+  $details = @(
+    "",
+    "## Auto-Populated Context",
+    "- Task: $taskId",
+    "- Branch: $branch",
+    "- Commit: $headSha",
+    "- Verification: ``npm run verify`` (passed in finish-task flow)",
+    "- Files changed:"
+  )
+  foreach ($file in $changedFiles) {
+    $details += "- $file"
+  }
+
+  Add-Content -Path $tempPath -Value $details
+  return @{
+    path = $tempPath
+    isTemp = $true
+  }
+}
+
 function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifacts) {
   $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
   if (-not $taskResponse.record) {
@@ -143,11 +188,19 @@ if (-not $headSha) {
   throw "Unable to determine HEAD sha"
 }
 
+$changedFiles = @(git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" })
+$resolvedPrBody = Resolve-PrBodyFile `
+  -explicitPath $PrBodyFile `
+  -taskId $TaskId `
+  -branch $branch `
+  -headSha $headSha `
+  -changedFiles $changedFiles
+
 Run-Command "git" "push" "origin" "HEAD"
 
 $prArgs = @("pr", "create", "--base", $Base, "--head", $branch, "--title", $PrTitle)
-if ($PrBodyFile -and (Test-Path $PrBodyFile)) {
-  $prArgs += @("--body-file", $PrBodyFile)
+if ($resolvedPrBody.path) {
+  $prArgs += @("--body-file", $resolvedPrBody.path)
 } else {
   $prArgs += @("--fill")
 }
@@ -171,10 +224,17 @@ if (-not $prUrl) {
   throw "Unable to determine PR URL"
 }
 
-$changedFiles = @(git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" })
+if ($resolvedPrBody.path) {
+  Run-Command "gh" "pr" "edit" $prUrl "--body-file" $resolvedPrBody.path
+}
+
 $artifacts = Build-Artifacts -prUrl $prUrl -headSha $headSha -changedFiles $changedFiles
 
 Update-TaskViaApi -apiBase $ApiBase -taskId $TaskId -artifacts $artifacts
+
+if ($resolvedPrBody.isTemp) {
+  Remove-Item -Path $resolvedPrBody.path -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "Task $TaskId moved to review."
 Write-Host "Commit: $headSha"
