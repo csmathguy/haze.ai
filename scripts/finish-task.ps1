@@ -69,8 +69,140 @@ function Get-PrNumberFromUrl([string]$prUrl) {
   return $null
 }
 
+function Resolve-CanonicalTaskId([object]$task, [string]$fallbackTaskId) {
+  if ($task -and $task.metadata -and $task.metadata.canonicalTaskId) {
+    return "$($task.metadata.canonicalTaskId)"
+  }
+  return $fallbackTaskId
+}
+
+function Get-TaskRecord([string]$apiBase, [string]$taskId) {
+  $taskResponse = Invoke-RestMethod -Method Get -Uri "$apiBase/tasks/$taskId"
+  if (-not $taskResponse.record) {
+    throw "Task not found via API: $taskId"
+  }
+  return $taskResponse.record
+}
+
+function Unique-Strings([string[]]$values) {
+  return @($values | Where-Object { $_ -and $_.Trim().Length -gt 0 } | Select-Object -Unique)
+}
+
+function To-StringArray([object]$value) {
+  if ($null -eq $value) {
+    return @()
+  }
+  if ($value -is [System.Array]) {
+    return @($value | ForEach-Object { "$_" })
+  }
+  return @("$value")
+}
+
+function Resolve-ChangeType([object]$task, [string[]]$changedFiles) {
+  $tags = @()
+  if ($task.tags) {
+    $tags = @($task.tags | ForEach-Object { "$_".ToLowerInvariant() })
+  }
+
+  if ($tags -contains "bug" -or $tags -contains "bugfix" -or $tags -contains "fix" -or $tags -contains "regression") {
+    return "Bug fix"
+  }
+  if ($tags -contains "refactor" -or $tags -contains "cleanup") {
+    return "Refactor"
+  }
+  if ($tags -contains "workflow" -or $tags -contains "docs" -or $tags -contains "documentation") {
+    return "Docs/Workflow"
+  }
+  if ($changedFiles | Where-Object { $_ -match "^documentation/" -or $_ -match "^\.github/" }) {
+    return "Docs/Workflow"
+  }
+  return "Feature"
+}
+
+function Build-PopulatedPrBody(
+  [object]$task,
+  [string]$taskId,
+  [string]$branch,
+  [string]$headSha,
+  [string[]]$changedFiles
+) {
+  $canonicalTaskId = Resolve-CanonicalTaskId -task $task -fallbackTaskId $taskId
+  $changeType = Resolve-ChangeType -task $task -changedFiles $changedFiles
+  $acceptanceCriteria = To-StringArray $task.metadata.acceptanceCriteria
+  $references = Unique-Strings @(
+    (To-StringArray $task.metadata.references)
+    + (To-StringArray $task.metadata.links)
+    + (To-StringArray $task.metadata.researchReferences)
+  )
+  $risks = To-StringArray $task.metadata.planningArtifact.risks
+  if ($risks.Count -eq 0) {
+    $risks = @("No major risks explicitly recorded in task metadata.")
+  }
+
+  $focusAreas = @()
+  if ($acceptanceCriteria.Count -gt 0) {
+    $focusAreas = @($acceptanceCriteria | Select-Object -First 3)
+  } else {
+    $focusAreas = @("Validate changed files and workflow side effects.")
+  }
+
+  $isBugFix = if ($changeType -eq "Bug fix") { "x" } else { " " }
+  $isFeature = if ($changeType -eq "Feature") { "x" } else { " " }
+  $isRefactor = if ($changeType -eq "Refactor") { "x" } else { " " }
+  $isDocsWorkflow = if ($changeType -eq "Docs/Workflow") { "x" } else { " " }
+
+  $lines = @(
+    "## Summary (Required)",
+    "- $($task.title)",
+    "- Task: $canonicalTaskId",
+    "- Why: $($task.description)",
+    "",
+    "## Change Type (Required)",
+    "- [$isBugFix] Bug fix",
+    "- [$isFeature] Feature",
+    "- [$isRefactor] Refactor",
+    "- [$isDocsWorkflow] Docs/Workflow",
+    "",
+    "## Testing Evidence (Required)",
+    "- Commands run: npm run verify",
+    "- Result: pass",
+    "",
+    "## Risks and Rollback (Required)"
+  )
+
+  foreach ($risk in $risks) {
+    $lines += "- Risk: $risk"
+  }
+  $lines += "- Rollback: revert commit $headSha and re-run npm run verify."
+  $lines += ""
+  $lines += "## Reviewer Focus Areas (Required)"
+  foreach ($area in $focusAreas) {
+    $lines += "- $area"
+  }
+  $lines += ""
+  $lines += "## References (Optional)"
+  if ($references.Count -eq 0) {
+    $lines += "- None recorded"
+  } else {
+    foreach ($reference in $references) {
+      $lines += "- $reference"
+    }
+  }
+  $lines += ""
+  $lines += "## Additional Context (Optional)"
+  $lines += "- Branch: $branch"
+  $lines += "- Commit: $headSha"
+  $lines += "- Files changed:"
+  foreach ($file in $changedFiles) {
+    $lines += "- $file"
+  }
+
+  return ($lines -join "`n")
+}
+
 function Resolve-PrBodyFile(
   [string]$explicitPath,
+  [object]$task,
   [string]$taskId,
   [string]$branch,
   [string]$headSha,
@@ -83,31 +215,14 @@ function Resolve-PrBodyFile(
     }
   }
 
-  $templatePath = Join-Path (Get-Location) ".github/pull_request_template.md"
-  if (-not (Test-Path $templatePath)) {
-    return @{
-      path = ""
-      isTemp = $false
-    }
-  }
-
   $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("haze-pr-body-" + [System.Guid]::NewGuid().ToString("N") + ".md")
-  Copy-Item -Path $templatePath -Destination $tempPath -Force
-
-  $details = @(
-    "",
-    "## Auto-Populated Context",
-    "- Task: $taskId",
-    "- Branch: $branch",
-    "- Commit: $headSha",
-    "- Verification: ``npm run verify`` (passed in finish-task flow)",
-    "- Files changed:"
-  )
-  foreach ($file in $changedFiles) {
-    $details += "- $file"
-  }
-
-  Add-Content -Path $tempPath -Value $details
+  $body = Build-PopulatedPrBody `
+    -task $task `
+    -taskId $taskId `
+    -branch $branch `
+    -headSha $headSha `
+    -changedFiles $changedFiles
+  Set-Content -Path $tempPath -Value $body -NoNewline
   return @{
     path = $tempPath
     isTemp = $true
@@ -188,9 +303,11 @@ if (-not $headSha) {
   throw "Unable to determine HEAD sha"
 }
 
+$task = Get-TaskRecord -apiBase $ApiBase -taskId $TaskId
 $changedFiles = @(git show --name-only --pretty="" HEAD | Where-Object { $_.Trim() -ne "" })
 $resolvedPrBody = Resolve-PrBodyFile `
   -explicitPath $PrBodyFile `
+  -task $task `
   -taskId $TaskId `
   -branch $branch `
   -headSha $headSha `
