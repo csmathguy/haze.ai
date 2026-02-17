@@ -13,6 +13,36 @@ function buildService(
 }
 
 describe("TaskWorkflowService", () => {
+  test("defaults task projectId and backfills legacy records", async () => {
+    const service = buildService();
+    const created = await service.create({ title: "Task with default project" });
+    expect(created.projectId).toBe("project-default");
+
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const legacy = new TaskWorkflowService(audit, {
+      initialTasks: [
+        {
+          id: "legacy-no-project",
+          title: "Legacy",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
+        }
+      ]
+    });
+    expect(legacy.get("legacy-no-project").projectId).toBe("project-default");
+  });
+
   test("supports CRUD with dependency validation", async () => {
     const service = buildService();
 

@@ -51,12 +51,16 @@ import {
   fetchRecentAudit,
   fetchWorkflowStatusModel,
   patchTask,
+  patchProject,
+  createProject,
   fetchStatus,
   fetchTasks,
+  fetchProjects,
   postJson,
   subscribeAudit,
   type AuditEventRecord,
   type OrchestratorStatus,
+  type ProjectRecord,
   type TaskRecord,
   type TaskStatus,
   type WorkflowStatusModelEntry
@@ -64,7 +68,7 @@ import {
 import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
-type ViewName = "dashboard" | "kanban";
+type ViewName = "dashboard" | "kanban" | "projects";
 
 const resolveViewFromLocation = (): ViewName => {
   if (typeof window === "undefined") {
@@ -72,7 +76,11 @@ const resolveViewFromLocation = (): ViewName => {
   }
 
   const params = new URLSearchParams(window.location.search);
-  return params.get("view") === "kanban" ? "kanban" : "dashboard";
+  const view = params.get("view");
+  if (view === "kanban" || view === "projects") {
+    return view;
+  }
+  return "dashboard";
 };
 
 const syncViewToLocation = (view: ViewName): void => {
@@ -559,6 +567,7 @@ function KanbanView() {
   const [statusDetailsStatus, setStatusDetailsStatus] = useState<TaskStatus>("backlog");
   const [statusDetailsTaskId, setStatusDetailsTaskId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
 
   const refresh = async () => {
     setLoading(true);
@@ -611,8 +620,22 @@ function KanbanView() {
       }
     };
 
+    const loadProjects = async () => {
+      try {
+        const records = await fetchProjects();
+        if (mounted) {
+          setProjects(records);
+        }
+      } catch (loadError) {
+        if (mounted) {
+          setError((loadError as Error).message);
+        }
+      }
+    };
+
     void loadStatusModel();
     void loadAudit();
+    void loadProjects();
     const unsubscribe = subscribeAudit((record) => {
       setAuditEvents((previous) => [record, ...previous].slice(0, 200));
     });
@@ -684,6 +707,10 @@ function KanbanView() {
   const tasksById = useMemo(
     () => new Map(tasks.map((task) => [task.id, task])),
     [tasks]
+  );
+  const projectsById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects]
   );
   const statusDetailsModel = useMemo(
     () => statusModel.find((entry) => entry.status === statusDetailsStatus) ?? null,
@@ -760,6 +787,12 @@ function KanbanView() {
     asString(selectedGithubMetadata?.repository) ??
     asString(selectedGithubMetadata?.repo);
   const selectedTaskStatus = selectedTask?.status;
+  const selectedTaskProject = selectedTask?.projectId
+    ? projectsById.get(selectedTask.projectId) ?? null
+    : null;
+  const selectedTaskProjectName = selectedTaskProject?.name ?? selectedTask?.projectId ?? "General";
+  const selectedTaskProjectRepository =
+    selectedTaskProject?.repository.trim().length ? selectedTaskProject.repository : null;
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
   const selectedTaskIsBlocked = selectedTask
@@ -1054,6 +1087,13 @@ function KanbanView() {
                               textColor={cardMetaColor}
                             />
                             <MetaPill
+                              icon={<ManageSearchRounded />}
+                              label={task.projectId ? (projectsById.get(task.projectId)?.name ?? task.projectId) : "General"}
+                              colors={tokens.meta}
+                              textColor={cardMetaColor}
+                              tooltip="Project"
+                            />
+                            <MetaPill
                               icon={<HubRounded />}
                               label={`${task.dependencies.length}`}
                               colors={tokens.meta}
@@ -1227,6 +1267,17 @@ function KanbanView() {
                     ) : (
                       "N/A"
                     )}
+                  </Typography>
+                </Stack>
+              </DetailSection>
+
+              <DetailSection title="Project" icon={<ManageSearchRounded />} defaultExpanded>
+                <Stack spacing={1}>
+                  <Typography variant="body2">
+                    <strong>Name:</strong> {selectedTaskProjectName}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Repository:</strong> {selectedTaskProjectRepository ?? "N/A"}
                   </Typography>
                 </Stack>
               </DetailSection>
@@ -1717,6 +1768,141 @@ function KanbanView() {
   );
 }
 
+function ProjectsView() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [repository, setRepository] = useState("");
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const records = await fetchProjects();
+      setProjects(records);
+    } catch (nextError) {
+      setError((nextError as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const handleCreate = async () => {
+    if (name.trim().length === 0) {
+      setError("Project name is required.");
+      return;
+    }
+    setError(null);
+    try {
+      await createProject({
+        name: name.trim(),
+        description: description.trim(),
+        repository: repository.trim()
+      });
+      setName("");
+      setDescription("");
+      setRepository("");
+      await refresh();
+    } catch (createError) {
+      setError((createError as Error).message);
+    }
+  };
+
+  const handleRepositorySave = async (projectId: string, nextRepository: string) => {
+    setError(null);
+    try {
+      await patchProject(projectId, { repository: nextRepository.trim() });
+      await refresh();
+    } catch (updateError) {
+      setError((updateError as Error).message);
+    }
+  };
+
+  return (
+    <Stack spacing={2}>
+      {error && <Alert severity="error">{error}</Alert>}
+      <Typography color="text.secondary">
+        Define project-level context such as repository metadata and use it across tasks.
+      </Typography>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.25}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Add Project
+            </Typography>
+            <TextField
+              size="small"
+              label="Project name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <TextField
+              size="small"
+              label="Description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+            <TextField
+              size="small"
+              label="Repository"
+              placeholder="owner/repo or repository URL"
+              value={repository}
+              onChange={(event) => setRepository(event.target.value)}
+            />
+            <Button variant="contained" onClick={() => void handleCreate()}>
+              Save Project
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Stack spacing={1.25}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Configured Projects ({projects.length})
+        </Typography>
+        {projects.map((project) => (
+          <Card key={project.id} variant="outlined">
+            <CardContent>
+              <Stack spacing={1}>
+                <Typography sx={{ fontWeight: 700 }}>{project.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {project.description || "No description recorded."}
+                </Typography>
+                <TextField
+                  size="small"
+                  label="Repository"
+                  defaultValue={project.repository}
+                  onBlur={(event) => {
+                    if (event.target.value !== project.repository) {
+                      void handleRepositorySave(project.id, event.target.value);
+                    }
+                  }}
+                />
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
+
+      <Button
+        variant="outlined"
+        startIcon={<AutorenewRounded />}
+        onClick={() => void refresh()}
+        disabled={loading}
+      >
+        Refresh Projects
+      </Button>
+    </Stack>
+  );
+}
+
 export function App() {
   const [activeView, setActiveView] = useState<ViewName>(() =>
     resolveViewFromLocation()
@@ -1779,9 +1965,18 @@ export function App() {
             >
               Kanban Board
             </Button>
+            <Button
+              variant={activeView === "projects" ? "contained" : "outlined"}
+              startIcon={<ManageSearchRounded />}
+              onClick={() => navigateToView("projects")}
+            >
+              Projects
+            </Button>
           </Stack>
 
-          {activeView === "dashboard" ? <DashboardView /> : <KanbanView />}
+          {activeView === "dashboard" && <DashboardView />}
+          {activeView === "kanban" && <KanbanView />}
+          {activeView === "projects" && <ProjectsView />}
         </Stack>
       </Container>
     </Box>

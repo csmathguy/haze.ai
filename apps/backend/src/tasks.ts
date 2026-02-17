@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { AuditSink } from "./audit.js";
+import { DEFAULT_PROJECT_ID } from "./projects.js";
 
 export type TaskStatus =
   | "backlog"
@@ -170,6 +171,7 @@ export interface TaskRecord {
   description: string;
   priority: number;
   status: TaskStatus;
+  projectId?: string;
   dependencies: string[];
   createdAt: string;
   updatedAt: string;
@@ -188,6 +190,7 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   priority?: number;
+  projectId?: string | null;
   dependencies?: string[];
   dueAt?: string | null;
   tags?: string[];
@@ -199,6 +202,7 @@ export interface UpdateTaskInput {
   description?: string;
   priority?: number;
   status?: TaskStatus;
+  projectId?: string | null;
   dependencies?: string[];
   dueAt?: string | null;
   tags?: string[];
@@ -380,6 +384,7 @@ export class TaskWorkflowService {
       description: input.description?.trim() ?? "",
       priority: this.normalizePriority(input.priority),
       status: "backlog",
+      projectId: this.normalizeProjectId(input.projectId),
       dependencies: this.normalizeDependencies(input.dependencies),
       createdAt: now,
       updatedAt: now,
@@ -460,6 +465,10 @@ export class TaskWorkflowService {
       if (existing.dependencies.includes(id)) {
         throw new TaskServiceError("Task cannot depend on itself", 400);
       }
+    }
+
+    if (input.projectId !== undefined) {
+      existing.projectId = this.normalizeProjectId(input.projectId);
     }
 
     if (input.dueAt !== undefined) {
@@ -581,6 +590,7 @@ export class TaskWorkflowService {
     return {
       ...task,
       status: this.normalizeStatus(task.status),
+      projectId: this.normalizeProjectId(task.projectId),
       dependencies: [...task.dependencies],
       tags: [...task.tags],
       metadata: { ...task.metadata }
@@ -611,6 +621,11 @@ export class TaskWorkflowService {
 
   private normalizeTags(tags?: string[]): string[] {
     return [...new Set((tags ?? []).map((tag) => tag.trim()).filter(Boolean))];
+  }
+
+  private normalizeProjectId(projectId?: string | null): string {
+    const normalized = typeof projectId === "string" ? projectId.trim() : "";
+    return normalized.length > 0 ? normalized : DEFAULT_PROJECT_ID;
   }
 
   private normalizeStatus(status: InputTaskStatus): TaskStatus {
