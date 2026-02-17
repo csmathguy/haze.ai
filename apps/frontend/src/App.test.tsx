@@ -39,6 +39,20 @@ function installFetchMock(
       tags: ["backend"],
       metadata: {}
     }
+  ],
+  auditRecords: Array<Record<string, unknown>> = [
+    {
+      id: "a1",
+      timestamp: new Date().toISOString(),
+      eventType: "backend_started",
+      actor: "system",
+      traceId: "trace-1",
+      requestId: "request-1",
+      userId: null,
+      previousHash: null,
+      hash: "hash-1",
+      payload: {}
+    }
   ]
 ) {
   const taskStore = tasks.map((task) => ({ ...task })) as Array<Record<string, unknown>>;
@@ -52,26 +66,46 @@ function installFetchMock(
 
     if (url.startsWith("/api/audit/recent") && method === "GET") {
       return mockJsonResponse({
-        records: [
-          {
-            id: "a1",
-            timestamp: new Date().toISOString(),
-            eventType: "backend_started",
-            actor: "system",
-            traceId: "trace-1",
-            requestId: "request-1",
-            userId: null,
-            previousHash: null,
-            hash: "hash-1",
-            payload: {}
-          }
-        ]
+        records: auditRecords
       });
     }
 
     if (url === "/api/tasks" && method === "GET") {
       return mockJsonResponse({
         records: taskStore
+      });
+    }
+
+    if (url === "/api/workflow/status-model" && method === "GET") {
+      return mockJsonResponse({
+        statuses: [
+          {
+            status: "backlog",
+            label: "Backlog",
+            allowedTransitions: ["planning", "implementing", "done", "cancelled"],
+            blockedTransitions: [],
+            hookSummary: { onEnterCount: 0, onExitCount: 0 }
+          },
+          {
+            status: "implementing",
+            label: "Implementing",
+            allowedTransitions: ["backlog", "review", "awaiting_human", "cancelled"],
+            blockedTransitions: [
+              {
+                status: "review",
+                reasonCodes: ["MISSING_REVIEW_ARTIFACTS"]
+              }
+            ],
+            hookSummary: { onEnterCount: 1, onExitCount: 2 }
+          },
+          {
+            status: "awaiting_human",
+            label: "Awaiting Human",
+            allowedTransitions: ["planning", "implementing", "review", "cancelled"],
+            blockedTransitions: [],
+            hookSummary: { onEnterCount: 0, onExitCount: 0 }
+          }
+        ]
       });
     }
 
@@ -278,6 +312,74 @@ describe("App", () => {
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));
     expect(screen.getByText(/use later window/i)).toBeInTheDocument();
+  });
+
+  test("opens status details from lane header and from task status pill", async () => {
+    installFetchMock(
+      [
+        {
+          id: "t-status",
+          title: "Implementing status task",
+          description: "Used for status details flow",
+          priority: 3,
+          status: "implementing",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: ["workflow"],
+          metadata: {
+            workflowRuntime: {
+              actionHistory: [
+                { status: "implementing", phase: "onEnter" },
+                { status: "implementing", phase: "onExit" }
+              ]
+            }
+          }
+        }
+      ],
+      [
+        {
+          id: "a-task",
+          timestamp: new Date().toISOString(),
+          eventType: "task_action_executed",
+          actor: "task_workflow",
+          traceId: "trace-1",
+          requestId: "request-1",
+          userId: null,
+          previousHash: null,
+          hash: "hash-task",
+          payload: { taskId: "t-status" }
+        }
+      ]
+    );
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/implementing status task/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /open status details for implementing/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/status details: implementing/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/missing_review_artifacts/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /close status details/i }));
+    fireEvent.click(screen.getByRole("button", { name: /implementing status task/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 6, name: /implementing status task/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("selected-task-status-pill"));
+    await waitFor(() => {
+      expect(screen.getByText(/showing events for task/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/task_action_executed/i)).toBeInTheDocument();
   });
 
   test("allows human to update task status from detail drawer", async () => {

@@ -43,6 +43,24 @@ export interface AuditEventRecord {
   payload: Record<string, unknown>;
 }
 
+export interface WorkflowStatusModelEntry {
+  status: TaskStatus;
+  label: string;
+  allowedTransitions: TaskStatus[];
+  blockedTransitions: Array<{
+    status: TaskStatus;
+    reasonCodes: string[];
+  }>;
+  hookSummary: {
+    onEnterCount: number;
+    onExitCount: number;
+  };
+}
+
+export interface WorkflowStatusModel {
+  statuses: WorkflowStatusModelEntry[];
+}
+
 export async function fetchStatus(): Promise<OrchestratorStatus> {
   const response = await fetch("/api/orchestrator/status");
   if (!response.ok) {
@@ -70,6 +88,14 @@ export async function fetchRecentAudit(limit = 50): Promise<AuditEventRecord[]> 
 
   const json = (await response.json()) as { records: AuditEventRecord[] };
   return json.records;
+}
+
+export async function fetchWorkflowStatusModel(): Promise<WorkflowStatusModel> {
+  const response = await fetch("/api/workflow/status-model");
+  if (!response.ok) {
+    throw new Error(`Workflow status model request failed: ${response.status}`);
+  }
+  return (await response.json()) as WorkflowStatusModel;
 }
 
 export function subscribeAudit(onEvent: (event: AuditEventRecord) => void): () => void {

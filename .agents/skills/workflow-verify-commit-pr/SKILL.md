@@ -20,6 +20,11 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
    - `metadata.github.prUrl`
 4. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
 
+## Automation default
+- After acceptance criteria are met and verification passes, execute this skill immediately.
+- Do not pause for extra user confirmation before running `finish-task` unless the user explicitly requests a pause.
+- Only stop before execution when blocked (for example failing checks, missing credentials, or missing required human input).
+
 ## Guardrails
 - Stop if verification fails.
 - Stop if `git push origin HEAD` fails.

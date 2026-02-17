@@ -32,6 +32,16 @@ const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = 
   done: new Set(["review", "cancelled"]),
   cancelled: new Set(["backlog"])
 };
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  backlog: "Backlog",
+  planning: "Planning",
+  implementing: "Implementing",
+  review: "Review",
+  verification: "Verification",
+  awaiting_human: "Awaiting Human",
+  done: "Done",
+  cancelled: "Cancelled"
+};
 const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
 const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
@@ -113,6 +123,24 @@ export interface TaskStatusHookMap {
     onEnter?: TaskStatusHook[];
     onExit?: TaskStatusHook[];
   };
+}
+
+export interface WorkflowStatusModelEntry {
+  status: TaskStatus;
+  label: string;
+  allowedTransitions: TaskStatus[];
+  blockedTransitions: Array<{
+    status: TaskStatus;
+    reasonCodes: string[];
+  }>;
+  hookSummary: {
+    onEnterCount: number;
+    onExitCount: number;
+  };
+}
+
+export interface WorkflowStatusModel {
+  statuses: WorkflowStatusModelEntry[];
 }
 
 export interface TaskRecord {
@@ -216,6 +244,32 @@ export class TaskWorkflowService {
       ...task,
       dependents: dependentsByTask.get(task.id) ?? []
     }));
+  }
+
+  getStatusModel(): WorkflowStatusModel {
+    const allStatuses = Object.keys(ALLOWED_STATUS_TRANSITIONS) as TaskStatus[];
+    const statuses = allStatuses.map((status) => {
+      const allowed = [...ALLOWED_STATUS_TRANSITIONS[status]];
+      const blockedTransitions = allStatuses
+        .map((candidate) => ({
+          status: candidate,
+          reasonCodes: this.getTransitionReasonCodes(status, candidate)
+        }))
+        .filter((transition) => transition.reasonCodes.length > 0);
+
+      return {
+        status,
+        label: STATUS_LABELS[status],
+        allowedTransitions: allowed,
+        blockedTransitions,
+        hookSummary: {
+          onEnterCount: this.statusHooks[status]?.onEnter?.length ?? 0,
+          onExitCount: this.statusHooks[status]?.onExit?.length ?? 0
+        }
+      } satisfies WorkflowStatusModelEntry;
+    });
+
+    return { statuses };
   }
 
   get(id: string): TaskRecord {
@@ -578,6 +632,24 @@ export class TaskWorkflowService {
 
   private normalizeDuplicateTitle(title: string): string {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  private getTransitionReasonCodes(fromStatus: TaskStatus, toStatus: TaskStatus): string[] {
+    const reasonCodes: string[] = [];
+    const allowed = ALLOWED_STATUS_TRANSITIONS[fromStatus];
+    if (!allowed.has(toStatus)) {
+      reasonCodes.push("INVALID_STATUS_TRANSITION");
+    }
+
+    if (fromStatus === "implementing" && toStatus === "review") {
+      reasonCodes.push("MISSING_REVIEW_ARTIFACTS");
+    }
+
+    if (toStatus === "awaiting_human") {
+      reasonCodes.push("MISSING_AWAITING_HUMAN_ARTIFACT");
+    }
+
+    return reasonCodes;
   }
 
   private async validateStatusTransition(
