@@ -613,5 +613,26 @@ describe("TaskWorkflowService", () => {
     await service.update(task.id, { status: "planning" });
     expect(commandExecutor).toHaveBeenCalledTimes(1);
   });
+
+  test("returns workflow status model with transitions, reason codes, and hook counts", () => {
+    const service = buildService();
+    const model = service.getStatusModel();
+    const implementing = model.statuses.find((entry) => entry.status === "implementing");
+
+    expect(implementing).toBeDefined();
+    expect(implementing?.allowedTransitions).toContain("review");
+    expect(implementing?.blockedTransitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "review",
+          reasonCodes: expect.arrayContaining(["MISSING_REVIEW_ARTIFACTS"])
+        })
+      ])
+    );
+    expect(implementing?.hookSummary).toEqual({
+      onEnterCount: 0,
+      onExitCount: 0
+    });
+  });
 });
 

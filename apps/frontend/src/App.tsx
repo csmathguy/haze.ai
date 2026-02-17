@@ -48,6 +48,7 @@ import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
 import { type ReactNode, useEffect, useMemo, useReducer, useState } from "react";
 import {
   fetchRecentAudit,
+  fetchWorkflowStatusModel,
   patchTask,
   fetchStatus,
   fetchTasks,
@@ -56,7 +57,8 @@ import {
   type AuditEventRecord,
   type OrchestratorStatus,
   type TaskRecord,
-  type TaskStatus
+  type TaskStatus,
+  type WorkflowStatusModelEntry
 } from "./api";
 import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
@@ -319,7 +321,9 @@ function MetaPill({
   colors,
   textColor,
   tooltip,
-  ariaLabel
+  ariaLabel,
+  onClick,
+  testId
 }: {
   icon: ReactNode;
   label: string;
@@ -336,9 +340,15 @@ function MetaPill({
   textColor: string;
   tooltip?: string;
   ariaLabel?: string;
+  onClick?: () => void;
+  testId?: string;
 }) {
   const content = (
     <Box
+      component={onClick ? "button" : "div"}
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      data-testid={testId}
       aria-label={ariaLabel}
       sx={{
         display: "inline-flex",
@@ -348,7 +358,19 @@ function MetaPill({
         px: 1,
         py: 0.25,
         border: `1px solid ${tone === "accent" ? colors.accentBorder : colors.border}`,
-        backgroundColor: tone === "accent" ? colors.accentBg : colors.bg
+        backgroundColor: tone === "accent" ? colors.accentBg : colors.bg,
+        appearance: "none",
+        cursor: onClick ? "pointer" : "default",
+        textAlign: "left",
+        font: "inherit",
+        ...(onClick
+          ? {
+              "&:focus-visible": {
+                outline: `2px solid ${colors.accentBorder}`,
+                outlineOffset: 2
+              }
+            }
+          : {})
       }}
     >
       <Box
@@ -516,6 +538,11 @@ function KanbanView() {
   const [statusNote, setStatusNote] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+  const [statusModel, setStatusModel] = useState<WorkflowStatusModelEntry[]>([]);
+  const [statusDetailsOpen, setStatusDetailsOpen] = useState(false);
+  const [statusDetailsStatus, setStatusDetailsStatus] = useState<TaskStatus>("backlog");
+  const [statusDetailsTaskId, setStatusDetailsTaskId] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
 
   const refresh = async () => {
     setLoading(true);
@@ -539,6 +566,47 @@ function KanbanView() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadStatusModel = async () => {
+      try {
+        const model = await fetchWorkflowStatusModel();
+        if (mounted) {
+          setStatusModel(model.statuses);
+        }
+      } catch (loadError) {
+        if (mounted) {
+          setError((loadError as Error).message);
+        }
+      }
+    };
+
+    const loadAudit = async () => {
+      try {
+        const records = await fetchRecentAudit(200);
+        if (mounted) {
+          setAuditEvents(records);
+        }
+      } catch (loadError) {
+        if (mounted) {
+          setError((loadError as Error).message);
+        }
+      }
+    };
+
+    void loadStatusModel();
+    void loadAudit();
+    const unsubscribe = subscribeAudit((record) => {
+      setAuditEvents((previous) => [record, ...previous].slice(0, 200));
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
   const selectedTaskId = taskDetailStack.length > 0 ? taskDetailStack[taskDetailStack.length - 1] : null;
 
   const openTaskDetails = (taskId: string): void => {
@@ -552,6 +620,16 @@ function KanbanView() {
 
   const closeTaskDetails = (): void => {
     setTaskDetailStack([]);
+  };
+
+  const openStatusDetails = (status: TaskStatus, taskId: string | null = null): void => {
+    setStatusDetailsStatus(status);
+    setStatusDetailsTaskId(taskId);
+    setStatusDetailsOpen(true);
+  };
+
+  const closeStatusDetails = (): void => {
+    setStatusDetailsOpen(false);
   };
 
   const navigateBackInTaskDetails = (): void => {
@@ -591,6 +669,31 @@ function KanbanView() {
     () => new Map(tasks.map((task) => [task.id, task])),
     [tasks]
   );
+  const statusDetailsModel = useMemo(
+    () => statusModel.find((entry) => entry.status === statusDetailsStatus) ?? null,
+    [statusModel, statusDetailsStatus]
+  );
+  const statusDetailsTask = useMemo(
+    () => (statusDetailsTaskId ? tasksById.get(statusDetailsTaskId) ?? null : null),
+    [statusDetailsTaskId, tasksById]
+  );
+  const statusDetailsRuntime = asRecord(statusDetailsTask?.metadata.workflowRuntime);
+  const statusDetailsActionHistory = Array.isArray(statusDetailsRuntime?.actionHistory)
+    ? statusDetailsRuntime.actionHistory.map((entry) => asRecord(entry)).filter((entry) => entry !== null)
+    : [];
+  const statusDetailsOnEnterActionCount = statusDetailsActionHistory.filter(
+    (entry) => entry.status === statusDetailsStatus && entry.phase === "onEnter"
+  ).length;
+  const statusDetailsOnExitActionCount = statusDetailsActionHistory.filter(
+    (entry) => entry.status === statusDetailsStatus && entry.phase === "onExit"
+  ).length;
+  const statusDetailsAuditEvents = statusDetailsTask
+    ? auditEvents.filter((event) => {
+        const payload = asRecord(event.payload);
+        return payload?.taskId === statusDetailsTask.id;
+      })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    : [];
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -774,7 +877,29 @@ function KanbanView() {
                     py: 0.5
                   }}
                 >
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: tokens.lane.title }}>
+                  <Typography
+                    component="button"
+                    type="button"
+                    variant="subtitle1"
+                    aria-label={`Open status details for ${column.label}`}
+                    onClick={() => openStatusDetails(column.status)}
+                    sx={{
+                      fontWeight: 700,
+                      color: tokens.lane.title,
+                      appearance: "none",
+                      border: 0,
+                      background: "transparent",
+                      padding: 0,
+                      margin: 0,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      "&:focus-visible": {
+                        outline: `2px solid ${tokens.meta.accentBorder}`,
+                        outlineOffset: 2,
+                        borderRadius: 1
+                      }
+                    }}
+                  >
                     {column.label}
                   </Typography>
                   <Chip
@@ -1005,6 +1130,9 @@ function KanbanView() {
                   colors={tokens.meta}
                   textColor={cardMetaColor}
                   tooltip={`Current status: ${selectedTaskStatusLabel}`}
+                  ariaLabel={`Open status details for ${selectedTaskStatusLabel} (selected task)`}
+                  testId="selected-task-status-pill"
+                  onClick={() => selectedTask && openStatusDetails(selectedTask.status, selectedTask.id)}
                 />
               </Stack>
 
@@ -1266,6 +1394,143 @@ function KanbanView() {
               </DetailSection>
             </Stack>
           )}
+        </Box>
+      </Drawer>
+
+      <Drawer anchor="right" open={statusDetailsOpen} onClose={closeStatusDetails}>
+        <Box sx={{ width: { xs: "100vw", sm: 460 }, p: 2.5 }}>
+          <Stack spacing={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={0.5}>
+              <Typography variant="h6">{`Status Details: ${
+                statusDetailsModel?.label ??
+                columns.find((column) => column.status === statusDetailsStatus)?.label ??
+                statusDetailsStatus
+              }`}</Typography>
+              <IconButton
+                size="small"
+                aria-label="Close status details"
+                onClick={closeStatusDetails}
+                sx={{ mt: -0.25, mr: -0.25 }}
+              >
+                <CloseRounded />
+              </IconButton>
+            </Stack>
+
+            <DetailSection title="Transition Rules" icon={<RuleRounded />} defaultExpanded>
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Allowed transitions
+                  </Typography>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                    {(statusDetailsModel?.allowedTransitions ?? []).map((status) => {
+                      const label = columns.find((column) => column.status === status)?.label ?? status;
+                      return <Chip key={`allowed-${status}`} size="small" label={label} />;
+                    })}
+                  </Stack>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Blocked or conditionally blocked transitions
+                  </Typography>
+                  <Stack spacing={0.75} sx={{ mt: 0.5 }}>
+                    {(statusDetailsModel?.blockedTransitions ?? []).map((blocked) => {
+                      const label =
+                        columns.find((column) => column.status === blocked.status)?.label ?? blocked.status;
+                      return (
+                        <Box key={`blocked-${blocked.status}`}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {blocked.reasonCodes.join(", ")}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                    {(statusDetailsModel?.blockedTransitions.length ?? 0) === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        No blocked transitions recorded.
+                      </Typography>
+                    )}
+                  </Stack>
+                </Box>
+              </Stack>
+            </DetailSection>
+
+            <DetailSection title="Hooks" icon={<ManageSearchRounded />} defaultExpanded>
+              <TableContainer>
+                <Table size="small" aria-label="Status hook summary">
+                  <TableBody>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, borderBottom: 0, px: 0 }}>
+                        Configured onEnter hooks
+                      </TableCell>
+                      <TableCell sx={{ borderBottom: 0, px: 0 }}>
+                        {statusDetailsModel?.hookSummary.onEnterCount ?? 0}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, borderBottom: 0, px: 0 }}>
+                        Configured onExit hooks
+                      </TableCell>
+                      <TableCell sx={{ borderBottom: 0, px: 0 }}>
+                        {statusDetailsModel?.hookSummary.onExitCount ?? 0}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, borderBottom: 0, px: 0 }}>
+                        Task runtime onEnter entries
+                      </TableCell>
+                      <TableCell sx={{ borderBottom: 0, px: 0 }}>
+                        {statusDetailsOnEnterActionCount}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, borderBottom: 0, px: 0 }}>
+                        Task runtime onExit entries
+                      </TableCell>
+                      <TableCell sx={{ borderBottom: 0, px: 0 }}>
+                        {statusDetailsOnExitActionCount}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </DetailSection>
+
+            <DetailSection title="Task Audit Timeline" icon={<HistoryRounded />} defaultExpanded>
+              {!statusDetailsTask && (
+                <Typography variant="body2" color="text.secondary">
+                  Open this view from a task status pill to see task-scoped audit history.
+                </Typography>
+              )}
+              {statusDetailsTask && (
+                <Stack spacing={1}>
+                  <Typography variant="caption" color="text.secondary">
+                    Showing events for task {getTaskDisplayId(statusDetailsTask)}
+                  </Typography>
+                  {statusDetailsAuditEvents.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No audit events found for this task.
+                    </Typography>
+                  )}
+                  {statusDetailsAuditEvents.map((event) => (
+                    <Card key={`status-audit-${event.id}`} variant="outlined">
+                      <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(event.timestamp).toLocaleString()} | {event.actor}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {event.eventType}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              )}
+            </DetailSection>
+          </Stack>
         </Box>
       </Drawer>
     </Stack>

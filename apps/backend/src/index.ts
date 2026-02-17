@@ -139,6 +139,10 @@ async function bootstrap(): Promise<void> {
     }
   });
 
+  app.get("/workflow/status-model", (_req, res) => {
+    res.json(tasks.getStatusModel());
+  });
+
   app.post("/tasks", async (req, res) => {
     try {
       const input = (req.body ?? {}) as CreateTaskInput;
