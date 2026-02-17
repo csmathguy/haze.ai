@@ -21,6 +21,66 @@ const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
   "awaiting_human"
 ]);
 const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
+const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
+
+export interface WorkflowNextAction {
+  id: string;
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowBlockingReason {
+  code: string;
+  message: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowActionHistoryEntry {
+  at: string;
+  phase: "onEnter" | "onExit";
+  status: TaskStatus;
+  result: "ok" | "error";
+  nextActionCount: number;
+  blockingReasonCount: number;
+  error?: string;
+}
+
+export interface WorkflowTransitionRecord {
+  from: TaskStatus;
+  to: TaskStatus;
+  at: string;
+}
+
+export interface WorkflowRuntimeState {
+  schemaVersion: string;
+  lastTransition: WorkflowTransitionRecord | null;
+  nextActions: WorkflowNextAction[];
+  blockingReasons: WorkflowBlockingReason[];
+  actionHistory: WorkflowActionHistoryEntry[];
+}
+
+export interface TaskStatusHookContext {
+  task: TaskRecord;
+  fromStatus: TaskStatus;
+  toStatus: TaskStatus;
+  phase: "onEnter" | "onExit";
+}
+
+export interface TaskStatusHookResult {
+  nextActions?: WorkflowNextAction[];
+  blockingReasons?: WorkflowBlockingReason[];
+}
+
+export type TaskStatusHook = (
+  context: TaskStatusHookContext
+) => TaskStatusHookResult | void | Promise<TaskStatusHookResult | void>;
+
+export interface TaskStatusHookMap {
+  [status: string]: {
+    onEnter?: TaskStatusHook[];
+    onExit?: TaskStatusHook[];
+  };
+}
 
 export interface TaskRecord {
   id: string;
@@ -77,6 +137,7 @@ interface TaskWorkflowServiceOptions {
   random?: () => number;
   initialTasks?: TaskRecord[];
   onChanged?: (tasks: TaskRecord[]) => Promise<void> | void;
+  statusHooks?: TaskStatusHookMap;
 }
 
 export class TaskWorkflowService {
@@ -84,6 +145,7 @@ export class TaskWorkflowService {
   private readonly now: () => Date;
   private readonly random: () => number;
   private readonly onChanged: (tasks: TaskRecord[]) => Promise<void> | void;
+  private readonly statusHooks: TaskStatusHookMap;
 
   constructor(
     private readonly audit: AuditSink,
@@ -92,6 +154,7 @@ export class TaskWorkflowService {
     this.now = options?.now ?? (() => new Date());
     this.random = options?.random ?? Math.random;
     this.onChanged = options?.onChanged ?? (() => undefined);
+    this.statusHooks = options?.statusHooks ?? {};
 
     if (options?.initialTasks?.length) {
       this.importAll(options.initialTasks);
@@ -138,6 +201,7 @@ export class TaskWorkflowService {
       if (this.shouldAssignCanonicalTaskId(next.metadata)) {
         next.metadata = this.ensureCanonicalTaskId(next.metadata, next.id);
       }
+      next.metadata = this.ensureWorkflowRuntimeMetadata(next.metadata);
       this.tasks.set(next.id, next);
     }
 
@@ -176,6 +240,7 @@ export class TaskWorkflowService {
       const previousPriority = duplicate.priority;
       duplicate.priority = Math.min(5, duplicate.priority + 1);
       duplicate.updatedAt = now;
+      duplicate.metadata = this.ensureWorkflowRuntimeMetadata(duplicate.metadata);
 
       await this.commitChange();
       await this.audit.record({
@@ -208,6 +273,7 @@ export class TaskWorkflowService {
         ? this.ensureCanonicalTaskId(input.metadata, null)
         : input.metadata ?? {}
     };
+    task.metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
 
     this.ensureDependenciesExist(task.dependencies);
     this.tasks.set(task.id, task);
@@ -238,6 +304,7 @@ export class TaskWorkflowService {
     }
 
     const previous = this.cloneTask(existing);
+    existing.metadata = this.ensureWorkflowRuntimeMetadata(existing.metadata);
 
     if (input.title !== undefined) {
       existing.title = this.normalizeTitle(input.title);
@@ -255,6 +322,9 @@ export class TaskWorkflowService {
       const previousStatus = existing.status;
       const status = this.normalizeStatus(input.status);
       existing.status = status;
+      if (previousStatus !== status) {
+        await this.executeStatusHooks(existing, previousStatus, status);
+      }
       if (ACTIVE_TASK_STATUSES.has(status) && !existing.startedAt) {
         existing.startedAt = this.now().toISOString();
       }
@@ -291,6 +361,7 @@ export class TaskWorkflowService {
       } else {
         existing.metadata = input.metadata;
       }
+      existing.metadata = this.ensureWorkflowRuntimeMetadata(existing.metadata);
     }
 
     existing.updatedAt = this.now().toISOString();
@@ -463,6 +534,99 @@ export class TaskWorkflowService {
 
   private normalizeDuplicateTitle(title: string): string {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  private createWorkflowRuntimeState(): WorkflowRuntimeState {
+    return {
+      schemaVersion: WORKFLOW_RUNTIME_SCHEMA_VERSION,
+      lastTransition: null,
+      nextActions: [],
+      blockingReasons: [],
+      actionHistory: []
+    };
+  }
+
+  private ensureWorkflowRuntimeMetadata(
+    metadata: Record<string, unknown> | undefined
+  ): Record<string, unknown> {
+    const nextMetadata = { ...(metadata ?? {}) };
+    const candidate = nextMetadata.workflowRuntime as Partial<WorkflowRuntimeState> | undefined;
+    const current = candidate ?? this.createWorkflowRuntimeState();
+
+    nextMetadata.workflowRuntime = {
+      schemaVersion: WORKFLOW_RUNTIME_SCHEMA_VERSION,
+      lastTransition: current.lastTransition ?? null,
+      nextActions: Array.isArray(current.nextActions) ? current.nextActions : [],
+      blockingReasons: Array.isArray(current.blockingReasons) ? current.blockingReasons : [],
+      actionHistory: Array.isArray(current.actionHistory) ? current.actionHistory : []
+    } satisfies WorkflowRuntimeState;
+
+    return nextMetadata;
+  }
+
+  private async executeStatusHooks(
+    task: TaskRecord,
+    fromStatus: TaskStatus,
+    toStatus: TaskStatus
+  ): Promise<void> {
+    const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    const runtime = metadata.workflowRuntime as WorkflowRuntimeState;
+    const transitionAt = this.now().toISOString();
+    runtime.lastTransition = {
+      from: fromStatus,
+      to: toStatus,
+      at: transitionAt
+    };
+
+    const executionPlan: Array<{
+      phase: "onEnter" | "onExit";
+      status: TaskStatus;
+      hook: TaskStatusHook;
+    }> = [];
+
+    for (const hook of this.statusHooks[fromStatus]?.onExit ?? []) {
+      executionPlan.push({ phase: "onExit", status: fromStatus, hook });
+    }
+    for (const hook of this.statusHooks[toStatus]?.onEnter ?? []) {
+      executionPlan.push({ phase: "onEnter", status: toStatus, hook });
+    }
+
+    for (const step of executionPlan) {
+      try {
+        const outcome = (await step.hook({
+          task: this.cloneTask(task),
+          fromStatus,
+          toStatus,
+          phase: step.phase
+        })) ?? { nextActions: [], blockingReasons: [] };
+        const nextActions = Array.isArray(outcome.nextActions) ? outcome.nextActions : [];
+        const blockingReasons = Array.isArray(outcome.blockingReasons)
+          ? outcome.blockingReasons
+          : [];
+        runtime.nextActions.push(...nextActions);
+        runtime.blockingReasons.push(...blockingReasons);
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase: step.phase,
+          status: step.status,
+          result: "ok",
+          nextActionCount: nextActions.length,
+          blockingReasonCount: blockingReasons.length
+        });
+      } catch (error) {
+        runtime.actionHistory.push({
+          at: transitionAt,
+          phase: step.phase,
+          status: step.status,
+          result: "error",
+          nextActionCount: 0,
+          blockingReasonCount: 0,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    task.metadata = metadata;
   }
 
   private shouldAssignCanonicalTaskId(metadata: Record<string, unknown> | undefined): boolean {
