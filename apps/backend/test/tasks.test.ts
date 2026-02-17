@@ -415,17 +415,26 @@ describe("TaskWorkflowService", () => {
     expect(blockingReasons[0]?.code).toBe("INVALID_STATUS_TRANSITION");
   });
 
-  test("blocks implementing to review without required artifacts and allows with artifacts", async () => {
+  test("redirects implementing to review failures into awaiting_human with remediation metadata", async () => {
     const service = buildService();
     const task = await service.create({ title: "Review gate task" });
     await service.update(task.id, { status: "implementing" });
 
     await expect(service.update(task.id, { status: "review" })).rejects.toMatchObject({
       statusCode: 409,
-      code: "TASK_TRANSITION_BLOCKED"
+      code: "TASK_TRANSITION_REDIRECTED"
     });
 
-    const withArtifacts = await service.update(task.id, {
+    const redirected = service.get(task.id);
+    expect(redirected.status).toBe("awaiting_human");
+    expect((redirected.metadata.awaitingHumanArtifact as Record<string, unknown>).question).toBeTypeOf(
+      "string"
+    );
+
+    const backToImplementing = await service.update(task.id, {
+      status: "implementing"
+    });
+    const withArtifacts = await service.update(backToImplementing.id, {
       metadata: {
         reviewArtifact: { changeSummary: ["done"] },
         verificationArtifact: { commands: ["npm run verify"], result: "passed" }
