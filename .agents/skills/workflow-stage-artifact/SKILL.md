@@ -14,6 +14,11 @@ Standardize what evidence is attached when changing task stages.
   - `implementationSteps` (array)
   - `risks` (array)
   - `recommendedDefault` (string)
+- `testingArtifacts.planned`
+  - `gherkinScenarios` (array)
+  - `unitTestIntent` (array)
+  - `integrationTestIntent` (array)
+  - `notes` (string | null)
 - `reviewArtifact`
   - `changeSummary` (array)
   - `filesTouched` (array)
@@ -22,6 +27,11 @@ Standardize what evidence is attached when changing task stages.
   - `commands` (array)
   - `result` (string)
   - `notes` (array)
+- `testingArtifacts.implemented`
+  - `testsAddedOrUpdated` (array)
+  - `evidenceLinks` (array)
+  - `commandsRun` (array)
+  - `notes` (string | null)
 - `awaitingHumanArtifact`
   - `question` (string)
   - `options` (array)
@@ -37,3 +47,4 @@ Standardize what evidence is attached when changing task stages.
 - Ensure artifact keys map to current stage.
 - Ensure arrays are concise and actionable.
 - Ensure `awaitingHumanArtifact` includes explicit options and recommended default.
+- Ensure planning/review/verification stages keep `testingArtifacts` in sync with current evidence.

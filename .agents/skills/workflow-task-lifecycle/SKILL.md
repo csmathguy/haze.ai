@@ -20,8 +20,10 @@ Use sub-skills in this order:
 
 ## Required handoff artifacts
 - Planning: plan goals, steps, risks.
+- Planning: `testingArtifacts.planned` with Gherkin + unit/integration intent.
 - Review: files changed, summary, risks.
 - Verification: commands run and outcomes.
+- Review/Verification: `testingArtifacts.implemented` with test files/evidence/commands.
 - Awaiting Human: question + options + recommended default.
 
 ## Completion criteria

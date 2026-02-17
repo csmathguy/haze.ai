@@ -18,6 +18,9 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
    - `metadata.workflow.pullRequestUrl`
    - `metadata.workflow.pullRequestNumber` (if parseable)
    - `metadata.github.prUrl`
+4. Confirm task metadata includes implementation-stage testing traceability updates:
+   - `metadata.testingArtifacts.implemented.testsAddedOrUpdated`
+   - `metadata.testingArtifacts.implemented.commandsRun`
 4. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
 
 ## Automation default

@@ -51,6 +51,7 @@ Invoke-RestMethod -Method Get -Uri "$base/tasks/$taskId" | Select-Object -Expand
 
 ## Guardrails
 - Do not overwrite unrelated metadata keys unless explicitly requested.
+- When transitioning `planning -> implementing`, ensure `metadata.testingArtifacts.planned` is populated.
 - Include a concrete note when moving to `awaiting_human` with question/options/recommended default.
 - Move to `done` only after verification evidence exists.
 

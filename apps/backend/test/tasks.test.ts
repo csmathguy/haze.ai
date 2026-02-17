@@ -325,6 +325,24 @@ describe("TaskWorkflowService", () => {
     expect(runtime.actionHistory).toEqual([]);
   });
 
+  test("initializes testingArtifacts schema on create", async () => {
+    const service = buildService();
+    const created = await service.create({ title: "Testing artifact init task" });
+    const testingArtifacts = created.metadata.testingArtifacts as Record<string, unknown>;
+    const planned = testingArtifacts.planned as Record<string, unknown>;
+    const implemented = testingArtifacts.implemented as Record<string, unknown>;
+
+    expect(testingArtifacts.schemaVersion).toBe("1.0");
+    expect(planned.gherkinScenarios).toEqual([]);
+    expect(planned.unitTestIntent).toEqual([]);
+    expect(planned.integrationTestIntent).toEqual([]);
+    expect(planned.notes).toBeNull();
+    expect(implemented.testsAddedOrUpdated).toEqual([]);
+    expect(implemented.evidenceLinks).toEqual([]);
+    expect(implemented.commandsRun).toEqual([]);
+    expect(implemented.notes).toBeNull();
+  });
+
   test("backfills workflowRuntime schema for legacy loaded tasks", () => {
     const audit = {
       record: vi.fn(async () => {})
@@ -355,6 +373,41 @@ describe("TaskWorkflowService", () => {
     >;
     expect(runtime.schemaVersion).toBe("1.0");
     expect(runtime.lastTransition).toBeNull();
+  });
+
+  test("backfills testingArtifacts schema for legacy loaded tasks", () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const service = new TaskWorkflowService(audit, {
+      initialTasks: [
+        {
+          id: "legacy-testing",
+          title: "Legacy testing",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
+        }
+      ]
+    });
+
+    const testingArtifacts = service.get("legacy-testing").metadata.testingArtifacts as Record<
+      string,
+      unknown
+    >;
+    const planned = testingArtifacts.planned as Record<string, unknown>;
+    const implemented = testingArtifacts.implemented as Record<string, unknown>;
+    expect(testingArtifacts.schemaVersion).toBe("1.0");
+    expect(planned.gherkinScenarios).toEqual([]);
+    expect(implemented.testsAddedOrUpdated).toEqual([]);
   });
 
   test("runs status hooks in onExit then onEnter order and records runtime", async () => {

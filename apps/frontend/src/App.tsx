@@ -756,6 +756,21 @@ function KanbanView() {
     ...asStringArray(selectedTask?.metadata.links),
     ...asStringArray(selectedTask?.metadata.researchReferences)
   ]);
+  const selectedTestingArtifacts = asRecord(selectedTask?.metadata.testingArtifacts);
+  const selectedTestingPlan = asRecord(selectedTestingArtifacts?.planned);
+  const selectedTestingImplemented = asRecord(selectedTestingArtifacts?.implemented);
+  const plannedGherkinScenarios = asStringArray(selectedTestingPlan?.gherkinScenarios);
+  const plannedUnitTestIntent = asStringArray(selectedTestingPlan?.unitTestIntent);
+  const plannedIntegrationTestIntent = asStringArray(selectedTestingPlan?.integrationTestIntent);
+  const plannedTestingNotes = asString(selectedTestingPlan?.notes);
+  const implementedTests = asStringArray(selectedTestingImplemented?.testsAddedOrUpdated);
+  const implementedEvidenceLinks = asStringArray(selectedTestingImplemented?.evidenceLinks);
+  const implementedCommandsRun = asStringArray(selectedTestingImplemented?.commandsRun);
+  const implementedTestingNotes = asString(selectedTestingImplemented?.notes);
+  const plannedTestingItemCount =
+    plannedGherkinScenarios.length + plannedUnitTestIntent.length + plannedIntegrationTestIntent.length;
+  const implementedTestingItemCount =
+    implementedTests.length + implementedEvidenceLinks.length + implementedCommandsRun.length;
   const timelineRows = selectedTask
     ? [
         {
@@ -1337,6 +1352,120 @@ function KanbanView() {
                     </Box>
                   </>
                 )}
+              </DetailSection>
+
+              <DetailSection title="Testing Traceability" icon={<ManageSearchRounded />}>
+                <Stack spacing={1}>
+                  <Typography variant="body2" color="text.secondary">
+                    Planned items ({plannedTestingItemCount}) | Implemented evidence ({implementedTestingItemCount})
+                  </Typography>
+                  {plannedTestingItemCount === 0 && implementedTestingItemCount === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No testing artifacts recorded.
+                    </Typography>
+                  )}
+                  {plannedGherkinScenarios.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Planned Gherkin scenarios
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                        {plannedGherkinScenarios.map((scenario) => (
+                          <Typography component="li" key={scenario} variant="body2">
+                            {scenario}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                  {plannedUnitTestIntent.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Planned unit-test intent
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                        {plannedUnitTestIntent.map((intent) => (
+                          <Typography component="li" key={intent} variant="body2">
+                            {intent}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                  {plannedIntegrationTestIntent.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Planned integration-test intent
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                        {plannedIntegrationTestIntent.map((intent) => (
+                          <Typography component="li" key={intent} variant="body2">
+                            {intent}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                  {plannedTestingNotes && (
+                    <Typography variant="body2">Plan notes: {plannedTestingNotes}</Typography>
+                  )}
+                  {implementedTests.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Implemented tests
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                        {implementedTests.map((testPath) => (
+                          <Typography component="li" key={testPath} variant="body2">
+                            {testPath}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                  {implementedEvidenceLinks.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Evidence links
+                      </Typography>
+                      <Stack spacing={0.5}>
+                        {implementedEvidenceLinks.map((link) => (
+                          <Box
+                            key={link}
+                            component="a"
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            sx={{
+                              color: "inherit",
+                              textDecoration: "underline",
+                              wordBreak: "break-all"
+                            }}
+                          >
+                            {link}
+                          </Box>
+                        ))}
+                      </Stack>
+                    </>
+                  )}
+                  {implementedCommandsRun.length > 0 && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Commands run
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                        {implementedCommandsRun.map((command) => (
+                          <Typography component="li" key={command} variant="body2">
+                            {command}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                  {implementedTestingNotes && (
+                    <Typography variant="body2">Implementation notes: {implementedTestingNotes}</Typography>
+                  )}
+                </Stack>
               </DetailSection>
 
               <DetailSection title="Questionnaire" icon={<ManageSearchRounded />}>

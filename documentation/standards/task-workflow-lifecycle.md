@@ -11,16 +11,18 @@ Branch path:
 
 ## Required stage artifacts
 - `planning`: `metadata.planningArtifact`
+- `planning`: first-pass test design in `metadata.testingArtifacts.planned` (Gherkin + unit/integration intent)
 - `review`: `metadata.reviewArtifact`
 - `verification`: `metadata.verificationArtifact`
+- `review/verification`: implemented test traceability in `metadata.testingArtifacts.implemented`
 - `awaiting_human`: `metadata.awaitingHumanArtifact`
 - `done`: `metadata.doneArtifact`
 
 ## Stage gates
 - Enter `planning` only when objective, acceptance criteria, dependencies, and required inputs are present.
-- Enter `implementing` only after planning artifact is reviewed and explicitly approved.
+- Enter `implementing` only after planning artifact is reviewed and explicitly approved, including planned testing intent.
 - Enter `review` only when implementation changes and impact summary are recorded.
-- Enter `verification` only after review feedback is addressed.
+- Enter `verification` only after review feedback is addressed and test evidence is linked.
 - Enter `done` only after verification passes and merge state is recorded.
 
 ## Git and PR flow

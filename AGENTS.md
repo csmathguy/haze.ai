@@ -10,10 +10,11 @@ This file defines the mandatory workflow for humans and coding agents in this re
 
 ## Required implementation workflow (TDD-first)
 1. Define or refine acceptance criteria in `apps/backend/data/tasks/tasks.json` task records (`description`, `metadata.acceptanceCriteria`).
-2. Write or update failing tests first.
-3. Implement minimal code to make tests pass.
-4. Refactor for design quality and maintainability.
-5. Run full verification before marking complete.
+2. Define planning-stage testing intent in `metadata.testingArtifacts.planned` (Gherkin scenarios + unit/integration intent).
+3. Write or update failing tests first.
+4. Implement minimal code to make tests pass.
+5. Refactor for design quality and maintainability.
+6. Run full verification before marking complete.
 
 ## Required verification commands
 Run these at repo root:
@@ -48,6 +49,9 @@ Run these at repo root:
 - Move tasks through lifecycle statuses explicitly: `ready -> planning -> implementing -> review -> verification -> done`.
 - Use `awaiting_human` whenever required user input blocks progress; include `metadata.awaitingHumanArtifact`.
 - Attach stage artifacts during handoffs: `planningArtifact`, `reviewArtifact`, `verificationArtifact`, `doneArtifact`.
+- Attach testing traceability artifacts during handoffs:
+  - planning: `metadata.testingArtifacts.planned`
+  - review/verification: `metadata.testingArtifacts.implemented`
 - Never implement on `main`; create a task branch first and record `metadata.workflow.branchName` + `metadata.workflow.baseBranch`.
 - Each agent PR/change must include:
   - scope and assumptions,

@@ -44,6 +44,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 };
 const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
 const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
+const TESTING_ARTIFACTS_SCHEMA_VERSION = "1.0";
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 const DEFAULT_COMMAND_ALLOWLIST = ["npm", "git", "scripts/"];
 const execFileAsync = promisify(execFile);
@@ -84,6 +85,26 @@ export interface WorkflowRuntimeState {
   nextActions: WorkflowNextAction[];
   blockingReasons: WorkflowBlockingReason[];
   actionHistory: WorkflowActionHistoryEntry[];
+}
+
+export interface TaskTestingPlanState {
+  gherkinScenarios: string[];
+  unitTestIntent: string[];
+  integrationTestIntent: string[];
+  notes: string | null;
+}
+
+export interface TaskTestingImplementedState {
+  testsAddedOrUpdated: string[];
+  evidenceLinks: string[];
+  commandsRun: string[];
+  notes: string | null;
+}
+
+export interface TaskTestingArtifactsState {
+  schemaVersion: string;
+  planned: TaskTestingPlanState;
+  implemented: TaskTestingImplementedState;
 }
 
 export interface TaskStatusHookContext {
@@ -821,6 +842,24 @@ export class TaskWorkflowService {
     };
   }
 
+  private createTestingArtifactsState(): TaskTestingArtifactsState {
+    return {
+      schemaVersion: TESTING_ARTIFACTS_SCHEMA_VERSION,
+      planned: {
+        gherkinScenarios: [],
+        unitTestIntent: [],
+        integrationTestIntent: [],
+        notes: null
+      },
+      implemented: {
+        testsAddedOrUpdated: [],
+        evidenceLinks: [],
+        commandsRun: [],
+        notes: null
+      }
+    };
+  }
+
   private ensureWorkflowRuntimeMetadata(
     metadata: Record<string, unknown> | undefined
   ): Record<string, unknown> {
@@ -835,6 +874,41 @@ export class TaskWorkflowService {
       blockingReasons: Array.isArray(current.blockingReasons) ? current.blockingReasons : [],
       actionHistory: Array.isArray(current.actionHistory) ? current.actionHistory : []
     } satisfies WorkflowRuntimeState;
+
+    const testingCandidate = nextMetadata.testingArtifacts as
+      | Partial<TaskTestingArtifactsState>
+      | undefined;
+    const testing = testingCandidate ?? this.createTestingArtifactsState();
+    const plannedCandidate = testing.planned as Partial<TaskTestingPlanState> | undefined;
+    const implementedCandidate = testing.implemented as Partial<TaskTestingImplementedState> | undefined;
+
+    nextMetadata.testingArtifacts = {
+      schemaVersion: TESTING_ARTIFACTS_SCHEMA_VERSION,
+      planned: {
+        gherkinScenarios: Array.isArray(plannedCandidate?.gherkinScenarios)
+          ? plannedCandidate.gherkinScenarios
+          : [],
+        unitTestIntent: Array.isArray(plannedCandidate?.unitTestIntent)
+          ? plannedCandidate.unitTestIntent
+          : [],
+        integrationTestIntent: Array.isArray(plannedCandidate?.integrationTestIntent)
+          ? plannedCandidate.integrationTestIntent
+          : [],
+        notes: typeof plannedCandidate?.notes === "string" ? plannedCandidate.notes : null
+      },
+      implemented: {
+        testsAddedOrUpdated: Array.isArray(implementedCandidate?.testsAddedOrUpdated)
+          ? implementedCandidate.testsAddedOrUpdated
+          : [],
+        evidenceLinks: Array.isArray(implementedCandidate?.evidenceLinks)
+          ? implementedCandidate.evidenceLinks
+          : [],
+        commandsRun: Array.isArray(implementedCandidate?.commandsRun)
+          ? implementedCandidate.commandsRun
+          : [],
+        notes: typeof implementedCandidate?.notes === "string" ? implementedCandidate.notes : null
+      }
+    } satisfies TaskTestingArtifactsState;
 
     return nextMetadata;
   }
