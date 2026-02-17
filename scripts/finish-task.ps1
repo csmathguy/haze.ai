@@ -134,11 +134,9 @@ function Build-PopulatedPrBody(
   $canonicalTaskId = Resolve-CanonicalTaskId -task $task -fallbackTaskId $taskId
   $changeType = Resolve-ChangeType -task $task -changedFiles $changedFiles
   $acceptanceCriteria = To-StringArray $task.metadata.acceptanceCriteria
-  $references = Unique-Strings @(
-    (To-StringArray $task.metadata.references)
-    + (To-StringArray $task.metadata.links)
-    + (To-StringArray $task.metadata.researchReferences)
-  )
+  $references = Merge-StringArrays -current $task.metadata.references -additional @()
+  $references = Merge-StringArrays -current $references -additional (To-StringArray $task.metadata.links)
+  $references = Merge-StringArrays -current $references -additional (To-StringArray $task.metadata.researchReferences)
   $risks = To-StringArray $task.metadata.planningArtifact.risks
   if ($risks.Count -eq 0) {
     $risks = @("No major risks explicitly recorded in task metadata.")
