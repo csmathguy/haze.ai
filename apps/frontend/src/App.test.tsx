@@ -181,6 +181,58 @@ describe("App", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
   });
 
+  test("filters kanban cards by selected tag", async () => {
+    installFetchMock([
+      {
+        id: "t-tag-backend",
+        title: "Backend only task",
+        description: "Backend tag",
+        priority: 4,
+        status: "backlog",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["backend"],
+        metadata: {}
+      },
+      {
+        id: "t-tag-frontend",
+        title: "Frontend only task",
+        description: "Frontend tag",
+        priority: 3,
+        status: "backlog",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["frontend"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/backend only task/i)).toBeInTheDocument();
+      expect(screen.getByText(/frontend only task/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/filter by tag/i), {
+      target: { value: "backend" }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/backend only task/i)).toBeInTheDocument();
+      expect(screen.queryByText(/frontend only task/i)).not.toBeInTheDocument();
+    });
+  });
+
   test("wakes orchestrator from dashboard action", async () => {
     const fetchMock = installFetchMock();
 

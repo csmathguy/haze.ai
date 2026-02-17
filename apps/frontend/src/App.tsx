@@ -61,6 +61,7 @@ import {
   type TaskStatus,
   type WorkflowStatusModelEntry
 } from "./api";
+import { applyKanbanTaskFilters } from "./kanban-filters";
 import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
@@ -548,6 +549,7 @@ function KanbanView() {
   const [statusDetailsStatus, setStatusDetailsStatus] = useState<TaskStatus>("backlog");
   const [statusDetailsTaskId, setStatusDetailsTaskId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
+  const [selectedTagFilter, setSelectedTagFilter] = useState("");
 
   const refresh = async () => {
     setLoading(true);
@@ -643,13 +645,26 @@ function KanbanView() {
     );
   };
 
+  const availableTags = useMemo(
+    () => [...new Set(tasks.flatMap((task) => task.tags))].sort((a, b) => a.localeCompare(b)),
+    [tasks]
+  );
+
+  const filteredTasks = useMemo(
+    () =>
+      applyKanbanTaskFilters(tasks, {
+        tag: selectedTagFilter || null
+      }),
+    [selectedTagFilter, tasks]
+  );
+
   const tasksByStatus = useMemo(() => {
     const grouped = new Map<TaskRecord["status"], TaskRecord[]>();
     for (const column of columns) {
       grouped.set(column.status, []);
     }
 
-    for (const task of tasks) {
+    for (const task of filteredTasks) {
       const lane = grouped.get(task.status) ?? [];
       lane.push(task);
       grouped.set(task.status, lane);
@@ -663,7 +678,7 @@ function KanbanView() {
     }
 
     return grouped;
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const selectedTask = useMemo(
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
@@ -853,6 +868,34 @@ function KanbanView() {
           disabled={loading}
         >
           Refresh Board
+        </Button>
+      </Stack>
+
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
+        <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 260 } }}>
+          <InputLabel id="kanban-filter-tag-label">Filter by tag</InputLabel>
+          <Select
+            native
+            labelId="kanban-filter-tag-label"
+            value={selectedTagFilter}
+            label="Filter by tag"
+            onChange={(event) => setSelectedTagFilter(event.target.value)}
+            inputProps={{ "aria-label": "Filter by tag" }}
+          >
+            <option value="">All tags</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </Select>
+        </FormControl>
+        <Button
+          variant="text"
+          onClick={() => setSelectedTagFilter("")}
+          disabled={selectedTagFilter.length === 0}
+        >
+          Clear Filter
         </Button>
       </Stack>
 
