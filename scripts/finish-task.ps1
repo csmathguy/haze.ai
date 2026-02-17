@@ -97,12 +97,19 @@ function Update-TaskViaApi([string]$apiBase, [string]$taskId, [hashtable]$artifa
   $metadata.reviewArtifact = $artifacts.reviewArtifact
   $metadata.verificationArtifact = $artifacts.verificationArtifact
 
-  $patchBody = @{
-    status = "review"
+  # Step 1: persist metadata artifacts first so transition validation can read them.
+  $metadataPatchBody = @{
     metadata = $metadata
   } | ConvertTo-Json -Depth 20
 
-  $patchResponse = Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $patchBody
+  Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $metadataPatchBody | Out-Null
+
+  # Step 2: transition status to review.
+  $statusPatchBody = @{
+    status = "review"
+  } | ConvertTo-Json -Depth 20
+
+  $patchResponse = Invoke-RestMethod -Method Patch -Uri "$apiBase/tasks/$taskId" -ContentType "application/json" -Body $statusPatchBody
   if (-not $patchResponse.record -or $patchResponse.record.status -ne "review") {
     throw "Failed to transition task to review: $taskId"
   }

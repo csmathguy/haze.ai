@@ -30,6 +30,7 @@ Use sub-skills in this order:
 - PR created for human review.
 - Move to `done` only after merge confirmation.
 - Completion handoff must run through `workflow-verify-commit-pr` (`scripts/finish-task.ps1`) instead of manual git/PR commands.
+- Once completion criteria are met, trigger `workflow-verify-commit-pr` automatically without waiting for additional confirmation unless the user explicitly asks to hold.
 
 ## Branch gate
 - Never implement on `main`.
