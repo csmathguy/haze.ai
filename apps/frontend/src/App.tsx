@@ -1,4 +1,5 @@
 import AutorenewRounded from "@mui/icons-material/AutorenewRounded";
+import AccountTreeRounded from "@mui/icons-material/AccountTreeRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import FlagRounded from "@mui/icons-material/FlagRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
@@ -26,6 +27,7 @@ import {
   Select,
   Stack,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material";
 import { alpha, keyframes, useColorScheme } from "@mui/material/styles";
@@ -301,7 +303,9 @@ function MetaPill({
   label,
   tone = "neutral",
   colors,
-  textColor
+  textColor,
+  tooltip,
+  ariaLabel
 }: {
   icon: ReactNode;
   label: string;
@@ -316,9 +320,12 @@ function MetaPill({
     accentText: string;
   };
   textColor: string;
+  tooltip?: string;
+  ariaLabel?: string;
 }) {
-  return (
+  const content = (
     <Box
+      aria-label={ariaLabel}
       sx={{
         display: "inline-flex",
         alignItems: "center",
@@ -350,6 +357,12 @@ function MetaPill({
       </Typography>
     </Box>
   );
+
+  if (!tooltip) {
+    return content;
+  }
+
+  return <Tooltip title={tooltip}>{content}</Tooltip>;
 }
 
 type DetailAnswer = {
@@ -761,17 +774,40 @@ function KanbanView() {
                             />
                             <MetaPill
                               icon={<HubRounded />}
-                              label={`deps ${task.dependencies.length}`}
+                              label={`${task.dependencies.length}`}
                               colors={tokens.meta}
                               textColor={cardMetaColor}
+                              tooltip="Dependencies"
+                              ariaLabel={`Dependencies: ${task.dependencies.length}`}
+                            />
+                            <MetaPill
+                              icon={<AccountTreeRounded />}
+                              label={`${(task.dependents ?? []).length}`}
+                              colors={tokens.meta}
+                              textColor={cardMetaColor}
+                              tooltip="Dependents"
+                              ariaLabel={`Dependents: ${(task.dependents ?? []).length}`}
                             />
                             {task.dependencies.length > 0 && (
-                              <MetaPill
-                                icon={<BlockRounded />}
-                                label="blocked"
-                                colors={tokens.meta}
-                                textColor={cardMetaColor}
-                              />
+                              <Tooltip title="Blocked by dependencies">
+                                <Box
+                                  aria-label="Blocked by dependencies"
+                                  sx={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderRadius: 999,
+                                    px: 0.75,
+                                    py: 0.25,
+                                    border: "1px solid #f48c8c",
+                                    backgroundColor: "rgba(191, 47, 47, 0.2)",
+                                    color: "#ffb3b3",
+                                    "& svg": { fontSize: 13 }
+                                  }}
+                                >
+                                  <BlockRounded />
+                                </Box>
+                              </Tooltip>
                             )}
                             {task.tags.slice(0, 2).map((tag) => (
                               <MetaPill

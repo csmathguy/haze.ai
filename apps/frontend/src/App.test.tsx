@@ -140,7 +140,8 @@ describe("App", () => {
       expect(screen.getByText(/implement queue/i)).toBeInTheDocument();
     });
     expect(screen.getByText("P5")).toBeInTheDocument();
-    expect(screen.getByText(/deps 0/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/dependencies: 0/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/dependents: 0/i)).toBeInTheDocument();
     expect(screen.getByText(/id t1/i)).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks");
@@ -373,7 +374,7 @@ describe("App", () => {
       expect(screen.getByText(/child blocked task/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText("blocked")).toBeInTheDocument();
+    expect(screen.getByLabelText(/blocked by dependencies/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /child blocked task/i }));
     await waitFor(() => {
