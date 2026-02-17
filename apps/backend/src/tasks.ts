@@ -20,6 +20,16 @@ const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
   "verification",
   "awaiting_human"
 ]);
+const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = {
+  backlog: new Set(["planning", "implementing", "done", "cancelled"]),
+  planning: new Set(["backlog", "implementing", "awaiting_human", "cancelled"]),
+  implementing: new Set(["backlog", "review", "awaiting_human", "cancelled"]),
+  review: new Set(["implementing", "verification", "awaiting_human", "cancelled"]),
+  verification: new Set(["implementing", "done", "awaiting_human", "cancelled"]),
+  awaiting_human: new Set(["planning", "implementing", "review", "cancelled"]),
+  done: new Set(["review", "cancelled"]),
+  cancelled: new Set(["backlog"])
+};
 const CANONICAL_TASK_ID_PATTERN = /^T-(\d{5})$/;
 const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
 
@@ -126,7 +136,8 @@ export interface UpdateTaskInput {
 export class TaskServiceError extends Error {
   constructor(
     message: string,
-    public readonly statusCode: number
+    public readonly statusCode: number,
+    public readonly code?: string
   ) {
     super(message);
   }
@@ -321,8 +332,9 @@ export class TaskWorkflowService {
     if (input.status !== undefined) {
       const previousStatus = existing.status;
       const status = this.normalizeStatus(input.status);
-      existing.status = status;
       if (previousStatus !== status) {
+        await this.validateStatusTransition(existing, previousStatus, status);
+        existing.status = status;
         await this.executeStatusHooks(existing, previousStatus, status);
       }
       if (ACTIVE_TASK_STATUSES.has(status) && !existing.startedAt) {
@@ -534,6 +546,93 @@ export class TaskWorkflowService {
 
   private normalizeDuplicateTitle(title: string): string {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  private async validateStatusTransition(
+    task: TaskRecord,
+    fromStatus: TaskStatus,
+    toStatus: TaskStatus
+  ): Promise<void> {
+    const blockingReasons: WorkflowBlockingReason[] = [];
+    const allowed = ALLOWED_STATUS_TRANSITIONS[fromStatus];
+    if (!allowed.has(toStatus)) {
+      blockingReasons.push({
+        code: "INVALID_STATUS_TRANSITION",
+        message: `Transition from ${fromStatus} to ${toStatus} is not allowed`
+      });
+    }
+
+    if (
+      fromStatus === "implementing" &&
+      toStatus === "review" &&
+      !this.hasReviewTransitionArtifacts(task.metadata)
+    ) {
+      blockingReasons.push({
+        code: "MISSING_REVIEW_ARTIFACTS",
+        message: "implementing->review requires reviewArtifact and verificationArtifact"
+      });
+    }
+
+    if (toStatus === "awaiting_human" && !this.hasAwaitingHumanArtifact(task.metadata)) {
+      blockingReasons.push({
+        code: "MISSING_AWAITING_HUMAN_ARTIFACT",
+        message: "awaiting_human requires awaitingHumanArtifact metadata"
+      });
+    }
+
+    if (blockingReasons.length === 0) {
+      return;
+    }
+
+    const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    const runtime = metadata.workflowRuntime as WorkflowRuntimeState;
+    const transitionAt = this.now().toISOString();
+    runtime.lastTransition = {
+      from: fromStatus,
+      to: toStatus,
+      at: transitionAt
+    };
+    runtime.blockingReasons.push(...blockingReasons);
+    runtime.actionHistory.push({
+      at: transitionAt,
+      phase: "onExit",
+      status: fromStatus,
+      result: "error",
+      nextActionCount: 0,
+      blockingReasonCount: blockingReasons.length,
+      error: "status_transition_blocked"
+    });
+    task.metadata = metadata;
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "task_transition_blocked",
+      actor: "task_workflow",
+      payload: {
+        taskId: task.id,
+        fromStatus,
+        toStatus,
+        reasons: blockingReasons
+      }
+    });
+
+    throw new TaskServiceError(
+      `Transition blocked from ${fromStatus} to ${toStatus}`,
+      409,
+      "TASK_TRANSITION_BLOCKED"
+    );
+  }
+
+  private hasReviewTransitionArtifacts(metadata: Record<string, unknown>): boolean {
+    return this.isRecord(metadata.reviewArtifact) && this.isRecord(metadata.verificationArtifact);
+  }
+
+  private hasAwaitingHumanArtifact(metadata: Record<string, unknown>): boolean {
+    return this.isRecord(metadata.awaitingHumanArtifact);
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   private createWorkflowRuntimeState(): WorkflowRuntimeState {
