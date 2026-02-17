@@ -26,7 +26,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = 
   backlog: new Set(["planning", "implementing", "done", "cancelled"]),
   planning: new Set(["backlog", "implementing", "awaiting_human", "cancelled"]),
   implementing: new Set(["backlog", "review", "awaiting_human", "cancelled"]),
-  review: new Set(["implementing", "verification", "awaiting_human", "cancelled"]),
+  review: new Set(["implementing", "verification", "done", "awaiting_human", "cancelled"]),
   verification: new Set(["implementing", "done", "awaiting_human", "cancelled"]),
   awaiting_human: new Set(["planning", "implementing", "review", "cancelled"]),
   done: new Set(["review", "cancelled"]),
