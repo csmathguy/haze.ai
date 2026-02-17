@@ -263,10 +263,11 @@ describe("App", () => {
     expect(screen.getByText(/branch:/i)).toBeInTheDocument();
     expect(screen.getByText(/task\/t-00042-example/i)).toBeInTheDocument();
     expect(screen.getByText(/repository:/i)).toBeInTheDocument();
-    expect(screen.getByText(/csmathguy\/haze.ai/i)).toBeInTheDocument();
+    expect(screen.getByText("csmathguy/haze.ai")).toBeInTheDocument();
     expect(screen.getByText(/pull request:/i)).toBeInTheDocument();
-    expect(screen.getByText(/#27/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view pr/i })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /github.com\/csmathguy\/haze.ai\/pull\/27/i })
+    ).toHaveAttribute(
       "href",
       "https://github.com/csmathguy/haze.ai/pull/27"
     );

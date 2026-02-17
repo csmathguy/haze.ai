@@ -635,10 +635,6 @@ function KanbanView() {
     asString(selectedWorkflowPullRequest?.link) ??
     asString(selectedGithubMetadata?.pullRequestUrl) ??
     asString(selectedGithubMetadata?.prUrl);
-  const selectedPullRequestNumber =
-    asString(selectedWorkflow?.pullRequestNumber) ??
-    asString(selectedWorkflowPullRequest?.number) ??
-    asString(selectedGithubMetadata?.pullRequestNumber);
   const selectedGithubRepo =
     asString(selectedWorkflow?.repository) ??
     asString(selectedWorkflow?.repo) ??
@@ -1047,25 +1043,24 @@ function KanbanView() {
                   </Typography>
                   <Typography variant="body2">
                     <strong>Pull Request:</strong>{" "}
-                    {selectedPullRequestNumber ? `#${selectedPullRequestNumber}` : "N/A"}
+                    {selectedPullRequestUrl ? (
+                      <Box
+                        component="a"
+                        href={selectedPullRequestUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        sx={{
+                          color: "inherit",
+                          textDecoration: "underline",
+                          wordBreak: "break-all"
+                        }}
+                      >
+                        {selectedPullRequestUrl}
+                      </Box>
+                    ) : (
+                      "N/A"
+                    )}
                   </Typography>
-                  {selectedPullRequestUrl ? (
-                    <Button
-                      component="a"
-                      href={selectedPullRequestUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      size="small"
-                      variant="outlined"
-                      sx={{ width: "fit-content" }}
-                    >
-                      View PR
-                    </Button>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      PR link not available yet.
-                    </Typography>
-                  )}
                 </Stack>
               </DetailSection>
 
