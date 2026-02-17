@@ -11,6 +11,7 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import FavoriteRounded from "@mui/icons-material/FavoriteRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import HubRounded from "@mui/icons-material/HubRounded";
+import LinkRounded from "@mui/icons-material/LinkRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import ManageSearchRounded from "@mui/icons-material/ManageSearchRounded";
 import RuleRounded from "@mui/icons-material/RuleRounded";
@@ -421,6 +422,10 @@ function asStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 function normalizeAnswerThread(value: unknown): DetailAnswer[] {
   if (!Array.isArray(value)) {
     return [];
@@ -746,6 +751,11 @@ function KanbanView() {
   const selectedTaskStatus = selectedTask?.status;
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
+  const selectedTaskReferences = uniqueStrings([
+    ...asStringArray(selectedTask?.metadata.references),
+    ...asStringArray(selectedTask?.metadata.links),
+    ...asStringArray(selectedTask?.metadata.researchReferences)
+  ]);
   const timelineRows = selectedTask
     ? [
         {
@@ -1209,7 +1219,36 @@ function KanbanView() {
                 )}
               </DetailSection>
 
-              <DetailSection title="Task Links" icon={<HubRounded />} defaultExpanded>
+              <DetailSection title="References" icon={<LinkRounded />} defaultExpanded>
+                <Stack spacing={0.75}>
+                  <Typography variant="caption" color="text.secondary">
+                    References ({selectedTaskReferences.length})
+                  </Typography>
+                  {selectedTaskReferences.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No reference links recorded.
+                    </Typography>
+                  )}
+                  {selectedTaskReferences.map((reference) => (
+                    <Box
+                      key={reference}
+                      component="a"
+                      href={reference}
+                      target="_blank"
+                      rel="noreferrer"
+                      sx={{
+                        color: "inherit",
+                        textDecoration: "underline",
+                        wordBreak: "break-all"
+                      }}
+                    >
+                      {reference}
+                    </Box>
+                  ))}
+                </Stack>
+              </DetailSection>
+
+              <DetailSection title="Task Dependencies" icon={<HubRounded />} defaultExpanded>
                 <Typography variant="body2" color="text.secondary">
                   {selectedTaskDependencies.length > 0
                     ? "Blocked by dependencies."

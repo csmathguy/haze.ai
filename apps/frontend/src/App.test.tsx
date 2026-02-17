@@ -240,6 +240,9 @@ describe("App", () => {
         tags: ["workflow"],
         metadata: {
           canonicalTaskId: "T-00042",
+          researchReferences: [
+            "https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository"
+          ],
           workflow: {
             branchName: "task/t-00042-example",
             repository: "csmathguy/haze.ai",
@@ -312,6 +315,16 @@ describe("App", () => {
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));
     expect(screen.getByText(/use later window/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /references/i }));
+    expect(screen.getByText(/references \(1\)/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /docs\.github\.com\/en\/communities\/using-templates-to-encourage-useful-issues-and-pull-requests\/creating-a-pull-request-template-for-your-repository/i
+      })
+    ).toHaveAttribute(
+      "href",
+      "https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository"
+    );
   });
 
   test("opens status details from lane header and from task status pill", async () => {
@@ -513,7 +526,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /child blocked task/i }));
     await waitFor(() => {
-      expect(screen.getByText(/task links/i)).toBeInTheDocument();
+      expect(screen.getByText(/task dependencies/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText(/blocked by dependencies/i)).toBeInTheDocument();
