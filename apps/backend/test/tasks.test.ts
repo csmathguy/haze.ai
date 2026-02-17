@@ -274,5 +274,40 @@ describe("TaskWorkflowService", () => {
     expect(service.get("legacy-in-progress").status).toBe("implementing");
     expect(service.get("legacy-ready").status).toBe("backlog");
   });
+
+  test("does not create duplicate tasks for normalized title matches and bumps priority", async () => {
+    const service = buildService();
+
+    const original = await service.create({
+      title: "Fix API timeout handling",
+      priority: 2
+    });
+
+    const duplicateAttempt = await service.create({
+      title: "  fix-api   timeout handling ",
+      priority: 1
+    });
+
+    expect(duplicateAttempt.id).toBe(original.id);
+    expect(service.list()).toHaveLength(1);
+    expect(service.get(original.id).priority).toBe(3);
+  });
+
+  test("caps duplicate priority bump at 5", async () => {
+    const service = buildService();
+
+    const original = await service.create({
+      title: "Resolve flaky orchestrator wake race",
+      priority: 5
+    });
+
+    const duplicateAttempt = await service.create({
+      title: "resolve flaky orchestrator wake race"
+    });
+
+    expect(duplicateAttempt.id).toBe(original.id);
+    expect(service.list()).toHaveLength(1);
+    expect(service.get(original.id).priority).toBe(5);
+  });
 });
 
