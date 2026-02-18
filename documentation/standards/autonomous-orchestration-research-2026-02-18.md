@@ -64,6 +64,7 @@ Decision artifacts:
 - Safety guardrails + sandbox policy: `documentation/standards/autonomous-orchestration-safety-policy-2026-02-18.md`
 - Hook trigger model + guardrails: `documentation/standards/autonomous-orchestration-hook-trigger-model-2026-02-18.md`
 - Agent communication + context packaging: `documentation/standards/autonomous-orchestration-communication-pipeline-2026-02-18.md`
+- Planner workflow + questionnaire generation: `documentation/standards/autonomous-orchestration-planner-workflow-2026-02-18.md`
 
 ## Approved decisions (locked)
 - Phase-1 runtime: Codex CLI wrapper in backend worker.
