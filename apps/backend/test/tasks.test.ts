@@ -527,6 +527,78 @@ describe("TaskWorkflowService", () => {
     expect(allowed.status).toBe("review");
   });
 
+  test("allows done transition when PR is already merged", async () => {
+    const githubPullRequestService = {
+      getPullRequestState: vi.fn(async () => ({ merged: true })),
+      mergePullRequest: vi.fn(async () => ({ merged: true }))
+    };
+    const service = buildService(() => 0, {
+      githubPullRequestService,
+      resolveProjectGithubConfig: () => ({
+        repository: "csmathguy/haze.ai",
+        tokenEnvVar: "TEST_GITHUB_TOKEN",
+        mergeMethod: "squash"
+      })
+    });
+    process.env.TEST_GITHUB_TOKEN = "token-value";
+
+    const task = await service.create({
+      title: "Done gate merged task",
+      metadata: {
+        workflow: {
+          pullRequestNumber: "123"
+        }
+      }
+    });
+
+    const done = await service.update(task.id, { status: "done" });
+    expect(done.status).toBe("done");
+    expect(githubPullRequestService.getPullRequestState).toHaveBeenCalledTimes(1);
+    expect(githubPullRequestService.mergePullRequest).not.toHaveBeenCalled();
+
+    delete process.env.TEST_GITHUB_TOKEN;
+  });
+
+  test("redirects done transition to awaiting_human when PR cannot be auto-merged", async () => {
+    const githubPullRequestService = {
+      getPullRequestState: vi.fn(async () => ({ merged: false })),
+      mergePullRequest: vi.fn(async () => ({ merged: false }))
+    };
+    const service = buildService(() => 0, {
+      githubPullRequestService,
+      resolveProjectGithubConfig: () => ({
+        repository: "csmathguy/haze.ai",
+        tokenEnvVar: "TEST_GITHUB_TOKEN",
+        mergeMethod: "squash"
+      })
+    });
+    process.env.TEST_GITHUB_TOKEN = "token-value";
+
+    const task = await service.create({
+      title: "Done gate unmerged task",
+      metadata: {
+        workflow: {
+          pullRequestNumber: "124"
+        }
+      }
+    });
+
+    await expect(service.update(task.id, { status: "done" })).rejects.toMatchObject({
+      statusCode: 409,
+      code: "TASK_TRANSITION_REDIRECTED"
+    });
+
+    const redirected = service.get(task.id);
+    expect(redirected.status).toBe("awaiting_human");
+    expect((redirected.metadata.awaitingHumanArtifact as Record<string, unknown>).question).toMatch(
+      /merged pull request/i
+    );
+    expect(githubPullRequestService.getPullRequestState).toHaveBeenCalledTimes(1);
+    expect(githubPullRequestService.mergePullRequest).toHaveBeenCalledTimes(1);
+
+    delete process.env.TEST_GITHUB_TOKEN;
+  });
+
   test("executes allow-listed command actions and records success", async () => {
     const commandExecutor = vi.fn(async () => ({
       exitCode: 0,
