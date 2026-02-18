@@ -6,9 +6,17 @@ import { HeartbeatMonitor } from "./heartbeat.js";
 import { logger } from "./logger.js";
 import { BasicOrchestrator } from "./orchestrator.js";
 import { TaskActions } from "./task-actions.js";
+import { ProjectFileStore } from "./project-file-store.js";
 import { TaskFileStore } from "./task-file-store.js";
 import {
+  type CreateProjectInput,
+  ProjectServiceError,
+  ProjectWorkflowService,
+  type UpdateProjectInput
+} from "./projects.js";
+import {
   type CreateTaskInput,
+  type TaskRetrospectiveInput,
   TaskServiceError,
   TaskWorkflowService
 } from "./tasks.js";
@@ -18,6 +26,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 const AUDIT_LOG_DIR = process.env.AUDIT_LOG_DIR ?? "data/audit";
 const AUDIT_RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS ?? 7);
 const TASKS_FILE_PATH = process.env.TASKS_FILE_PATH ?? "data/tasks/tasks.json";
+const PROJECTS_FILE_PATH = process.env.PROJECTS_FILE_PATH ?? "data/projects/projects.json";
 const TASKS_DOCS_DIR = resolveRepoPath(process.env.TASKS_DOCS_DIR);
 
 const app = express();
@@ -51,6 +60,15 @@ const handleTaskError = (error: unknown, res: express.Response): boolean => {
   return false;
 };
 
+const handleProjectError = (error: unknown, res: express.Response): boolean => {
+  if (error instanceof ProjectServiceError) {
+    res.status(error.statusCode).json({ error: error.message });
+    return true;
+  }
+
+  return false;
+};
+
 const handleUnexpectedTaskError = (
   error: unknown,
   res: express.Response,
@@ -61,6 +79,14 @@ const handleUnexpectedTaskError = (
 };
 
 async function bootstrap(): Promise<void> {
+  const projectStore = new ProjectFileStore(PROJECTS_FILE_PATH);
+  const persistedProjects = await projectStore.load();
+  const projects = new ProjectWorkflowService({
+    initialProjects: persistedProjects,
+    onChanged: async (records) => {
+      await projectStore.save(records);
+    }
+  });
   const taskStore = new TaskFileStore(TASKS_FILE_PATH);
   const persistedTasks = await taskStore.load();
 
@@ -94,13 +120,14 @@ async function bootstrap(): Promise<void> {
   void audit.record({
     eventType: "backend_started",
     actor: "system",
-    payload: {
-      port: PORT,
-      auditLogDir: AUDIT_LOG_DIR,
-      retentionDays: AUDIT_RETENTION_DAYS,
-      tasksFilePath: TASKS_FILE_PATH
-    }
-  });
+      payload: {
+        port: PORT,
+        auditLogDir: AUDIT_LOG_DIR,
+        retentionDays: AUDIT_RETENTION_DAYS,
+        tasksFilePath: TASKS_FILE_PATH,
+        projectsFilePath: PROJECTS_FILE_PATH
+      }
+    });
 
   app.get("/health", (_req, res) => {
     res.json({
@@ -143,9 +170,26 @@ async function bootstrap(): Promise<void> {
     res.json(tasks.getStatusModel());
   });
 
+  app.get("/projects", (_req, res) => {
+    res.json({ records: projects.list() });
+  });
+
+  app.get("/projects/:id", (req, res) => {
+    try {
+      res.json({ record: projects.get(req.params.id) });
+    } catch (error) {
+      if (!handleProjectError(error, res)) {
+        handleUnexpectedTaskError(error, res, "get_project");
+      }
+    }
+  });
+
   app.post("/tasks", async (req, res) => {
     try {
       const input = (req.body ?? {}) as CreateTaskInput;
+      if (input.projectId && !projects.exists(input.projectId)) {
+        throw new TaskServiceError(`Unknown project: ${input.projectId}`, 400);
+      }
       const record = await tasks.create(input);
       res.status(201).json({ record: tasks.getWithDependents(record.id) });
     } catch (error) {
@@ -157,11 +201,27 @@ async function bootstrap(): Promise<void> {
 
   app.patch("/tasks/:id", async (req, res) => {
     try {
+      const input = (req.body ?? {}) as CreateTaskInput;
+      if (input.projectId && !projects.exists(input.projectId)) {
+        throw new TaskServiceError(`Unknown project: ${input.projectId}`, 400);
+      }
       const record = await tasks.update(req.params.id, req.body ?? {});
       res.json({ record: tasks.getWithDependents(record.id) });
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "update_task");
+      }
+    }
+  });
+
+  app.post("/tasks/:id/retrospectives", async (req, res) => {
+    try {
+      const input = (req.body ?? {}) as TaskRetrospectiveInput;
+      const record = await tasks.recordRetrospective(req.params.id, input);
+      res.status(201).json({ record: tasks.getWithDependents(record.id) });
+    } catch (error) {
+      if (!handleTaskError(error, res)) {
+        handleUnexpectedTaskError(error, res, "record_task_retrospective");
       }
     }
   });
@@ -173,6 +233,48 @@ async function bootstrap(): Promise<void> {
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "delete_task");
+      }
+    }
+  });
+
+  app.post("/projects", async (req, res) => {
+    try {
+      const input = (req.body ?? {}) as CreateProjectInput;
+      const record = await projects.create(input);
+      res.status(201).json({ record });
+    } catch (error) {
+      if (!handleProjectError(error, res)) {
+        handleUnexpectedTaskError(error, res, "create_project");
+      }
+    }
+  });
+
+  app.patch("/projects/:id", async (req, res) => {
+    try {
+      const input = (req.body ?? {}) as UpdateProjectInput;
+      const record = await projects.update(req.params.id, input);
+      res.json({ record });
+    } catch (error) {
+      if (!handleProjectError(error, res)) {
+        handleUnexpectedTaskError(error, res, "update_project");
+      }
+    }
+  });
+
+  app.delete("/projects/:id", async (req, res) => {
+    try {
+      const isUsedByTask = tasks.list().some((task) => task.projectId === req.params.id);
+      if (isUsedByTask) {
+        throw new ProjectServiceError(
+          `Project ${req.params.id} cannot be deleted; it is associated with one or more tasks`,
+          409
+        );
+      }
+      await projects.delete(req.params.id);
+      res.status(204).end();
+    } catch (error) {
+      if (!handleProjectError(error, res)) {
+        handleUnexpectedTaskError(error, res, "delete_project");
       }
     }
   });
@@ -282,7 +384,8 @@ async function bootstrap(): Promise<void> {
         port: PORT,
         auditLogDir: AUDIT_LOG_DIR,
         retentionDays: AUDIT_RETENTION_DAYS,
-        tasksFilePath: TASKS_FILE_PATH
+        tasksFilePath: TASKS_FILE_PATH,
+        projectsFilePath: PROJECTS_FILE_PATH
       },
       "backend started"
     );

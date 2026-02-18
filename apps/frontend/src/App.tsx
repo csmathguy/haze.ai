@@ -51,12 +51,16 @@ import {
   fetchRecentAudit,
   fetchWorkflowStatusModel,
   patchTask,
+  patchProject,
+  createProject,
   fetchStatus,
   fetchTasks,
+  fetchProjects,
   postJson,
   subscribeAudit,
   type AuditEventRecord,
   type OrchestratorStatus,
+  type ProjectRecord,
   type TaskRecord,
   type TaskStatus,
   type WorkflowStatusModelEntry
@@ -65,7 +69,7 @@ import { applyKanbanTaskFilters } from "./kanban-filters";
 import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
-type ViewName = "dashboard" | "kanban";
+type ViewName = "dashboard" | "kanban" | "projects";
 
 const resolveViewFromLocation = (): ViewName => {
   if (typeof window === "undefined") {
@@ -73,7 +77,11 @@ const resolveViewFromLocation = (): ViewName => {
   }
 
   const params = new URLSearchParams(window.location.search);
-  return params.get("view") === "kanban" ? "kanban" : "dashboard";
+  const view = params.get("view");
+  if (view === "kanban" || view === "projects") {
+    return view;
+  }
+  return "dashboard";
 };
 
 const syncViewToLocation = (view: ViewName): void => {
@@ -427,6 +435,17 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function isTaskBlockedByDependencies(
+  task: Pick<TaskRecord, "dependencies">,
+  tasksById: ReadonlyMap<string, TaskRecord>
+): boolean {
+  if (task.dependencies.length === 0) {
+    return false;
+  }
+
+  return task.dependencies.some((dependencyId) => tasksById.get(dependencyId)?.status !== "done");
+}
+
 function normalizeAnswerThread(value: unknown): DetailAnswer[] {
   if (!Array.isArray(value)) {
     return [];
@@ -550,6 +569,7 @@ function KanbanView() {
   const [statusDetailsTaskId, setStatusDetailsTaskId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
   const [selectedTagFilter, setSelectedTagFilter] = useState("");
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
 
   const refresh = async () => {
     setLoading(true);
@@ -602,8 +622,22 @@ function KanbanView() {
       }
     };
 
+    const loadProjects = async () => {
+      try {
+        const records = await fetchProjects();
+        if (mounted) {
+          setProjects(records);
+        }
+      } catch (loadError) {
+        if (mounted) {
+          setError((loadError as Error).message);
+        }
+      }
+    };
+
     void loadStatusModel();
     void loadAudit();
+    void loadProjects();
     const unsubscribe = subscribeAudit((record) => {
       setAuditEvents((previous) => [record, ...previous].slice(0, 200));
     });
@@ -689,6 +723,10 @@ function KanbanView() {
     () => new Map(tasks.map((task) => [task.id, task])),
     [tasks]
   );
+  const projectsById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects]
+  );
   const statusDetailsModel = useMemo(
     () => statusModel.find((entry) => entry.status === statusDetailsStatus) ?? null,
     [statusModel, statusDetailsStatus]
@@ -764,8 +802,17 @@ function KanbanView() {
     asString(selectedGithubMetadata?.repository) ??
     asString(selectedGithubMetadata?.repo);
   const selectedTaskStatus = selectedTask?.status;
+  const selectedTaskProject = selectedTask?.projectId
+    ? projectsById.get(selectedTask.projectId) ?? null
+    : null;
+  const selectedTaskProjectName = selectedTaskProject?.name ?? selectedTask?.projectId ?? "General";
+  const selectedTaskProjectRepository =
+    selectedTaskProject?.repository.trim().length ? selectedTaskProject.repository : null;
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
+  const selectedTaskIsBlocked = selectedTask
+    ? isTaskBlockedByDependencies(selectedTask, tasksById)
+    : false;
   const selectedTaskReferences = uniqueStrings([
     ...asStringArray(selectedTask?.metadata.references),
     ...asStringArray(selectedTask?.metadata.links),
@@ -786,6 +833,11 @@ function KanbanView() {
     plannedGherkinScenarios.length + plannedUnitTestIntent.length + plannedIntegrationTestIntent.length;
   const implementedTestingItemCount =
     implementedTests.length + implementedEvidenceLinks.length + implementedCommandsRun.length;
+  const selectedRetrospectives = Array.isArray(selectedTask?.metadata.retrospectives)
+    ? selectedTask.metadata.retrospectives
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null)
+    : [];
   const timelineRows = selectedTask
     ? [
         {
@@ -1085,6 +1137,13 @@ function KanbanView() {
                               textColor={cardMetaColor}
                             />
                             <MetaPill
+                              icon={<ManageSearchRounded />}
+                              label={task.projectId ? (projectsById.get(task.projectId)?.name ?? task.projectId) : "General"}
+                              colors={tokens.meta}
+                              textColor={cardMetaColor}
+                              tooltip="Project"
+                            />
+                            <MetaPill
                               icon={<HubRounded />}
                               label={`${task.dependencies.length}`}
                               colors={tokens.meta}
@@ -1100,7 +1159,7 @@ function KanbanView() {
                               tooltip="Dependents"
                               ariaLabel={`Dependents: ${(task.dependents ?? []).length}`}
                             />
-                            {task.dependencies.length > 0 && (
+                            {isTaskBlockedByDependencies(task, tasksById) && (
                               <Tooltip title="Blocked by dependencies">
                                 <Box
                                   aria-label="Blocked by dependencies"
@@ -1262,6 +1321,17 @@ function KanbanView() {
                 </Stack>
               </DetailSection>
 
+              <DetailSection title="Project" icon={<ManageSearchRounded />} defaultExpanded>
+                <Stack spacing={1}>
+                  <Typography variant="body2">
+                    <strong>Name:</strong> {selectedTaskProjectName}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Repository:</strong> {selectedTaskProjectRepository ?? "N/A"}
+                  </Typography>
+                </Stack>
+              </DetailSection>
+
               <DetailSection title="Acceptance Criteria" icon={<RuleRounded />} defaultExpanded>
                 {selectedAcceptanceCriteria.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
@@ -1310,9 +1380,7 @@ function KanbanView() {
 
               <DetailSection title="Task Dependencies" icon={<HubRounded />} defaultExpanded>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedTaskDependencies.length > 0
-                    ? "Blocked by dependencies."
-                    : "No blocking dependencies."}
+                  {selectedTaskIsBlocked ? "Blocked by dependencies." : "No blocking dependencies."}
                 </Typography>
                 <Stack spacing={0.75}>
                   <Typography variant="caption" color="text.secondary">
@@ -1510,6 +1578,62 @@ function KanbanView() {
                   {implementedTestingNotes && (
                     <Typography variant="body2">Implementation notes: {implementedTestingNotes}</Typography>
                   )}
+                </Stack>
+              </DetailSection>
+
+              <DetailSection title="Retrospectives" icon={<ManageSearchRounded />}>
+                {selectedRetrospectives.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No retrospectives recorded.
+                  </Typography>
+                )}
+                <Stack spacing={1}>
+                  {selectedRetrospectives.map((entry, index) => {
+                    const scope = asString(entry.scope) ?? "Retrospective";
+                    const createdAt = asString(entry.createdAt);
+                    const wentWell = asStringArray(entry.wentWell);
+                    const didNotGoWell = asStringArray(entry.didNotGoWell);
+                    const couldBeBetter = asStringArray(entry.couldBeBetter);
+                    return (
+                      <Card key={`retrospective-${index}`} variant="outlined">
+                        <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {scope}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {createdAt ? new Date(createdAt).toLocaleString() : "Timestamp unavailable"}
+                          </Typography>
+                          {wentWell.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {wentWell.map((item) => (
+                                <Typography component="li" key={`retrospective-good-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                          {didNotGoWell.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {didNotGoWell.map((item) => (
+                                <Typography component="li" key={`retrospective-bad-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                          {couldBeBetter.length > 0 && (
+                            <Box component="ul" sx={{ pl: 2, mt: 1, mb: 0 }}>
+                              {couldBeBetter.map((item) => (
+                                <Typography component="li" key={`retrospective-better-${item}`} variant="body2">
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </Stack>
               </DetailSection>
 
@@ -1750,6 +1874,141 @@ function KanbanView() {
   );
 }
 
+function ProjectsView() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [repository, setRepository] = useState("");
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const records = await fetchProjects();
+      setProjects(records);
+    } catch (nextError) {
+      setError((nextError as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const handleCreate = async () => {
+    if (name.trim().length === 0) {
+      setError("Project name is required.");
+      return;
+    }
+    setError(null);
+    try {
+      await createProject({
+        name: name.trim(),
+        description: description.trim(),
+        repository: repository.trim()
+      });
+      setName("");
+      setDescription("");
+      setRepository("");
+      await refresh();
+    } catch (createError) {
+      setError((createError as Error).message);
+    }
+  };
+
+  const handleRepositorySave = async (projectId: string, nextRepository: string) => {
+    setError(null);
+    try {
+      await patchProject(projectId, { repository: nextRepository.trim() });
+      await refresh();
+    } catch (updateError) {
+      setError((updateError as Error).message);
+    }
+  };
+
+  return (
+    <Stack spacing={2}>
+      {error && <Alert severity="error">{error}</Alert>}
+      <Typography color="text.secondary">
+        Define project-level context such as repository metadata and use it across tasks.
+      </Typography>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.25}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Add Project
+            </Typography>
+            <TextField
+              size="small"
+              label="Project name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <TextField
+              size="small"
+              label="Description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+            <TextField
+              size="small"
+              label="Repository"
+              placeholder="owner/repo or repository URL"
+              value={repository}
+              onChange={(event) => setRepository(event.target.value)}
+            />
+            <Button variant="contained" onClick={() => void handleCreate()}>
+              Save Project
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Stack spacing={1.25}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Configured Projects ({projects.length})
+        </Typography>
+        {projects.map((project) => (
+          <Card key={project.id} variant="outlined">
+            <CardContent>
+              <Stack spacing={1}>
+                <Typography sx={{ fontWeight: 700 }}>{project.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {project.description || "No description recorded."}
+                </Typography>
+                <TextField
+                  size="small"
+                  label="Repository"
+                  defaultValue={project.repository}
+                  onBlur={(event) => {
+                    if (event.target.value !== project.repository) {
+                      void handleRepositorySave(project.id, event.target.value);
+                    }
+                  }}
+                />
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
+
+      <Button
+        variant="outlined"
+        startIcon={<AutorenewRounded />}
+        onClick={() => void refresh()}
+        disabled={loading}
+      >
+        Refresh Projects
+      </Button>
+    </Stack>
+  );
+}
+
 export function App() {
   const [activeView, setActiveView] = useState<ViewName>(() =>
     resolveViewFromLocation()
@@ -1785,7 +2044,16 @@ export function App() {
         }
       }}
     >
-      <Container maxWidth="xl" sx={{ position: "relative", zIndex: 1 }}>
+      <Container
+        data-testid="app-shell"
+        maxWidth={false}
+        disableGutters
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          px: { xs: 2, sm: 3, md: 4 }
+        }}
+      >
         <Stack spacing={3}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
             <Box>
@@ -1812,9 +2080,18 @@ export function App() {
             >
               Kanban Board
             </Button>
+            <Button
+              variant={activeView === "projects" ? "contained" : "outlined"}
+              startIcon={<ManageSearchRounded />}
+              onClick={() => navigateToView("projects")}
+            >
+              Projects
+            </Button>
           </Stack>
 
-          {activeView === "dashboard" ? <DashboardView /> : <KanbanView />}
+          {activeView === "dashboard" && <DashboardView />}
+          {activeView === "kanban" && <KanbanView />}
+          {activeView === "projects" && <ProjectsView />}
         </Stack>
       </Container>
     </Box>

@@ -9,6 +9,7 @@ export interface TaskRecord {
   description: string;
   priority: number;
   status: TaskStatus;
+  projectId?: string;
   dependencies: string[];
   dependents?: string[];
   createdAt: string;
@@ -61,6 +62,16 @@ export interface WorkflowStatusModel {
   statuses: WorkflowStatusModelEntry[];
 }
 
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  description: string;
+  repository: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
 export async function fetchStatus(): Promise<OrchestratorStatus> {
   const response = await fetch("/api/orchestrator/status");
   if (!response.ok) {
@@ -98,6 +109,16 @@ export async function fetchWorkflowStatusModel(): Promise<WorkflowStatusModel> {
   return (await response.json()) as WorkflowStatusModel;
 }
 
+export async function fetchProjects(): Promise<ProjectRecord[]> {
+  const response = await fetch("/api/projects");
+  if (!response.ok) {
+    throw new Error(`Projects request failed: ${response.status}`);
+  }
+
+  const json = (await response.json()) as { records: ProjectRecord[] };
+  return json.records;
+}
+
 export function subscribeAudit(onEvent: (event: AuditEventRecord) => void): () => void {
   const stream = new EventSource("/api/audit/stream");
 
@@ -130,7 +151,7 @@ export async function postJson(
 
 export async function patchTask(
   taskId: string,
-  payload: Partial<Pick<TaskRecord, "status" | "metadata">>
+  payload: Partial<Pick<TaskRecord, "status" | "metadata" | "projectId">>
 ): Promise<TaskRecord> {
   const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
     method: "PATCH",
@@ -145,5 +166,44 @@ export async function patchTask(
   }
 
   const json = (await response.json()) as { record: TaskRecord };
+  return json.record;
+}
+
+export async function createProject(
+  payload: Pick<ProjectRecord, "name" | "description" | "repository">
+): Promise<ProjectRecord> {
+  const response = await fetch("/api/projects", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`POST failed for /api/projects: ${response.status}`);
+  }
+
+  const json = (await response.json()) as { record: ProjectRecord };
+  return json.record;
+}
+
+export async function patchProject(
+  projectId: string,
+  payload: Partial<Pick<ProjectRecord, "name" | "description" | "repository" | "metadata">>
+): Promise<ProjectRecord> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`PATCH failed for /api/projects/${projectId}: ${response.status}`);
+  }
+
+  const json = (await response.json()) as { record: ProjectRecord };
   return json.record;
 }

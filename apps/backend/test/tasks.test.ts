@@ -13,6 +13,36 @@ function buildService(
 }
 
 describe("TaskWorkflowService", () => {
+  test("defaults task projectId and backfills legacy records", async () => {
+    const service = buildService();
+    const created = await service.create({ title: "Task with default project" });
+    expect(created.projectId).toBe("project-default");
+
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const legacy = new TaskWorkflowService(audit, {
+      initialTasks: [
+        {
+          id: "legacy-no-project",
+          title: "Legacy",
+          description: "",
+          priority: 3,
+          status: "backlog",
+          dependencies: [],
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          startedAt: null,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {}
+        }
+      ]
+    });
+    expect(legacy.get("legacy-no-project").projectId).toBe("project-default");
+  });
+
   test("supports CRUD with dependency validation", async () => {
     const service = buildService();
 
@@ -685,6 +715,61 @@ describe("TaskWorkflowService", () => {
     expect(implementing?.hookSummary).toEqual({
       onEnterCount: 0,
       onExitCount: 0
+    });
+  });
+
+  test("records retrospective artifact and emits audit event", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const service = new TaskWorkflowService(audit, { random: () => 0 });
+    const task = await service.create({ title: "Retrospective target task" });
+
+    const updated = await service.recordRetrospective(task.id, {
+      scope: "Context window checkpoint",
+      wentWell: ["Verification discipline stayed consistent"],
+      didNotGoWell: ["Some redundant test reruns occurred"],
+      couldBeBetter: ["Batch related checks earlier"],
+      missingSkills: ["Dedicated retrospective skill"],
+      missingDataPoints: ["Per-step token/time budget snapshots"],
+      efficiencyNotes: ["Prefer grouped reads before edits"],
+      actionItems: [
+        {
+          title: "Add retrospective skill",
+          owner: "agent",
+          priority: "low",
+          notes: "Create deterministic template workflow"
+        }
+      ],
+      sources: ["https://www.scrum.org/resources/what-is-a-sprint-retrospective"]
+    });
+
+    const latest = (updated.metadata.latestRetrospective as Record<string, unknown>) ?? {};
+    expect(latest.scope).toBe("Context window checkpoint");
+    expect(updated.metadata.retrospectives).toBeDefined();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "task_retrospective_recorded" })
+    );
+  });
+
+  test("rejects retrospective with no insight content", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Retrospective validation task" });
+
+    await expect(
+      service.recordRetrospective(task.id, {
+        scope: "Context checkpoint",
+        wentWell: [],
+        didNotGoWell: [],
+        couldBeBetter: [],
+        missingSkills: [],
+        missingDataPoints: [],
+        efficiencyNotes: [],
+        actionItems: [],
+        sources: []
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400
     });
   });
 });

@@ -56,6 +56,26 @@ function installFetchMock(
   ]
 ) {
   const taskStore = tasks.map((task) => ({ ...task })) as Array<Record<string, unknown>>;
+  const projectStore: Array<Record<string, unknown>> = [
+    {
+      id: "project-default",
+      name: "General",
+      description: "Default project",
+      repository: "",
+      createdAt: "2026-02-16T00:00:00.000Z",
+      updatedAt: "2026-02-16T00:00:00.000Z",
+      metadata: { system: true }
+    },
+    {
+      id: "project-haze",
+      name: "Haze",
+      description: "Primary repository",
+      repository: "csmathguy/haze.ai",
+      createdAt: "2026-02-16T00:00:00.000Z",
+      updatedAt: "2026-02-16T00:00:00.000Z",
+      metadata: {}
+    }
+  ];
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -74,6 +94,50 @@ function installFetchMock(
       return mockJsonResponse({
         records: taskStore
       });
+    }
+
+    if (url === "/api/projects" && method === "GET") {
+      return mockJsonResponse({
+        records: projectStore
+      });
+    }
+
+    if (url === "/api/projects" && method === "POST") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        name?: string;
+        description?: string;
+        repository?: string;
+      };
+      const now = "2026-02-16T00:00:00.000Z";
+      const record = {
+        id: `project-${projectStore.length + 1}`,
+        name: body.name ?? "",
+        description: body.description ?? "",
+        repository: body.repository ?? "",
+        createdAt: now,
+        updatedAt: now,
+        metadata: {}
+      };
+      projectStore.push(record);
+      return mockJsonResponse({ record });
+    }
+
+    if (url.startsWith("/api/projects/") && method === "PATCH") {
+      const projectId = url.split("/").pop();
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        name?: string;
+        description?: string;
+        repository?: string;
+      };
+      const index = projectStore.findIndex((project) => String(project.id) === projectId);
+      if (index === -1) {
+        return mockJsonResponse({}, false);
+      }
+      projectStore[index] = {
+        ...projectStore[index],
+        ...body
+      };
+      return mockJsonResponse({ record: projectStore[index] });
     }
 
     if (url === "/api/workflow/status-model" && method === "GET") {
@@ -233,6 +297,20 @@ describe("App", () => {
     });
   });
 
+  test("uses full-width shell container for large displays", async () => {
+    installFetchMock();
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText(/haze agent monitor/i)).toBeInTheDocument();
+    });
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell.className).toContain("MuiContainer-disableGutters");
+    expect(shell.className).not.toContain("MuiContainer-maxWidthXl");
+  });
+
   test("wakes orchestrator from dashboard action", async () => {
     const fetchMock = installFetchMock();
 
@@ -275,6 +353,21 @@ describe("App", () => {
     });
   });
 
+  test("navigates to projects workspace and renders project data", async () => {
+    installFetchMock();
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /projects/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/define project-level context/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/configured projects \(2\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/^haze$/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/csmathguy\/haze\.ai/i)).toBeInTheDocument();
+  });
+
   test("opens task detail panel with plan, questionnaire, and answer thread", async () => {
     installFetchMock([
       {
@@ -283,6 +376,7 @@ describe("App", () => {
         description: "Need a decision to proceed",
         priority: 4,
         status: "awaiting_human",
+        projectId: "project-haze",
         dependencies: [],
         createdAt: "2026-02-16T00:00:00.000Z",
         updatedAt: "2026-02-16T00:00:00.000Z",
@@ -336,6 +430,20 @@ describe("App", () => {
               answer: "Use later window",
               timestamp: "2026-02-16T12:00:00.000Z"
             }
+          ],
+          retrospectives: [
+            {
+              createdAt: "2026-02-17T00:00:00.000Z",
+              scope: "Context checkpoint",
+              wentWell: ["Testing loop stayed tight"],
+              didNotGoWell: ["Some duplicate reads happened"],
+              couldBeBetter: ["Batch exploratory reads earlier"],
+              missingSkills: [],
+              missingDataPoints: [],
+              efficiencyNotes: [],
+              actionItems: [],
+              sources: []
+            }
           ]
         }
       }
@@ -366,8 +474,8 @@ describe("App", () => {
     expect(screen.getAllByText("N/A").length).toBeGreaterThan(0);
     expect(screen.getByText(/branch:/i)).toBeInTheDocument();
     expect(screen.getByText(/task\/t-00042-example/i)).toBeInTheDocument();
-    expect(screen.getByText(/repository:/i)).toBeInTheDocument();
-    expect(screen.getByText("csmathguy/haze.ai")).toBeInTheDocument();
+    expect(screen.getAllByText(/repository:/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("csmathguy/haze.ai").length).toBeGreaterThan(0);
     expect(screen.getByText(/pull request:/i)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /github.com\/csmathguy\/haze.ai\/pull\/27/i })
@@ -378,11 +486,17 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /plan/i }));
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
     expect(screen.getByText(/render planning section/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /project/i }));
+    expect(screen.getByText(/name:/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^haze$/i).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /testing traceability/i }));
     expect(screen.getByText(/given x, when y, then z/i)).toBeInTheDocument();
     expect(screen.getByText(/apps\/frontend\/src\/app\.test\.tsx/i)).toBeInTheDocument();
     expect(screen.getByText(/planned items/i)).toBeInTheDocument();
     expect(screen.getByText(/implemented evidence/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retrospectives/i }));
+    expect(screen.getByText(/context checkpoint/i)).toBeInTheDocument();
+    expect(screen.getByText(/testing loop stayed tight/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /questionnaire/i }));
     expect(screen.getByText(/which deployment window should we use/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /answer thread/i }));
@@ -625,5 +739,60 @@ describe("App", () => {
       ).toBeInTheDocument();
       expect(screen.getByText(/dependencies \(1\)/i)).toBeInTheDocument();
     });
+  });
+
+  test("auto-clears blocked indicators when all dependencies are done", async () => {
+    installFetchMock([
+      {
+        id: "parent-done",
+        title: "Done parent dependency",
+        description: "Already completed",
+        priority: 4,
+        status: "done",
+        dependencies: [],
+        dependents: ["child-unblocked"],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: "2026-02-16T00:00:00.000Z",
+        completedAt: "2026-02-16T01:00:00.000Z",
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      },
+      {
+        id: "child-unblocked",
+        title: "Child should auto-unblock",
+        description: "Has dependency but it is done",
+        priority: 3,
+        status: "backlog",
+        dependencies: ["parent-done"],
+        dependents: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/child should auto-unblock/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText(/blocked by dependencies/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /child should auto-unblock/i }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 6, name: /child should auto-unblock/i })
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/no blocking dependencies/i)).toBeInTheDocument();
   });
 });
