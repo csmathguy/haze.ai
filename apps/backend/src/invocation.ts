@@ -40,6 +40,7 @@ export interface InvocationProviderResult {
 }
 
 export interface InvocationProvider {
+  // Strategy pattern: each provider supplies interchangeable invocation behavior.
   readonly id: string;
   readonly mode: InvocationMode;
   invoke(request: InvocationProviderRequest): Promise<InvocationProviderResult>;
@@ -90,6 +91,7 @@ export class InvocationService {
   constructor(options: InvocationServiceOptions) {
     this.audit = options.audit;
     this.defaultProviderId = options.defaultProviderId;
+    // Strategy registry keyed by provider id for runtime-selectable invocation backends.
     this.providersById = new Map(options.providers.map((provider) => [provider.id, provider]));
     this.policy = options.policy ?? {};
     this.projectConfigById = options.projectConfigById ?? {};
