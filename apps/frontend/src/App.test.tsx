@@ -62,6 +62,7 @@ function installFetchMock(
       name: "General",
       description: "Default project",
       repository: "",
+      requirements: [],
       createdAt: "2026-02-16T00:00:00.000Z",
       updatedAt: "2026-02-16T00:00:00.000Z",
       metadata: { system: true }
@@ -71,6 +72,19 @@ function installFetchMock(
       name: "Haze",
       description: "Primary repository",
       repository: "csmathguy/haze.ai",
+      requirements: [
+        {
+          id: "req-observability",
+          title: "Capture audit events for state transitions",
+          description: "All workflow state changes must be auditable",
+          type: "non_functional",
+          status: "approved",
+          priority: 1,
+          createdAt: "2026-02-16T00:00:00.000Z",
+          updatedAt: "2026-02-16T00:00:00.000Z",
+          metadata: {}
+        }
+      ],
       createdAt: "2026-02-16T00:00:00.000Z",
       updatedAt: "2026-02-16T00:00:00.000Z",
       metadata: {}
@@ -368,6 +382,8 @@ describe("App", () => {
     expect(screen.getByText(/configured projects \(2\)/i)).toBeInTheDocument();
     expect(screen.getByText(/^haze$/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/csmathguy\/haze\.ai/i)).toBeInTheDocument();
+    expect(screen.getByText(/requirements \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/capture audit events for state transitions/i)).toBeInTheDocument();
   });
 
   test("opens task detail panel with plan, questionnaire, and answer thread", async () => {
@@ -491,6 +507,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /project/i }));
     expect(screen.getByText(/name:/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^haze$/i).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText((_, element) => (element?.textContent ?? "").includes("Requirements: 1"))
+        .length
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/capture audit events for state transitions \(non_functional\)/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /testing traceability/i }));
     expect(screen.getByText(/given x, when y, then z/i)).toBeInTheDocument();
     expect(screen.getByText(/apps\/frontend\/src\/app\.test\.tsx/i)).toBeInTheDocument();

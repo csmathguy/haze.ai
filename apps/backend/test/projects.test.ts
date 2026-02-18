@@ -19,6 +19,7 @@ describe("ProjectWorkflowService", () => {
     });
     expect(created.name).toBe("Haze Product");
     expect(created.repository).toBe("csmathguy/haze.ai");
+    expect(created.requirements).toEqual([]);
 
     const updated = await service.update(created.id, {
       repository: "github.com/csmathguy/haze.ai"
@@ -34,6 +35,54 @@ describe("ProjectWorkflowService", () => {
 
     await expect(service.delete(DEFAULT_PROJECT_ID)).rejects.toMatchObject<ProjectServiceError>({
       statusCode: 409
+    });
+  });
+
+  test("stores and updates project requirements with lifecycle metadata", async () => {
+    const service = new ProjectWorkflowService({
+      now: () => new Date("2026-02-18T00:00:00.000Z")
+    });
+
+    const created = await service.create({
+      name: "Requirements Project",
+      requirements: [
+        {
+          title: "Support queue retries",
+          description: "Task retries should be configurable",
+          type: "functional",
+          status: "approved",
+          priority: 2
+        }
+      ]
+    });
+
+    expect(created.requirements).toHaveLength(1);
+    expect(created.requirements[0]).toMatchObject({
+      title: "Support queue retries",
+      type: "functional",
+      status: "approved",
+      priority: 2
+    });
+    expect(created.requirements[0].createdAt).toBe("2026-02-18T00:00:00.000Z");
+
+    const updated = await service.update(created.id, {
+      requirements: [
+        ...created.requirements,
+        {
+          title: "p95 API latency under 400ms",
+          type: "non-functional",
+          priority: 1
+        }
+      ]
+    });
+
+    expect(updated.requirements).toHaveLength(2);
+    expect(updated.requirements[0].id).toBe(created.requirements[0].id);
+    expect(updated.requirements[1]).toMatchObject({
+      title: "p95 API latency under 400ms",
+      type: "non_functional",
+      status: "proposed",
+      priority: 1
     });
   });
 });

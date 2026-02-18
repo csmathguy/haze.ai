@@ -484,6 +484,7 @@ export function KanbanView() {
   const selectedTaskProjectName = selectedTaskProject?.name ?? selectedTask?.projectId ?? "General";
   const selectedTaskProjectRepository =
     selectedTaskProject?.repository.trim().length ? selectedTaskProject.repository : null;
+  const selectedTaskProjectRequirements = selectedTaskProject?.requirements ?? [];
   const selectedTaskDependencies = selectedTask?.dependencies ?? [];
   const selectedTaskDependents = selectedTask?.dependents ?? [];
   const selectedTaskIsBlocked = selectedTask
@@ -1032,6 +1033,23 @@ export function KanbanView() {
                   <Typography variant="body2">
                     <strong>Repository:</strong> {selectedTaskProjectRepository ?? "N/A"}
                   </Typography>
+                  <Typography variant="body2">
+                    <strong>Requirements:</strong> {selectedTaskProjectRequirements.length}
+                  </Typography>
+                  {selectedTaskProjectRequirements.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      No project requirements recorded.
+                    </Typography>
+                  )}
+                  {selectedTaskProjectRequirements.length > 0 && (
+                    <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                      {selectedTaskProjectRequirements.map((requirement) => (
+                        <Typography component="li" key={requirement.id} variant="body2">
+                          {requirement.title} ({requirement.type})
+                        </Typography>
+                      ))}
+                    </Box>
+                  )}
                 </Stack>
               </DetailSection>
 
