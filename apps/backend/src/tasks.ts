@@ -3,6 +3,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { AuditSink } from "./audit.js";
 import { DEFAULT_PROJECT_ID } from "./projects.js";
+import {
+  GitHubPullRequestApiService,
+  type GitHubMergeMethod,
+  type GitHubPullRequestService
+} from "./github-pull-request.js";
 
 export type TaskStatus =
   | "backlog"
@@ -48,6 +53,8 @@ const WORKFLOW_RUNTIME_SCHEMA_VERSION = "1.0";
 const TESTING_ARTIFACTS_SCHEMA_VERSION = "1.0";
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 const DEFAULT_COMMAND_ALLOWLIST = ["npm", "git", "scripts/"];
+const DEFAULT_GITHUB_TOKEN_ENV_VAR = "GITHUB_TOKEN";
+const DEFAULT_GITHUB_MERGE_METHOD: GitHubMergeMethod = "squash";
 const execFileAsync = promisify(execFile);
 
 export interface WorkflowNextAction {
@@ -251,6 +258,16 @@ interface TaskWorkflowServiceOptions {
   commandExecutor?: WorkflowCommandExecutor;
   commandAllowlist?: string[];
   commandTimeoutMs?: number;
+  githubPullRequestService?: GitHubPullRequestService;
+  resolveProjectGithubConfig?: (
+    projectId: string
+  ) => TaskProjectGithubConfig | null | undefined;
+}
+
+export interface TaskProjectGithubConfig {
+  repository?: string;
+  tokenEnvVar?: string;
+  mergeMethod?: GitHubMergeMethod;
 }
 
 export class TaskWorkflowService {
@@ -262,6 +279,10 @@ export class TaskWorkflowService {
   private readonly commandExecutor: WorkflowCommandExecutor;
   private readonly commandAllowlist: string[];
   private readonly commandTimeoutMs: number;
+  private readonly githubPullRequestService: GitHubPullRequestService;
+  private readonly resolveProjectGithubConfig: (
+    projectId: string
+  ) => TaskProjectGithubConfig | null | undefined;
 
   constructor(
     private readonly audit: AuditSink,
@@ -274,6 +295,9 @@ export class TaskWorkflowService {
     this.commandExecutor = options?.commandExecutor ?? this.executeCommand;
     this.commandAllowlist = options?.commandAllowlist ?? DEFAULT_COMMAND_ALLOWLIST;
     this.commandTimeoutMs = options?.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+    this.githubPullRequestService =
+      options?.githubPullRequestService ?? new GitHubPullRequestApiService();
+    this.resolveProjectGithubConfig = options?.resolveProjectGithubConfig ?? (() => null);
 
     if (options?.initialTasks?.length) {
       this.importAll(options.initialTasks);
@@ -839,6 +863,17 @@ export class TaskWorkflowService {
       }
     }
 
+    if (toStatus === "done") {
+      const doneGateResult = await this.enforceDonePullRequestGate(task, fromStatus, toStatus);
+      if (!doneGateResult.allowed) {
+        throw new TaskServiceError(
+          `Transition redirected from ${fromStatus} to awaiting_human`,
+          409,
+          "TASK_TRANSITION_REDIRECTED"
+        );
+      }
+    }
+
     if (toStatus === "awaiting_human" && !this.hasAwaitingHumanArtifact(task.metadata)) {
       blockingReasons.push({
         code: "MISSING_AWAITING_HUMAN_ARTIFACT",
@@ -895,6 +930,239 @@ export class TaskWorkflowService {
 
   private hasAwaitingHumanArtifact(metadata: Record<string, unknown>): boolean {
     return this.isRecord(metadata.awaitingHumanArtifact);
+  }
+
+  private async enforceDonePullRequestGate(
+    task: TaskRecord,
+    fromStatus: TaskStatus,
+    attemptedStatus: TaskStatus
+  ): Promise<{ allowed: boolean }> {
+    const githubConfig = this.resolveTaskGithubConfig(task);
+    if (!githubConfig.repository || githubConfig.pullRequestNumber === null) {
+      await this.audit.record({
+        eventType: "task_done_pr_gate_skipped",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          reason: "missing_pr_context",
+          fromStatus,
+          attemptedStatus
+        }
+      });
+      return { allowed: true };
+    }
+
+    const token = this.resolveGithubToken(githubConfig.tokenEnvVar);
+    if (!token) {
+      await this.redirectDoneTransitionToAwaitingHuman(
+        task,
+        fromStatus,
+        attemptedStatus,
+        {
+          code: "PR_MERGE_TOKEN_MISSING",
+          message: `GitHub token env var is missing: ${githubConfig.tokenEnvVar}`
+        }
+      );
+      return { allowed: false };
+    }
+
+    try {
+      const pullRequestState = await this.githubPullRequestService.getPullRequestState({
+        repository: githubConfig.repository,
+        pullRequestNumber: githubConfig.pullRequestNumber,
+        token
+      });
+      if (pullRequestState.merged) {
+        await this.audit.record({
+          eventType: "task_done_pr_gate_passed",
+          actor: "task_workflow",
+          payload: {
+            taskId: task.id,
+            repository: githubConfig.repository,
+            pullRequestNumber: githubConfig.pullRequestNumber,
+            decision: "already_merged"
+          }
+        });
+        return { allowed: true };
+      }
+
+      const mergeResult = await this.githubPullRequestService.mergePullRequest({
+        repository: githubConfig.repository,
+        pullRequestNumber: githubConfig.pullRequestNumber,
+        token,
+        mergeMethod: githubConfig.mergeMethod,
+        commitTitle: `Auto-merge: ${task.title}`
+      });
+      await this.audit.record({
+        eventType: "task_done_pr_merge_attempted",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          repository: githubConfig.repository,
+          pullRequestNumber: githubConfig.pullRequestNumber,
+          mergeMethod: githubConfig.mergeMethod,
+          merged: mergeResult.merged
+        }
+      });
+      if (mergeResult.merged) {
+        return { allowed: true };
+      }
+
+      await this.redirectDoneTransitionToAwaitingHuman(
+        task,
+        fromStatus,
+        attemptedStatus,
+        {
+          code: "PR_NOT_MERGED",
+          message: "Automatic merge was not permitted or did not complete."
+        }
+      );
+      return { allowed: false };
+    } catch (error) {
+      await this.redirectDoneTransitionToAwaitingHuman(
+        task,
+        fromStatus,
+        attemptedStatus,
+        {
+          code: "PR_MERGE_CHECK_FAILED",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      );
+      return { allowed: false };
+    }
+  }
+
+  private resolveTaskGithubConfig(task: TaskRecord): {
+    repository: string | null;
+    pullRequestNumber: number | null;
+    tokenEnvVar: string;
+    mergeMethod: GitHubMergeMethod;
+  } {
+    const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    const workflowMetadata = this.isRecord(metadata.workflow) ? metadata.workflow : {};
+    const githubMetadata = this.isRecord(metadata.github) ? metadata.github : {};
+    const projectConfig = this.resolveProjectGithubConfig(this.normalizeProjectId(task.projectId)) ?? {};
+
+    const repository =
+      this.readString(workflowMetadata.repository) ??
+      this.readString(githubMetadata.repository) ??
+      this.readString(projectConfig.repository);
+    const pullRequestNumber =
+      this.readPullRequestNumber(workflowMetadata.pullRequestNumber) ??
+      this.readPullRequestNumber(githubMetadata.pullRequestNumber);
+    const tokenEnvVar =
+      this.readString(projectConfig.tokenEnvVar) ?? DEFAULT_GITHUB_TOKEN_ENV_VAR;
+    const mergeMethod =
+      this.readMergeMethod(projectConfig.mergeMethod) ?? DEFAULT_GITHUB_MERGE_METHOD;
+
+    return {
+      repository,
+      pullRequestNumber,
+      tokenEnvVar,
+      mergeMethod
+    };
+  }
+
+  private resolveGithubToken(tokenEnvVar: string): string | null {
+    const token = process.env[tokenEnvVar];
+    if (!token) {
+      return null;
+    }
+    const normalized = token.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private readString(value: unknown): string | null {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private readPullRequestNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+    if (typeof value !== "string") {
+      return null;
+    }
+    const normalized = value.trim();
+    if (!/^\d+$/.test(normalized)) {
+      return null;
+    }
+    return Number.parseInt(normalized, 10);
+  }
+
+  private readMergeMethod(value: unknown): GitHubMergeMethod | null {
+    if (value === "merge" || value === "squash" || value === "rebase") {
+      return value;
+    }
+    return null;
+  }
+
+  private async redirectDoneTransitionToAwaitingHuman(
+    task: TaskRecord,
+    fromStatus: TaskStatus,
+    attemptedStatus: TaskStatus,
+    reason: WorkflowBlockingReason
+  ): Promise<void> {
+    const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    const runtime = metadata.workflowRuntime as WorkflowRuntimeState;
+    const transitionAt = this.now().toISOString();
+    runtime.lastTransition = {
+      from: fromStatus,
+      to: attemptedStatus,
+      at: transitionAt
+    };
+    runtime.blockingReasons.push(reason);
+    runtime.actionHistory.push({
+      at: transitionAt,
+      phase: "onEnter",
+      status: attemptedStatus,
+      result: "error",
+      nextActionCount: 0,
+      blockingReasonCount: 1,
+      error: "status_transition_redirected"
+    });
+
+    metadata.awaitingHumanArtifact = {
+      question:
+        "Done transition requires a merged pull request. Review PR status and merge manually, then retry done.",
+      options: [
+        {
+          label: "Merge PR and retry (Recommended)",
+          description: "Merge the pull request, then transition task to done again."
+        },
+        {
+          label: "Keep in review",
+          description: "Move task back to review while merge blockers are resolved."
+        }
+      ],
+      recommendedOption: "Merge PR and retry (Recommended)",
+      requestedAt: transitionAt,
+      blockingReason: reason
+    };
+    metadata.transitionNote =
+      "Auto-redirected to awaiting_human because done transition requires merged pull request.";
+
+    task.metadata = metadata;
+    task.status = "awaiting_human";
+    task.completedAt = null;
+    task.updatedAt = transitionAt;
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "task_transition_redirected",
+      actor: "task_workflow",
+      payload: {
+        taskId: task.id,
+        fromStatus,
+        attemptedStatus,
+        redirectedTo: "awaiting_human",
+        reason
+      }
+    });
   }
 
   private async redirectTransitionToAwaitingHuman(

@@ -16,6 +16,7 @@ import {
 } from "./projects.js";
 import {
   type CreateTaskInput,
+  type TaskProjectGithubConfig,
   type TaskRetrospectiveInput,
   TaskServiceError,
   TaskWorkflowService
@@ -92,6 +93,31 @@ async function bootstrap(): Promise<void> {
 
   const tasks = new TaskWorkflowService(audit, {
     initialTasks: persistedTasks,
+    resolveProjectGithubConfig: (projectId): TaskProjectGithubConfig | null => {
+      try {
+        const project = projects.get(projectId);
+        const metadata = project.metadata as Record<string, unknown>;
+        const github = metadata.github;
+        if (!github || typeof github !== "object" || Array.isArray(github)) {
+          return null;
+        }
+        const config = github as Record<string, unknown>;
+        return {
+          repository:
+            typeof config.repository === "string" ? config.repository : undefined,
+          tokenEnvVar:
+            typeof config.tokenEnvVar === "string" ? config.tokenEnvVar : undefined,
+          mergeMethod:
+            config.mergeMethod === "merge" ||
+            config.mergeMethod === "squash" ||
+            config.mergeMethod === "rebase"
+              ? config.mergeMethod
+              : undefined
+        };
+      } catch {
+        return null;
+      }
+    },
     onChanged: async (records) => {
       await taskStore.save(records);
     }
