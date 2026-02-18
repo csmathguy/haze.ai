@@ -35,6 +35,18 @@ Run these at repo root:
 - Keep modules small and cohesive.
 - Add structured logs for operationally relevant state transitions.
 
+## Architecture guardrails
+- Treat backend structure as layered/ports-and-adapters: `domain` (pure logic) -> `application/service` (use cases) -> `infrastructure/adapters` (I/O and providers).
+- Enforce dependency inversion at boundaries: depend on interfaces/types, not concrete adapter implementations.
+- For new modules, prefer one responsibility per file; split files that exceed ~300 logical lines or mix multiple concerns.
+- Prefer explicit folder boundaries for growing features:
+  - `apps/backend/src/domain/*`
+  - `apps/backend/src/services/*`
+  - `apps/backend/src/infrastructure/*`
+  - `apps/backend/src/api/*`
+- When introducing a pattern (Strategy, Adapter, Factory, etc.), add a brief comment at the abstraction point naming the pattern and the reason it is used.
+- Document architecture-significant choices in `documentation/standards/*` and link them from related task artifacts.
+
 ## Testing rules
 - Unit test all domain/service logic.
 - Add integration tests for API behavior and persistence boundaries.
