@@ -63,6 +63,7 @@ export interface WorkflowStatusModel {
 }
 
 export interface ProjectRecord {
+  requirements: ProjectRequirementRecord[];
   id: string;
   name: string;
   description: string;
@@ -70,6 +71,30 @@ export interface ProjectRecord {
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, unknown>;
+}
+
+export type ProjectRequirementType = "functional" | "non_functional";
+
+export interface ProjectRequirementRecord {
+  id: string;
+  title: string;
+  description: string;
+  type: ProjectRequirementType;
+  status: string;
+  priority: number | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProjectRequirementInput {
+  id?: string;
+  title: string;
+  description?: string;
+  type: ProjectRequirementType | "non-functional";
+  status?: string;
+  priority?: number | null;
+  metadata?: Record<string, unknown>;
 }
 
 export async function fetchStatus(): Promise<OrchestratorStatus> {
@@ -190,7 +215,11 @@ export async function createProject(
 
 export async function patchProject(
   projectId: string,
-  payload: Partial<Pick<ProjectRecord, "name" | "description" | "repository" | "metadata">>
+  payload: Partial<
+    Pick<ProjectRecord, "name" | "description" | "repository" | "metadata"> & {
+      requirements: ProjectRequirementInput[];
+    }
+  >
 ): Promise<ProjectRecord> {
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
     method: "PATCH",

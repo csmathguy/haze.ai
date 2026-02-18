@@ -2,11 +2,36 @@ import { randomUUID } from "node:crypto";
 
 export const DEFAULT_PROJECT_ID = "project-default";
 
+export type ProjectRequirementType = "functional" | "non_functional";
+
+export interface ProjectRequirementRecord {
+  id: string;
+  title: string;
+  description: string;
+  type: ProjectRequirementType;
+  status: string;
+  priority: number | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProjectRequirementInput {
+  id?: string;
+  title: string;
+  description?: string;
+  type: ProjectRequirementType | "non-functional";
+  status?: string;
+  priority?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ProjectRecord {
   id: string;
   name: string;
   description: string;
   repository: string;
+  requirements: ProjectRequirementRecord[];
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, unknown>;
@@ -16,6 +41,7 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   repository?: string;
+  requirements?: ProjectRequirementInput[];
   metadata?: Record<string, unknown>;
 }
 
@@ -23,6 +49,7 @@ export interface UpdateProjectInput {
   name?: string;
   description?: string;
   repository?: string;
+  requirements?: ProjectRequirementInput[];
   metadata?: Record<string, unknown>;
 }
 
@@ -91,6 +118,7 @@ export class ProjectWorkflowService {
       name,
       description: input.description?.trim() ?? "",
       repository: input.repository?.trim() ?? "",
+      requirements: this.normalizeRequirements(input.requirements ?? [], []),
       createdAt: now,
       updatedAt: now,
       metadata: { ...(input.metadata ?? {}) }
@@ -114,6 +142,9 @@ export class ProjectWorkflowService {
     }
     if (input.repository !== undefined) {
       existing.repository = input.repository.trim();
+    }
+    if (input.requirements !== undefined) {
+      existing.requirements = this.normalizeRequirements(input.requirements, existing.requirements);
     }
     if (input.metadata !== undefined) {
       existing.metadata = { ...input.metadata };
@@ -146,6 +177,7 @@ export class ProjectWorkflowService {
       name: "General",
       description: "Default project used for legacy or uncategorized tasks.",
       repository: "",
+      requirements: [],
       createdAt: now,
       updatedAt: now,
       metadata: {
@@ -165,8 +197,80 @@ export class ProjectWorkflowService {
   private cloneProject(project: ProjectRecord): ProjectRecord {
     return {
       ...project,
+      requirements: (project.requirements ?? []).map((requirement) => ({
+        ...requirement,
+        metadata: { ...requirement.metadata }
+      })),
       metadata: { ...project.metadata }
     };
+  }
+
+  private normalizeRequirements(
+    input: ProjectRequirementInput[],
+    existingRequirements: ProjectRequirementRecord[]
+  ): ProjectRequirementRecord[] {
+    const now = this.now().toISOString();
+    const existingById = new Map(existingRequirements.map((requirement) => [requirement.id, requirement]));
+    const seenIds = new Set<string>();
+
+    return input.map((rawRequirement) => {
+      const incomingId = rawRequirement.id?.trim() ?? "";
+      const requirementId = incomingId || randomUUID();
+      const existing = incomingId ? existingById.get(incomingId) : undefined;
+      const title = this.normalizeRequirementTitle(rawRequirement.title);
+      const status = this.normalizeRequirementStatus(rawRequirement.status);
+
+      if (seenIds.has(requirementId)) {
+        throw new ProjectServiceError(
+          `Duplicate requirement id in payload: ${requirementId}`,
+          400
+        );
+      }
+      seenIds.add(requirementId);
+
+      return {
+        id: requirementId,
+        title,
+        description: rawRequirement.description?.trim() ?? "",
+        type: this.normalizeRequirementType(rawRequirement.type),
+        status,
+        priority: this.normalizeRequirementPriority(rawRequirement.priority),
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        metadata: { ...(rawRequirement.metadata ?? {}) }
+      };
+    });
+  }
+
+  private normalizeRequirementTitle(title: string): string {
+    const normalized = title.trim();
+    if (!normalized) {
+      throw new ProjectServiceError("Requirement title is required", 400);
+    }
+    return normalized;
+  }
+
+  private normalizeRequirementStatus(status: string | undefined): string {
+    const normalized = status?.trim();
+    return normalized && normalized.length > 0 ? normalized : "proposed";
+  }
+
+  private normalizeRequirementType(type: ProjectRequirementInput["type"]): ProjectRequirementType {
+    const normalized = type.trim().toLowerCase().replaceAll("-", "_");
+    if (normalized === "functional" || normalized === "non_functional") {
+      return normalized;
+    }
+    throw new ProjectServiceError(`Invalid requirement type: ${type}`, 400);
+  }
+
+  private normalizeRequirementPriority(priority: number | null | undefined): number | null {
+    if (priority === null || priority === undefined) {
+      return null;
+    }
+    if (!Number.isFinite(priority) || !Number.isInteger(priority) || priority < 1 || priority > 5) {
+      throw new ProjectServiceError("Requirement priority must be an integer from 1 to 5", 400);
+    }
+    return priority;
   }
 
   private async commitChange(): Promise<void> {

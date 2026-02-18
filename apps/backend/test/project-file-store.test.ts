@@ -25,6 +25,7 @@ describe("ProjectFileStore", () => {
         name: "General",
         description: "Default",
         repository: "",
+        requirements: [],
         createdAt: "2026-02-16T00:00:00.000Z",
         updatedAt: "2026-02-16T00:00:00.000Z",
         metadata: {}
