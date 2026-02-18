@@ -73,3 +73,9 @@ Run these at repo root:
 - Follow accessibility baselines: semantic controls, visible focus states, and minimum contrast.
 - Respect reduced-motion preferences for animated elements.
 - Separate data access (`api.ts`) from rendering components to keep UI logic testable.
+
+## Frontend architecture patterns
+- Keep `App.tsx` as a thin composition shell only (view selection + shared layout chrome).
+- Place each major surface in `src/components` as an isolated view module (`DashboardView`, `KanbanView`, `ProjectsView`).
+- Move reusable parsing/normalization logic into focused helper modules next to the owning view (for example `kanbanView.helpers.ts`).
+- Keep route/view state in dedicated hooks (`src/hooks`) so UI modules are easier to test and refactor independently.
