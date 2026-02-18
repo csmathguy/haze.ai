@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)][string]$TaskId,
-  [Parameter(Mandatory = $true)][string]$BranchName,
+  [string]$BranchName = "",
   [string]$BaseBranch = "main",
   [string]$ApiBase = "http://localhost:3001",
   [string]$Owner = "codex",
@@ -11,12 +11,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-./scripts/start-task-branch.ps1 -TaskId $TaskId -BranchName $BranchName -BaseBranch $BaseBranch -ApiBase $ApiBase | Out-Null
-
 $task = (Invoke-RestMethod -Method Get -Uri "$ApiBase/tasks/$TaskId").record
 if (-not $task) {
   throw "Task not found via API: $TaskId"
 }
+
+if (-not $BranchName -or $BranchName.Trim().Length -eq 0) {
+  $canonicalTaskId = ""
+  if ($task.metadata -and $task.metadata.canonicalTaskId) {
+    $canonicalTaskId = "$($task.metadata.canonicalTaskId)"
+  }
+
+  $resolvedBranchName = node ./scripts/resolve-task-branch-name.mjs --task-id $TaskId --canonical-task-id $canonicalTaskId --title "$($task.title)"
+  if ($LASTEXITCODE -ne 0 -or -not $resolvedBranchName) {
+    throw "Failed to resolve task branch name for task $TaskId"
+  }
+  $BranchName = $resolvedBranchName.Trim()
+}
+
+./scripts/start-task-branch.ps1 -TaskId $TaskId -BranchName $BranchName -BaseBranch $BaseBranch -ApiBase $ApiBase | Out-Null
 
 $metadata = @{}
 if ($task.metadata) {

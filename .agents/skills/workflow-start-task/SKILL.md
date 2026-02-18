@@ -12,7 +12,7 @@ description: Start work on a selected task by creating branch + planning artifac
 ## Procedure
 1. Run deterministic script:
 ```powershell
-./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -BranchName "task/<id>-<slug>" -Goals @("...") -Steps @("...") -Risks @("...")
+./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -Goals @("...") -Steps @("...") -Risks @("...")
 ```
 2. Verify task includes:
 - `metadata.workflow.branchName`

@@ -24,7 +24,7 @@ $base = if ($env:HAZE_API_BASE) { $env:HAZE_API_BASE } else { "http://localhost:
 ```
 3. Begin task workflow immediately:
 ```powershell
-./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -BranchName "task/<id>-<slug>" -Goals @("...") -Steps @("...") -Risks @("...")
+./scripts/begin-task.ps1 -TaskId "<TASK_ID>" -Goals @("...") -Steps @("...") -Risks @("...")
 ```
 4. Handle no-eligible-task response:
 - If output is `No eligible task available`, report the same.
