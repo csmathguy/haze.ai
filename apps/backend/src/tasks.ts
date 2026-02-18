@@ -108,6 +108,29 @@ export interface TaskTestingArtifactsState {
   implemented: TaskTestingImplementedState;
 }
 
+export interface TaskRetrospectiveActionItem {
+  title: string;
+  owner: string | null;
+  priority: "low" | "medium" | "high";
+  notes: string | null;
+}
+
+export interface TaskRetrospectiveInput {
+  scope: string;
+  wentWell: string[];
+  didNotGoWell: string[];
+  couldBeBetter: string[];
+  missingSkills: string[];
+  missingDataPoints: string[];
+  efficiencyNotes: string[];
+  actionItems: TaskRetrospectiveActionItem[];
+  sources: string[];
+}
+
+export interface TaskRetrospectiveArtifact extends TaskRetrospectiveInput {
+  createdAt: string;
+}
+
 export interface TaskStatusHookContext {
   task: TaskRecord;
   fromStatus: TaskStatus;
@@ -582,6 +605,42 @@ export class TaskWorkflowService {
     return this.cloneTask(selected);
   }
 
+  async recordRetrospective(
+    id: string,
+    input: TaskRetrospectiveInput
+  ): Promise<TaskRecord> {
+    const existing = this.tasks.get(id);
+    if (!existing) {
+      throw new TaskServiceError(`Task not found: ${id}`, 404);
+    }
+
+    const artifact = this.normalizeRetrospectiveInput(input);
+    const metadata = this.ensureWorkflowRuntimeMetadata(existing.metadata);
+    const history = Array.isArray(metadata.retrospectives)
+      ? (metadata.retrospectives as TaskRetrospectiveArtifact[])
+      : [];
+    metadata.retrospectives = [...history, artifact];
+    metadata.latestRetrospective = artifact;
+    existing.metadata = metadata;
+    existing.updatedAt = this.now().toISOString();
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "task_retrospective_recorded",
+      actor: "task_workflow",
+      payload: {
+        taskId: existing.id,
+        scope: artifact.scope,
+        wentWellCount: artifact.wentWell.length,
+        didNotGoWellCount: artifact.didNotGoWell.length,
+        actionItemCount: artifact.actionItems.length,
+        sourceCount: artifact.sources.length
+      }
+    });
+
+    return this.cloneTask(existing);
+  }
+
   private async commitChange(): Promise<void> {
     await this.onChanged(this.list());
   }
@@ -626,6 +685,64 @@ export class TaskWorkflowService {
   private normalizeProjectId(projectId?: string | null): string {
     const normalized = typeof projectId === "string" ? projectId.trim() : "";
     return normalized.length > 0 ? normalized : DEFAULT_PROJECT_ID;
+  }
+
+  private normalizeRetrospectiveInput(input: TaskRetrospectiveInput): TaskRetrospectiveArtifact {
+    const normalizeList = (value: string[]): string[] =>
+      [...new Set(value.map((item) => item.trim()).filter(Boolean))];
+    const scope = input.scope.trim();
+    if (!scope) {
+      throw new TaskServiceError("Retrospective scope is required", 400);
+    }
+
+    const wentWell = normalizeList(input.wentWell);
+    const didNotGoWell = normalizeList(input.didNotGoWell);
+    const couldBeBetter = normalizeList(input.couldBeBetter);
+    const missingSkills = normalizeList(input.missingSkills);
+    const missingDataPoints = normalizeList(input.missingDataPoints);
+    const efficiencyNotes = normalizeList(input.efficiencyNotes);
+    const sources = normalizeList(input.sources);
+
+    if (
+      wentWell.length === 0 &&
+      didNotGoWell.length === 0 &&
+      couldBeBetter.length === 0 &&
+      missingSkills.length === 0 &&
+      missingDataPoints.length === 0 &&
+      efficiencyNotes.length === 0
+    ) {
+      throw new TaskServiceError("Retrospective must include at least one insight", 400);
+    }
+
+    const actionItems = input.actionItems
+      .map((item) => {
+        const title = item.title.trim();
+        if (!title) {
+          return null;
+        }
+        const owner = item.owner?.trim();
+        const notes = item.notes?.trim();
+        return {
+          title,
+          owner: owner && owner.length > 0 ? owner : null,
+          priority: item.priority,
+          notes: notes && notes.length > 0 ? notes : null
+        } satisfies TaskRetrospectiveActionItem;
+      })
+      .filter((item): item is TaskRetrospectiveActionItem => item !== null);
+
+    return {
+      createdAt: this.now().toISOString(),
+      scope,
+      wentWell,
+      didNotGoWell,
+      couldBeBetter,
+      missingSkills,
+      missingDataPoints,
+      efficiencyNotes,
+      actionItems,
+      sources
+    };
   }
 
   private normalizeStatus(status: InputTaskStatus): TaskStatus {

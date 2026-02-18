@@ -16,6 +16,7 @@ import {
 } from "./projects.js";
 import {
   type CreateTaskInput,
+  type TaskRetrospectiveInput,
   TaskServiceError,
   TaskWorkflowService
 } from "./tasks.js";
@@ -209,6 +210,18 @@ async function bootstrap(): Promise<void> {
     } catch (error) {
       if (!handleTaskError(error, res)) {
         handleUnexpectedTaskError(error, res, "update_task");
+      }
+    }
+  });
+
+  app.post("/tasks/:id/retrospectives", async (req, res) => {
+    try {
+      const input = (req.body ?? {}) as TaskRetrospectiveInput;
+      const record = await tasks.recordRetrospective(req.params.id, input);
+      res.status(201).json({ record: tasks.getWithDependents(record.id) });
+    } catch (error) {
+      if (!handleTaskError(error, res)) {
+        handleUnexpectedTaskError(error, res, "record_task_retrospective");
       }
     }
   });
