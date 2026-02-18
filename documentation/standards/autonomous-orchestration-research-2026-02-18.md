@@ -62,6 +62,7 @@ Decision artifacts:
 - Role contracts + handoff schema: `documentation/standards/autonomous-orchestration-role-contracts-2026-02-18.md`
 - Action engine + queue semantics: `documentation/standards/autonomous-orchestration-action-engine-2026-02-18.md`
 - Safety guardrails + sandbox policy: `documentation/standards/autonomous-orchestration-safety-policy-2026-02-18.md`
+- Hook trigger model + guardrails: `documentation/standards/autonomous-orchestration-hook-trigger-model-2026-02-18.md`
 
 ## Approved decisions (locked)
 - Phase-1 runtime: Codex CLI wrapper in backend worker.
