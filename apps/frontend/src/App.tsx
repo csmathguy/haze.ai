@@ -70,6 +70,7 @@ import { getKanbanUiTokens } from "./kanban-ui-tokens";
 import { ModeToggle } from "./components/ModeToggle";
 
 type ViewName = "dashboard" | "kanban" | "projects";
+const DEFAULT_TASK_PROJECT_ID = "project-default";
 
 const resolveViewFromLocation = (): ViewName => {
   if (typeof window === "undefined") {
@@ -560,9 +561,12 @@ function KanbanView() {
   const [error, setError] = useState<string | null>(null);
   const [taskDetailStack, setTaskDetailStack] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>("backlog");
+  const [selectedProjectId, setSelectedProjectId] = useState(DEFAULT_TASK_PROJECT_ID);
   const [statusNote, setStatusNote] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+  const [projectUpdating, setProjectUpdating] = useState(false);
+  const [projectUpdateError, setProjectUpdateError] = useState<string | null>(null);
   const [statusModel, setStatusModel] = useState<WorkflowStatusModelEntry[]>([]);
   const [statusDetailsOpen, setStatusDetailsOpen] = useState(false);
   const [statusDetailsStatus, setStatusDetailsStatus] = useState<TaskStatus>("backlog");
@@ -683,6 +687,25 @@ function KanbanView() {
     () => [...new Set(tasks.flatMap((task) => task.tags))].sort((a, b) => a.localeCompare(b)),
     [tasks]
   );
+  const availableProjectOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    byId.set(DEFAULT_TASK_PROJECT_ID, "General");
+    for (const project of projects) {
+      byId.set(project.id, project.name.trim().length > 0 ? project.name : project.id);
+    }
+
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => {
+        if (a.id === DEFAULT_TASK_PROJECT_ID) {
+          return -1;
+        }
+        if (b.id === DEFAULT_TASK_PROJECT_ID) {
+          return 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [projects]);
 
   const filteredTasks = useMemo(
     () =>
@@ -873,9 +896,11 @@ function KanbanView() {
       return;
     }
     setSelectedStatus(selectedTaskStatus);
+    setSelectedProjectId(selectedTask?.projectId ?? DEFAULT_TASK_PROJECT_ID);
     setStatusNote("");
     setStatusUpdateError(null);
-  }, [selectedTaskId, selectedTaskStatus]);
+    setProjectUpdateError(null);
+  }, [selectedTask, selectedTaskId, selectedTaskStatus]);
 
   const handleStatusUpdate = async () => {
     if (!selectedTask || statusUpdating || selectedStatus === selectedTask.status) {
@@ -902,6 +927,31 @@ function KanbanView() {
       setStatusUpdateError((updateError as Error).message);
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const handleProjectUpdate = async () => {
+    if (!selectedTask || projectUpdating) {
+      return;
+    }
+
+    const nextProjectId = selectedProjectId.trim() || DEFAULT_TASK_PROJECT_ID;
+    const currentProjectId = selectedTask.projectId ?? DEFAULT_TASK_PROJECT_ID;
+    if (nextProjectId === currentProjectId) {
+      return;
+    }
+
+    setProjectUpdating(true);
+    setProjectUpdateError(null);
+    try {
+      await patchTask(selectedTask.id, {
+        projectId: nextProjectId
+      });
+      await refresh();
+    } catch (updateError) {
+      setProjectUpdateError((updateError as Error).message);
+    } finally {
+      setProjectUpdating(false);
     }
   };
 
@@ -1727,6 +1777,38 @@ function KanbanView() {
                     Save Status Change
                   </Button>
                   {statusUpdateError && <Alert severity="error">{statusUpdateError}</Alert>}
+                  <Divider />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Human Project Update
+                  </Typography>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="task-project-select-label">Update project</InputLabel>
+                    <Select
+                      native
+                      labelId="task-project-select-label"
+                      value={selectedProjectId}
+                      label="Update project"
+                      onChange={(event) => setSelectedProjectId(event.target.value)}
+                      inputProps={{ "aria-label": "Update project" }}
+                    >
+                      {availableProjectOptions.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="contained"
+                    onClick={() => void handleProjectUpdate()}
+                    disabled={
+                      projectUpdating ||
+                      selectedProjectId === (selectedTask.projectId ?? DEFAULT_TASK_PROJECT_ID)
+                    }
+                  >
+                    Save Project Change
+                  </Button>
+                  {projectUpdateError && <Alert severity="error">{projectUpdateError}</Alert>}
                 </Stack>
               </DetailSection>
             </Stack>

@@ -178,6 +178,7 @@ function installFetchMock(
       const body = JSON.parse(String(init?.body ?? "{}")) as {
         status?: string;
         metadata?: Record<string, unknown>;
+        projectId?: string;
       };
       const index = taskStore.findIndex((task) => String(task.id) === taskId);
       if (index === -1) {
@@ -186,6 +187,7 @@ function installFetchMock(
       taskStore[index] = {
         ...taskStore[index],
         status: body.status ?? taskStore[index].status,
+        projectId: body.projectId ?? taskStore[index].projectId,
         metadata: body.metadata ?? taskStore[index].metadata
       };
       return mockJsonResponse({ record: taskStore[index] });
@@ -624,6 +626,54 @@ describe("App", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tasks/t3",
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
+  });
+
+  test("allows human to update task project from detail drawer", async () => {
+    const fetchMock = installFetchMock([
+      {
+        id: "t-project",
+        title: "Needs project reassignment",
+        description: "Move task to project context",
+        priority: 3,
+        status: "planning",
+        projectId: "project-default",
+        dependencies: [],
+        createdAt: "2026-02-16T00:00:00.000Z",
+        updatedAt: "2026-02-16T00:00:00.000Z",
+        startedAt: null,
+        completedAt: null,
+        dueAt: null,
+        tags: ["workflow"],
+        metadata: {}
+      }
+    ]);
+
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /kanban board/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/needs project reassignment/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /needs project reassignment/i }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 6, name: /needs project reassignment/i })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /actions/i }));
+    fireEvent.change(screen.getByLabelText(/update project/i), {
+      target: { value: "project-haze" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save project change/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/t-project",
         expect.objectContaining({ method: "PATCH" })
       );
     });
