@@ -57,6 +57,9 @@ Adopt a phased hybrid strategy:
 2. Finalize contracts, triggers, safety policy, and observability.
 3. Migrate core execution layer toward API-native orchestration once reliability checkpoints pass.
 
+ADR ratifying this recommendation:
+- `documentation/standards/autonomous-orchestration-adr-2026-02-18.md`
+
 ## Approved decisions (locked)
 - Phase-1 runtime: Codex CLI wrapper in backend worker.
 - Initial worker topology: in-process backend worker.
