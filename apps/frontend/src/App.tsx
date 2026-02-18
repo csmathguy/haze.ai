@@ -1813,7 +1813,16 @@ export function App() {
         }
       }}
     >
-      <Container maxWidth="xl" sx={{ position: "relative", zIndex: 1 }}>
+      <Container
+        data-testid="app-shell"
+        maxWidth={false}
+        disableGutters
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          px: { xs: 2, sm: 3, md: 4 }
+        }}
+      >
         <Stack spacing={3}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
             <Box>
