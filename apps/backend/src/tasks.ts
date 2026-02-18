@@ -162,6 +162,12 @@ export interface WorkflowCommandExecutionResult {
   stderr: string;
 }
 
+interface PlannerStageAction extends WorkflowNextAction {
+  type: "planner_execute";
+  reasonCodes?: string[];
+  affectedSections?: string[];
+}
+
 export type WorkflowCommandExecutor = (
   request: WorkflowCommandExecutionRequest
 ) => Promise<WorkflowCommandExecutionResult>;
@@ -291,7 +297,7 @@ export class TaskWorkflowService {
     this.now = options?.now ?? (() => new Date());
     this.random = options?.random ?? Math.random;
     this.onChanged = options?.onChanged ?? (() => undefined);
-    this.statusHooks = options?.statusHooks ?? {};
+    this.statusHooks = this.createDefaultStatusHooks(options?.statusHooks);
     this.commandExecutor = options?.commandExecutor ?? this.executeCommand;
     this.commandAllowlist = options?.commandAllowlist ?? DEFAULT_COMMAND_ALLOWLIST;
     this.commandTimeoutMs = options?.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
@@ -302,6 +308,46 @@ export class TaskWorkflowService {
     if (options?.initialTasks?.length) {
       this.importAll(options.initialTasks);
     }
+  }
+
+  private createDefaultStatusHooks(userHooks?: TaskStatusHookMap): TaskStatusHookMap {
+    const defaultHooks: TaskStatusHookMap = {
+      planning: {
+        onEnter: [
+          (context) => ({
+            nextActions: [
+              {
+                id: `planner_execute_${context.task.id}_${context.fromStatus}_to_${context.toStatus}`,
+                type: "planner_execute",
+                reasonCodes: [],
+                affectedSections: ["planningArtifact", "testingArtifacts.planned"]
+              }
+            ]
+          })
+        ]
+      }
+    };
+
+    if (!userHooks) {
+      return defaultHooks;
+    }
+
+    const merged: TaskStatusHookMap = { ...defaultHooks };
+    const statuses = new Set<string>([
+      ...Object.keys(defaultHooks),
+      ...Object.keys(userHooks)
+    ]);
+
+    for (const status of statuses) {
+      const defaults = defaultHooks[status] ?? {};
+      const user = userHooks[status] ?? {};
+      merged[status] = {
+        onEnter: [...(defaults.onEnter ?? []), ...(user.onEnter ?? [])],
+        onExit: [...(defaults.onExit ?? []), ...(user.onExit ?? [])]
+      };
+    }
+
+    return merged;
   }
 
   list(): TaskRecord[] {
@@ -767,6 +813,132 @@ export class TaskWorkflowService {
       actionItems,
       sources
     };
+  }
+
+  private resolvePlanningArtifact(metadata: Record<string, unknown>): {
+    createdAt: string;
+    goals: string[];
+    steps: string[];
+    risks: string[];
+  } {
+    const candidate = this.isRecord(metadata.planningArtifact)
+      ? metadata.planningArtifact
+      : {};
+    const now = this.now().toISOString();
+    return {
+      createdAt:
+        this.readString(candidate.createdAt) ??
+        this.readString(candidate["createdAt"]) ??
+        now,
+      goals: this.readStringArray(candidate.goals),
+      steps: this.readStringArray(candidate.steps),
+      risks: this.readStringArray(candidate.risks)
+    };
+  }
+
+  private ensurePlanningGoals(
+    existing: string[],
+    taskTitle: string,
+    acceptanceCriteria: string[]
+  ): string[] {
+    let next = [...existing];
+    next = this.ensureContains(next, `Define implementation outcomes for: ${taskTitle}`);
+    if (acceptanceCriteria.length > 0) {
+      next = this.ensureContains(
+        next,
+        `Map implementation plan to ${acceptanceCriteria.length} acceptance criteria.`
+      );
+    } else {
+      next = this.ensureContains(next, "Clarify missing acceptance criteria before implementation.");
+    }
+    return next;
+  }
+
+  private ensurePlanningSteps(
+    existing: string[],
+    taskTitle: string,
+    acceptanceCriteria: string[]
+  ): string[] {
+    let next = [...existing];
+    next = this.ensureContains(next, `Review task scope and dependencies for "${taskTitle}".`);
+    next = this.ensureContains(next, "Draft minimal implementation approach and sequence.");
+    next = this.ensureContains(next, "Define validation strategy before coding.");
+    if (acceptanceCriteria.length === 0) {
+      next = this.ensureContains(next, "Collect acceptance criteria clarification from operator.");
+    }
+    return next;
+  }
+
+  private ensurePlanningRisks(existing: string[]): string[] {
+    let next = [...existing];
+    next = this.ensureContains(next, "Execution risk from incomplete planning assumptions.");
+    next = this.ensureContains(next, "Potential rework if clarification responses change scope.");
+    return next;
+  }
+
+  private ensureTestingPlannedGherkin(
+    existing: string[],
+    taskTitle: string,
+    acceptanceCriteria: string[]
+  ): string[] {
+    let next = [...existing];
+    next = this.ensureContains(
+      next,
+      `Given task "${taskTitle}" plan is approved, when implementation starts, then planned steps map to acceptance criteria and verification artifacts.`
+    );
+    if (acceptanceCriteria.length === 0) {
+      next = this.ensureContains(
+        next,
+        "Given missing acceptance criteria, when planner runs, then task is redirected to awaiting_human with clarification questionnaire."
+      );
+    }
+    return next;
+  }
+
+  private ensureContains(values: string[], value: string): string[] {
+    if (values.includes(value)) {
+      return values;
+    }
+    return [...values, value];
+  }
+
+  private readStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const normalized: string[] = [];
+    for (const entry of value) {
+      if (typeof entry !== "string") {
+        continue;
+      }
+      const trimmed = entry.trim();
+      if (trimmed.length === 0) {
+        continue;
+      }
+      normalized.push(trimmed);
+    }
+    return normalized;
+  }
+
+  private getLatestHumanAnswer(value: unknown): string | null {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const entry = value[index];
+      if (!this.isRecord(entry)) {
+        continue;
+      }
+      const actor = this.readString(entry.actor);
+      if (actor?.toLowerCase() !== "human") {
+        continue;
+      }
+      const message = this.readString(entry.answer) ?? this.readString(entry.message);
+      if (message) {
+        return message;
+      }
+    }
+    return null;
   }
 
   private normalizeStatus(status: InputTaskStatus): TaskStatus {
@@ -1319,6 +1491,7 @@ export class TaskWorkflowService {
     toStatus: TaskStatus
   ): Promise<void> {
     const metadata = this.ensureWorkflowRuntimeMetadata(task.metadata);
+    task.metadata = metadata;
     const runtime = metadata.workflowRuntime as WorkflowRuntimeState;
     const transitionAt = this.now().toISOString();
     runtime.lastTransition = {
@@ -1363,7 +1536,7 @@ export class TaskWorkflowService {
           blockingReasonCount: blockingReasons.length
         });
         await this.executeNextActions(
-          task.id,
+          task,
           runtime,
           nextActions,
           step.phase,
@@ -1387,15 +1560,21 @@ export class TaskWorkflowService {
   }
 
   private async executeNextActions(
-    taskId: string,
+    task: TaskRecord,
     runtime: WorkflowRuntimeState,
     actions: WorkflowNextAction[],
     phase: "onEnter" | "onExit",
     status: TaskStatus,
     transitionAt: string
   ): Promise<void> {
+    const taskId = task.id;
     for (const action of actions) {
       if (this.wasActionHandled(runtime, action.id, phase, status)) {
+        continue;
+      }
+
+      if (this.isPlannerStageAction(action)) {
+        await this.executePlannerStageAction(task, runtime, action, phase, status, transitionAt);
         continue;
       }
 
@@ -1565,6 +1744,170 @@ export class TaskWorkflowService {
       typeof action.command === "string" &&
       Array.isArray(action.args)
     );
+  }
+
+  private isPlannerStageAction(action: WorkflowNextAction): action is PlannerStageAction {
+    return action.type === "planner_execute";
+  }
+
+  private async executePlannerStageAction(
+    task: TaskRecord,
+    runtime: WorkflowRuntimeState,
+    action: PlannerStageAction,
+    phase: "onEnter" | "onExit",
+    status: TaskStatus,
+    transitionAt: string
+  ): Promise<void> {
+    if (!(phase === "onEnter" && status === "planning")) {
+      runtime.actionHistory.push({
+        at: transitionAt,
+        phase,
+        status,
+        result: "ok",
+        nextActionCount: 0,
+        blockingReasonCount: 0,
+        actionId: action.id,
+        actionType: action.type
+      });
+      return;
+    }
+
+    const metadata = task.metadata;
+    const testingArtifacts = metadata.testingArtifacts as TaskTestingArtifactsState;
+    const planningArtifact = this.resolvePlanningArtifact(metadata);
+    const acceptanceCriteria = this.readStringArray(metadata.acceptanceCriteria);
+    const reasonCodes: string[] = [];
+    const latestHumanAnswer = this.getLatestHumanAnswer(metadata.answerThread);
+
+    if (acceptanceCriteria.length === 0) {
+      reasonCodes.push("MISSING_ACCEPTANCE_CRITERIA");
+      planningArtifact.risks = this.ensureContains(
+        planningArtifact.risks,
+        "Acceptance criteria are missing; clarification required before implementation."
+      );
+    }
+    if (task.description.trim().length === 0) {
+      reasonCodes.push("MISSING_DESCRIPTION");
+      planningArtifact.risks = this.ensureContains(
+        planningArtifact.risks,
+        "Task description is empty; planning assumptions may be wrong."
+      );
+    }
+    if (acceptanceCriteria.some((criterion) => /\bor\b/i.test(criterion))) {
+      reasonCodes.push("AC_AMBIGUOUS");
+      planningArtifact.risks = this.ensureContains(
+        planningArtifact.risks,
+        "Acceptance criteria include ambiguous alternatives; clarification is required."
+      );
+    }
+
+    planningArtifact.goals = this.ensurePlanningGoals(
+      planningArtifact.goals,
+      task.title,
+      acceptanceCriteria
+    );
+    planningArtifact.steps = this.ensurePlanningSteps(
+      planningArtifact.steps,
+      task.title,
+      acceptanceCriteria
+    );
+    planningArtifact.risks = this.ensurePlanningRisks(planningArtifact.risks);
+
+    testingArtifacts.planned.gherkinScenarios = this.ensureTestingPlannedGherkin(
+      testingArtifacts.planned.gherkinScenarios,
+      task.title,
+      acceptanceCriteria
+    );
+    testingArtifacts.planned.unitTestIntent = this.ensureContains(
+      testingArtifacts.planned.unitTestIntent,
+      "Add unit tests for planner-stage artifact generation and questionnaire decision logic."
+    );
+    testingArtifacts.planned.integrationTestIntent = this.ensureContains(
+      testingArtifacts.planned.integrationTestIntent,
+      "Add integration tests for planning->awaiting_human redirect and resume flow."
+    );
+    if (!testingArtifacts.planned.notes) {
+      testingArtifacts.planned.notes =
+        "Generated by planner stage execution; refine after clarification answers if required.";
+    }
+
+    metadata.planningArtifact = planningArtifact;
+    metadata.testingArtifacts = testingArtifacts;
+    task.metadata = metadata;
+
+    const needsQuestionnaire = reasonCodes.length > 0 && !latestHumanAnswer;
+    if (needsQuestionnaire) {
+      metadata.awaitingHumanArtifact = {
+        question:
+          "Planning requires clarification before implementation. Which planning path should we adopt?",
+        options: [
+          {
+            label: "Provide missing details (Recommended)",
+            description: "Answer clarification questions so planner can finalize artifacts."
+          },
+          {
+            label: "Proceed with assumptions",
+            description: "Accept higher risk and continue with current assumptions."
+          }
+        ],
+        recommendedOption: "Provide missing details (Recommended)",
+        requestedAt: transitionAt,
+        context: {
+          reasonCodes,
+          affectedSections: action.affectedSections ?? [
+            "planningArtifact",
+            "testingArtifacts.planned"
+          ]
+        }
+      };
+      metadata.transitionNote =
+        "Planner requested clarification and redirected task to awaiting_human.";
+      task.status = "awaiting_human";
+      runtime.blockingReasons.push({
+        code: "PLANNER_CLARIFICATION_REQUIRED",
+        message: `Planner requires clarification: ${reasonCodes.join(", ")}`
+      });
+
+      await this.audit.record({
+        eventType: "planner_questionnaire_requested",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          reasonCodes
+        }
+      });
+    } else {
+      if (metadata.awaitingHumanArtifact) {
+        delete metadata.awaitingHumanArtifact;
+      }
+      if (latestHumanAnswer) {
+        planningArtifact.steps = this.ensureContains(
+          planningArtifact.steps,
+          `Incorporate human clarification: ${latestHumanAnswer}`
+        );
+        metadata.transitionNote = `Planner applied questionnaire response: ${latestHumanAnswer}`;
+      }
+      await this.audit.record({
+        eventType: "planner_stage_completed",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          reasonCodes,
+          resumedFromHumanAnswer: latestHumanAnswer !== null
+        }
+      });
+    }
+
+    runtime.actionHistory.push({
+      at: transitionAt,
+      phase,
+      status,
+      result: "ok",
+      nextActionCount: 0,
+      blockingReasonCount: needsQuestionnaire ? 1 : 0,
+      actionId: action.id,
+      actionType: action.type
+    });
   }
 
   private isCommandAllowed(command: string): boolean {

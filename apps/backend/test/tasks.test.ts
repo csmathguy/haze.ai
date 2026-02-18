@@ -373,6 +373,69 @@ describe("TaskWorkflowService", () => {
     expect(implemented.notes).toBeNull();
   });
 
+  test("auto-generates planning artifacts and planned testing intent on entering planning", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Planner stage bootstrap",
+      description: "Implement planner stage execution",
+      metadata: {
+        acceptanceCriteria: ["Planner writes planning artifacts"]
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "planning" });
+    expect(updated.status).toBe("planning");
+    const planningArtifact = updated.metadata.planningArtifact as Record<string, unknown>;
+    const testingArtifacts = updated.metadata.testingArtifacts as Record<string, unknown>;
+    const planned = testingArtifacts.planned as Record<string, unknown>;
+
+    expect((planningArtifact.goals as string[]).length).toBeGreaterThan(0);
+    expect((planningArtifact.steps as string[]).length).toBeGreaterThan(0);
+    expect((planned.gherkinScenarios as string[]).length).toBeGreaterThan(0);
+    expect((planned.unitTestIntent as string[]).length).toBeGreaterThan(0);
+  });
+
+  test("redirects planning stage to awaiting_human when clarification is required", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Ambiguous planner task",
+      description: "",
+      metadata: {
+        acceptanceCriteria: ["Implement approach A or approach B"]
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "planning" });
+    expect(updated.status).toBe("awaiting_human");
+    const awaitingHumanArtifact = updated.metadata.awaitingHumanArtifact as Record<string, unknown>;
+    expect(awaitingHumanArtifact.question).toBeTypeOf("string");
+    const context = awaitingHumanArtifact.context as Record<string, unknown>;
+    expect((context.reasonCodes as string[]).length).toBeGreaterThan(0);
+  });
+
+  test("applies latest human answer when resuming planning from awaiting_human", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Resume planning task",
+      description: "Requires clarification",
+      metadata: {
+        acceptanceCriteria: [],
+        answerThread: [
+          {
+            actor: "human",
+            answer: "Use sqlite for local persistence."
+          }
+        ]
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "planning" });
+    expect(updated.status).toBe("planning");
+    const planningArtifact = updated.metadata.planningArtifact as Record<string, unknown>;
+    expect((planningArtifact.steps as string[]).some((step) => /sqlite/i.test(step))).toBe(true);
+    expect(updated.metadata.transitionNote).toMatch(/questionnaire response/i);
+  });
+
   test("backfills workflowRuntime schema for legacy loaded tasks", () => {
     const audit = {
       record: vi.fn(async () => {})
