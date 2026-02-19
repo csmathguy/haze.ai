@@ -456,6 +456,30 @@ describe("TaskWorkflowService", () => {
     expect((reconciled.metadata.awaitingHumanArtifact as Record<string, unknown>).question).toBeTypeOf(
       "string"
     );
+    const determination = reconciled.metadata.plannerDetermination as Record<string, unknown>;
+    expect(determination.decision).toBe("needs_info");
+  });
+
+  test("reconcilePlanningTask writes approved planner determination when clarification is not required", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Reconcile complete planner task",
+      description: "Has complete requirements",
+      metadata: {
+        acceptanceCriteria: ["Capture explicit planner readiness decision"]
+      }
+    });
+    await service.update(task.id, { status: "planning" });
+
+    const reconciled = await service.reconcilePlanningTask(task.id, {
+      trigger: "unit_test",
+      runId: "run-2",
+      sessionId: "session-2"
+    });
+    expect(reconciled.status).toBe("planning");
+    const determination = reconciled.metadata.plannerDetermination as Record<string, unknown>;
+    expect(determination.decision).toBe("approved");
+    expect(Array.isArray(determination.reasonCodes)).toBe(true);
   });
 
   test("runs architect stage on entering architecture_review and writes approved review artifact", async () => {

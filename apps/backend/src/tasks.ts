@@ -778,6 +778,12 @@ export class TaskWorkflowService {
     metadata.planningArtifact = plannerResult.planningArtifact;
     testingArtifacts.planned = plannerResult.testingPlanned;
     metadata.testingArtifacts = testingArtifacts;
+    metadata.plannerDetermination = this.buildPlannerDetermination({
+      decision: plannerResult.requiresClarification ? "needs_info" : "approved",
+      reasonCodes: plannerResult.reasonCodes,
+      decidedAt: transitionAt,
+      source: "planner_reconcile"
+    });
 
     if (plannerResult.requiresClarification) {
       metadata.awaitingHumanArtifact = {
@@ -1002,6 +1008,20 @@ export class TaskWorkflowService {
       }
     }
     return null;
+  }
+
+  private buildPlannerDetermination(input: {
+    decision: "approved" | "needs_info";
+    reasonCodes: string[];
+    decidedAt: string;
+    source: "planner_reconcile" | "planner_status_hook";
+  }): Record<string, unknown> {
+    return {
+      decision: input.decision,
+      reasonCodes: [...input.reasonCodes],
+      decidedAt: input.decidedAt,
+      source: input.source
+    };
   }
 
   private normalizeStatus(status: InputTaskStatus): TaskStatus {
@@ -1863,9 +1883,14 @@ export class TaskWorkflowService {
     metadata.planningArtifact = plannerResult.planningArtifact;
     testingArtifacts.planned = plannerResult.testingPlanned;
     metadata.testingArtifacts = testingArtifacts;
-    task.metadata = metadata;
-
     const needsQuestionnaire = plannerResult.requiresClarification;
+    metadata.plannerDetermination = this.buildPlannerDetermination({
+      decision: needsQuestionnaire ? "needs_info" : "approved",
+      reasonCodes: plannerResult.reasonCodes,
+      decidedAt: transitionAt,
+      source: "planner_status_hook"
+    });
+    task.metadata = metadata;
     if (needsQuestionnaire) {
       metadata.awaitingHumanArtifact = {
         question:
