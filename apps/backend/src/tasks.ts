@@ -7,6 +7,7 @@ import {
   readStringArray,
   runPlannerStage
 } from "./task-planner-stage.js";
+import { runArchitectStage } from "./task-architect-stage.js";
 import {
   GitHubPullRequestApiService,
   type GitHubMergeMethod,
@@ -172,6 +173,12 @@ interface PlannerStageAction extends WorkflowNextAction {
   affectedSections?: string[];
 }
 
+interface ArchitectStageAction extends WorkflowNextAction {
+  type: "architect_execute";
+  reasonCodes?: string[];
+  affectedSections?: string[];
+}
+
 export type WorkflowCommandExecutor = (
   request: WorkflowCommandExecutionRequest
 ) => Promise<WorkflowCommandExecutionResult>;
@@ -325,6 +332,20 @@ export class TaskWorkflowService {
                 type: "planner_execute",
                 reasonCodes: [],
                 affectedSections: ["planningArtifact", "testingArtifacts.planned"]
+              }
+            ]
+          })
+        ]
+      },
+      implementing: {
+        onEnter: [
+          (context) => ({
+            nextActions: [
+              {
+                id: `architect_execute_${context.task.id}_${context.fromStatus}_to_${context.toStatus}`,
+                type: "architect_execute",
+                reasonCodes: [],
+                affectedSections: ["reviewArtifact", "awaitingHumanArtifact"]
               }
             ]
           })
@@ -1498,6 +1519,11 @@ export class TaskWorkflowService {
         continue;
       }
 
+      if (this.isArchitectStageAction(action)) {
+        await this.executeArchitectStageAction(task, runtime, action, phase, status, transitionAt);
+        continue;
+      }
+
       if (!this.isCommandAction(action)) {
         runtime.actionHistory.push({
           at: transitionAt,
@@ -1670,6 +1696,10 @@ export class TaskWorkflowService {
     return action.type === "planner_execute";
   }
 
+  private isArchitectStageAction(action: WorkflowNextAction): action is ArchitectStageAction {
+    return action.type === "architect_execute";
+  }
+
   private async executePlannerStageAction(
     task: TaskRecord,
     runtime: WorkflowRuntimeState,
@@ -1778,6 +1808,131 @@ export class TaskWorkflowService {
       result: "ok",
       nextActionCount: 0,
       blockingReasonCount: needsQuestionnaire ? 1 : 0,
+      actionId: action.id,
+      actionType: action.type
+    });
+  }
+
+  private async executeArchitectStageAction(
+    task: TaskRecord,
+    runtime: WorkflowRuntimeState,
+    action: ArchitectStageAction,
+    phase: "onEnter" | "onExit",
+    status: TaskStatus,
+    transitionAt: string
+  ): Promise<void> {
+    if (!(phase === "onEnter" && status === "implementing")) {
+      runtime.actionHistory.push({
+        at: transitionAt,
+        phase,
+        status,
+        result: "ok",
+        nextActionCount: 0,
+        blockingReasonCount: 0,
+        actionId: action.id,
+        actionType: action.type
+      });
+      return;
+    }
+
+    const metadata = task.metadata;
+    const testingArtifacts = metadata.testingArtifacts as TaskTestingArtifactsState;
+    const planningArtifact = this.resolvePlanningArtifact(metadata);
+    const acceptanceCriteria = readStringArray(metadata.acceptanceCriteria);
+    const latestHumanAnswer = this.getLatestHumanAnswer(metadata.answerThread);
+    const architectResult = runArchitectStage({
+      acceptanceCriteria,
+      latestHumanAnswer,
+      transitionAt,
+      planningArtifact,
+      testingPlanned: testingArtifacts.planned
+    });
+
+    metadata.reviewArtifact = architectResult.reviewArtifact;
+    task.metadata = metadata;
+
+    if (architectResult.requiresHumanDecision) {
+      metadata.awaitingHumanArtifact = {
+        question:
+          "Architect review requires a human policy decision before implementation can continue. Which path should we take?",
+        options: [
+          {
+            label: "Approve policy exception (Recommended)",
+            description: "Accept the documented risk and continue implementation."
+          },
+          {
+            label: "Reject exception and remediate",
+            description: "Apply remediation actions and rerun architect review."
+          }
+        ],
+        recommendedOption: "Approve policy exception (Recommended)",
+        requestedAt: transitionAt,
+        context: {
+          reasonCodes: architectResult.reasonCodes,
+          decision: architectResult.reviewArtifact.decision,
+          findings: architectResult.reviewArtifact.findings,
+          affectedSections: action.affectedSections ?? ["reviewArtifact", "awaitingHumanArtifact"]
+        }
+      };
+      metadata.transitionNote =
+        "Architect review is blocked pending human policy decision and task was redirected to awaiting_human.";
+      task.status = "awaiting_human";
+      runtime.blockingReasons.push({
+        code: "ARCHITECT_HUMAN_DECISION_REQUIRED",
+        message: "Architect stage requires explicit human policy decision."
+      });
+      await this.audit.record({
+        eventType: "architect_human_decision_requested",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          reasonCodes: architectResult.reasonCodes
+        }
+      });
+    } else if (architectResult.requiresRemediation) {
+      if (metadata.awaitingHumanArtifact) {
+        delete metadata.awaitingHumanArtifact;
+      }
+      metadata.transitionNote =
+        "Architect review requested changes. Apply reviewArtifact.nextActions and rerun architect stage.";
+      runtime.blockingReasons.push({
+        code: "ARCHITECT_CHANGES_REQUESTED",
+        message: "Architect stage found major design/testing issues requiring remediation."
+      });
+      await this.audit.record({
+        eventType: "architect_stage_completed",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          decision: architectResult.reviewArtifact.decision,
+          reasonCodes: architectResult.reasonCodes
+        }
+      });
+    } else {
+      if (metadata.awaitingHumanArtifact) {
+        delete metadata.awaitingHumanArtifact;
+      }
+      metadata.transitionNote =
+        "Architect review approved planning artifacts; tester stage prerequisites are unlocked.";
+      await this.audit.record({
+        eventType: "architect_stage_completed",
+        actor: "task_workflow",
+        payload: {
+          taskId: task.id,
+          decision: architectResult.reviewArtifact.decision,
+          reasonCodes: architectResult.reasonCodes
+        }
+      });
+    }
+
+    runtime.actionHistory.push({
+      at: transitionAt,
+      phase,
+      status,
+      result: "ok",
+      nextActionCount: 0,
+      blockingReasonCount:
+        architectResult.requiresHumanDecision || architectResult.requiresRemediation ? 1 : 0,
       actionId: action.id,
       actionType: action.type
     });
