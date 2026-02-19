@@ -10,8 +10,9 @@ Use sub-skills in this order:
 2. `workflow-start-task`
 3. `backend-transition-task-status`
 4. `workflow-stage-artifact`
-5. `workflow-awaiting-human` (only when blocked)
-6. `workflow-verify-commit-pr`
+5. `architecture-modularity-review` (required for code changes before finish)
+6. `workflow-awaiting-human` (only when blocked)
+7. `workflow-verify-commit-pr`
 
 ## Stage sequence
 - `backlog -> planning -> implementing -> review -> verification -> done`

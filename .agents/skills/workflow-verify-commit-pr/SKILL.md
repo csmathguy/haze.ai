@@ -12,16 +12,17 @@ description: Run verification, stage files, commit changes, and open a GitHub PR
 - optional PR body file path
 
 ## Procedure
-1. Run `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`.
-2. Confirm command output includes commit SHA, PR URL, and task status transitioned to `review`.
-3. Confirm task metadata now includes PR link fields for UI surfacing:
+1. Run `architecture-modularity-review` and resolve required refactors/findings before completion.
+2. Run `scripts/finish-task.ps1 -TaskId "<TASK_ID>" -CommitMessage "<MSG>" -PrTitle "<TITLE>" [-PrBodyFile <path>]`.
+3. Confirm command output includes commit SHA, PR URL, and task status transitioned to `review`.
+4. Confirm task metadata now includes PR link fields for UI surfacing:
    - `metadata.workflow.pullRequestUrl`
    - `metadata.workflow.pullRequestNumber` (if parseable)
    - `metadata.github.prUrl`
-4. Confirm task metadata includes implementation-stage testing traceability updates:
+5. Confirm task metadata includes implementation-stage testing traceability updates:
    - `metadata.testingArtifacts.implemented.testsAddedOrUpdated`
    - `metadata.testingArtifacts.implemented.commandsRun`
-4. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
+6. If script fails, stop and report exact failure; do not replace with manual git/PR commands in normal flow.
 
 ## Automation default
 - After acceptance criteria are met and verification passes, execute this skill immediately.

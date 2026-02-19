@@ -21,7 +21,47 @@ export default tseslint.config(
       }
     },
     rules: {
-      "no-console": "off"
+      "no-console": "off",
+      "max-lines": [
+        "error",
+        {
+          max: 400,
+          skipBlankLines: true,
+          skipComments: true
+        }
+      ]
+    }
+  },
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "max-lines": "off"
+    }
+  },
+  {
+    files: ["apps/backend/src/tasks.ts"],
+    rules: {
+      "max-lines": [
+        "error",
+        {
+          max: 2200,
+          skipBlankLines: true,
+          skipComments: true
+        }
+      ]
+    }
+  },
+  {
+    files: ["apps/frontend/src/components/KanbanView.tsx"],
+    rules: {
+      "max-lines": [
+        "error",
+        {
+          max: 1800,
+          skipBlankLines: true,
+          skipComments: true
+        }
+      ]
     }
   },
   {

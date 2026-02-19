@@ -60,7 +60,10 @@ When using one of these, add a short inline comment near the abstraction declara
 3. Are policies and validation centralized instead of scattered?
 4. Can provider/runtime implementations be swapped without workflow rewrites?
 5. Are tests aligned to domain/service boundaries (unit) and boundary seams (integration)?
-6. Is any file too large or doing more than one layer’s job?
+6. Is any file too large or doing more than one layer's job?
+
+Related execution playbook:
+- `documentation/standards/modularity-refactor-playbook-2026-02-18.md`
 
 ## References
 - TypeScript `strict` mode and compiler options:
