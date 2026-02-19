@@ -415,6 +415,10 @@ export class OrchestratorWorkerService {
     if (plannerDecision !== "approved") {
       return false;
     }
+    const plannerSource = this.readString(plannerDetermination.source);
+    if (plannerSource !== "planning_agent" && plannerSource !== "human_review") {
+      return false;
+    }
 
     const planningArtifact = this.asRecord(metadata.planningArtifact);
     const goals = this.readStringArray(planningArtifact.goals);

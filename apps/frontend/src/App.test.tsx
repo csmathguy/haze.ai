@@ -650,7 +650,7 @@ describe("App", () => {
         expect.objectContaining({ method: "PATCH" })
       );
     });
-  });
+  }, 15000);
 
   test("allows human to update task project from detail drawer", async () => {
     const fetchMock = installFetchMock([

@@ -482,6 +482,44 @@ describe("TaskWorkflowService", () => {
     expect(Array.isArray(determination.reasonCodes)).toBe(true);
   });
 
+  test("records planner determination from planning_agent source", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Planner determination recording",
+      description: "Task waiting for external planner stamp",
+      metadata: {
+        awaitingHumanArtifact: {
+          question: "Old question"
+        }
+      }
+    });
+
+    const updated = await service.recordPlannerDetermination(task.id, {
+      decision: "approved",
+      source: "planning_agent",
+      reasonCodes: ["PLANNING_COMPLETE"]
+    });
+
+    const determination = updated.metadata.plannerDetermination as Record<string, unknown>;
+    expect(determination.decision).toBe("approved");
+    expect(determination.source).toBe("planning_agent");
+    expect(updated.metadata.awaitingHumanArtifact).toBeUndefined();
+  });
+
+  test("rejects planner determination with unsupported source", async () => {
+    const service = buildService();
+    const task = await service.create({ title: "Invalid planner source" });
+
+    await expect(
+      service.recordPlannerDetermination(task.id, {
+        decision: "approved",
+        source: "planning_agent_invalid" as never
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400
+    });
+  });
+
   test("runs architect stage on entering architecture_review and writes approved review artifact", async () => {
     const service = buildService();
     const task = await service.create({
