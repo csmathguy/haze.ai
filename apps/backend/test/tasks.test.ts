@@ -436,6 +436,110 @@ describe("TaskWorkflowService", () => {
     expect(updated.metadata.transitionNote).toMatch(/questionnaire response/i);
   });
 
+  test("runs architect stage on entering implementing and writes approved review artifact", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Architect approved task",
+      description: "Implement modular architect stage flow",
+      metadata: {
+        acceptanceCriteria: ["Emit deterministic review artifact"],
+        planningArtifact: {
+          createdAt: "2026-02-19T00:00:00.000Z",
+          goals: ["Define architecture review output schema"],
+          steps: ["Evaluate planning artifacts", "Persist structured findings"],
+          risks: []
+        },
+        testingArtifacts: {
+          schemaVersion: "1.0",
+          planned: {
+            gherkinScenarios: ["Given architect stage execution..."],
+            unitTestIntent: ["Validate decision mapping"],
+            integrationTestIntent: ["Validate stage persistence"],
+            notes: null
+          },
+          implemented: {
+            testsAddedOrUpdated: [],
+            evidenceLinks: [],
+            commandsRun: [],
+            notes: null
+          }
+        }
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "implementing" });
+    expect(updated.status).toBe("implementing");
+    const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
+    expect(reviewArtifact.decision).toBe("approved");
+    expect(updated.metadata.transitionNote).toMatch(/approved/i);
+  });
+
+  test("keeps task in implementing with blocking reason when architect requests changes", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Architect remediation task",
+      description: "Needs remediation",
+      metadata: {
+        acceptanceCriteria: [],
+        planningArtifact: {
+          createdAt: "2026-02-19T00:00:00.000Z",
+          goals: [],
+          steps: [],
+          risks: []
+        }
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "implementing" });
+    expect(updated.status).toBe("implementing");
+    const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
+    expect(reviewArtifact.decision).toBe("changes_requested");
+    const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
+    const blockingReasons = runtime.blockingReasons as Array<Record<string, unknown>>;
+    expect(blockingReasons.some((reason) => reason.code === "ARCHITECT_CHANGES_REQUESTED")).toBe(
+      true
+    );
+  });
+
+  test("redirects implementing to awaiting_human when architect requires policy decision", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Architect policy decision task",
+      description: "Requires policy exception",
+      metadata: {
+        acceptanceCriteria: ["Document policy exception path"],
+        planningArtifact: {
+          createdAt: "2026-02-19T00:00:00.000Z",
+          goals: ["Capture policy decision"],
+          steps: ["Run architecture policy review"],
+          risks: ["Policy exception required for temporary bypass"]
+        },
+        testingArtifacts: {
+          schemaVersion: "1.0",
+          planned: {
+            gherkinScenarios: ["Given policy exception risk..."],
+            unitTestIntent: ["Validate awaiting_human redirection"],
+            integrationTestIntent: ["Validate task status mutation"],
+            notes: null
+          },
+          implemented: {
+            testsAddedOrUpdated: [],
+            evidenceLinks: [],
+            commandsRun: [],
+            notes: null
+          }
+        }
+      }
+    });
+
+    const updated = await service.update(task.id, { status: "implementing" });
+    expect(updated.status).toBe("awaiting_human");
+    const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
+    expect(reviewArtifact.decision).toBe("blocked_needs_human_decision");
+    const awaiting = updated.metadata.awaitingHumanArtifact as Record<string, unknown>;
+    expect(awaiting.question).toMatch(/human policy decision/i);
+  });
+
   test("backfills workflowRuntime schema for legacy loaded tasks", () => {
     const audit = {
       record: vi.fn(async () => {})
@@ -848,7 +952,7 @@ describe("TaskWorkflowService", () => {
       ])
     );
     expect(implementing?.hookSummary).toEqual({
-      onEnterCount: 0,
+      onEnterCount: 1,
       onExitCount: 0
     });
   });
