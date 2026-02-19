@@ -17,6 +17,7 @@ import {
 export type TaskStatus =
   | "backlog"
   | "planning"
+  | "architecture_review"
   | "implementing"
   | "review"
   | "verification"
@@ -28,24 +29,27 @@ type InputTaskStatus = TaskStatus | "todo" | "in_progress" | "ready";
 
 const ACTIVE_TASK_STATUSES = new Set<TaskStatus>([
   "planning",
+  "architecture_review",
   "implementing",
   "review",
   "verification",
   "awaiting_human"
 ]);
 const ALLOWED_STATUS_TRANSITIONS: Record<TaskStatus, ReadonlySet<TaskStatus>> = {
-  backlog: new Set(["planning", "implementing", "done", "cancelled"]),
-  planning: new Set(["backlog", "implementing", "awaiting_human", "cancelled"]),
+  backlog: new Set(["planning", "architecture_review", "implementing", "done", "cancelled"]),
+  planning: new Set(["backlog", "architecture_review", "implementing", "awaiting_human", "cancelled"]),
+  architecture_review: new Set(["backlog", "implementing", "awaiting_human", "cancelled"]),
   implementing: new Set(["backlog", "review", "awaiting_human", "cancelled"]),
   review: new Set(["implementing", "verification", "done", "awaiting_human", "cancelled"]),
   verification: new Set(["implementing", "done", "awaiting_human", "cancelled"]),
-  awaiting_human: new Set(["planning", "implementing", "review", "cancelled"]),
+  awaiting_human: new Set(["planning", "architecture_review", "implementing", "review", "cancelled"]),
   done: new Set(["review", "cancelled"]),
   cancelled: new Set(["backlog"])
 };
 const STATUS_LABELS: Record<TaskStatus, string> = {
   backlog: "Backlog",
   planning: "Planning",
+  architecture_review: "Architecture Review",
   implementing: "Implementing",
   review: "Review",
   verification: "Verification",
@@ -337,7 +341,7 @@ export class TaskWorkflowService {
           })
         ]
       },
-      implementing: {
+      architecture_review: {
         onEnter: [
           (context) => ({
             nextActions: [
@@ -891,6 +895,7 @@ export class TaskWorkflowService {
         return "implementing";
       case "backlog":
       case "planning":
+      case "architecture_review":
       case "implementing":
       case "review":
       case "verification":
@@ -1821,7 +1826,7 @@ export class TaskWorkflowService {
     status: TaskStatus,
     transitionAt: string
   ): Promise<void> {
-    if (!(phase === "onEnter" && status === "implementing")) {
+    if (!(phase === "onEnter" && status === "architecture_review")) {
       runtime.actionHistory.push({
         at: transitionAt,
         phase,

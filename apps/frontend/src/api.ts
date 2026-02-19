@@ -24,6 +24,7 @@ export interface TaskRecord {
 export type TaskStatus =
   | "backlog"
   | "planning"
+  | "architecture_review"
   | "implementing"
   | "review"
   | "verification"

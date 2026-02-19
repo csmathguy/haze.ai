@@ -436,7 +436,7 @@ describe("TaskWorkflowService", () => {
     expect(updated.metadata.transitionNote).toMatch(/questionnaire response/i);
   });
 
-  test("runs architect stage on entering implementing and writes approved review artifact", async () => {
+  test("runs architect stage on entering architecture_review and writes approved review artifact", async () => {
     const service = buildService();
     const task = await service.create({
       title: "Architect approved task",
@@ -467,14 +467,14 @@ describe("TaskWorkflowService", () => {
       }
     });
 
-    const updated = await service.update(task.id, { status: "implementing" });
-    expect(updated.status).toBe("implementing");
+    const updated = await service.update(task.id, { status: "architecture_review" });
+    expect(updated.status).toBe("architecture_review");
     const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
     expect(reviewArtifact.decision).toBe("approved");
     expect(updated.metadata.transitionNote).toMatch(/approved/i);
   });
 
-  test("keeps task in implementing with blocking reason when architect requests changes", async () => {
+  test("keeps task in architecture_review with blocking reason when architect requests changes", async () => {
     const service = buildService();
     const task = await service.create({
       title: "Architect remediation task",
@@ -490,8 +490,8 @@ describe("TaskWorkflowService", () => {
       }
     });
 
-    const updated = await service.update(task.id, { status: "implementing" });
-    expect(updated.status).toBe("implementing");
+    const updated = await service.update(task.id, { status: "architecture_review" });
+    expect(updated.status).toBe("architecture_review");
     const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
     expect(reviewArtifact.decision).toBe("changes_requested");
     const runtime = updated.metadata.workflowRuntime as Record<string, unknown>;
@@ -501,7 +501,7 @@ describe("TaskWorkflowService", () => {
     );
   });
 
-  test("redirects implementing to awaiting_human when architect requires policy decision", async () => {
+  test("redirects architecture_review to awaiting_human when architect requires policy decision", async () => {
     const service = buildService();
     const task = await service.create({
       title: "Architect policy decision task",
@@ -532,7 +532,7 @@ describe("TaskWorkflowService", () => {
       }
     });
 
-    const updated = await service.update(task.id, { status: "implementing" });
+    const updated = await service.update(task.id, { status: "architecture_review" });
     expect(updated.status).toBe("awaiting_human");
     const reviewArtifact = updated.metadata.reviewArtifact as Record<string, unknown>;
     expect(reviewArtifact.decision).toBe("blocked_needs_human_decision");
@@ -940,6 +940,9 @@ describe("TaskWorkflowService", () => {
     const service = buildService();
     const model = service.getStatusModel();
     const implementing = model.statuses.find((entry) => entry.status === "implementing");
+    const architectureReview = model.statuses.find(
+      (entry) => entry.status === "architecture_review"
+    );
 
     expect(implementing).toBeDefined();
     expect(implementing?.allowedTransitions).toContain("review");
@@ -952,6 +955,10 @@ describe("TaskWorkflowService", () => {
       ])
     );
     expect(implementing?.hookSummary).toEqual({
+      onEnterCount: 0,
+      onExitCount: 0
+    });
+    expect(architectureReview?.hookSummary).toEqual({
       onEnterCount: 1,
       onExitCount: 0
     });
