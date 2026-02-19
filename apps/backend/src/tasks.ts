@@ -4,6 +4,10 @@ import { promisify } from "node:util";
 import type { AuditSink } from "./audit.js";
 import { DEFAULT_PROJECT_ID } from "./projects.js";
 import {
+  readStringArray,
+  runPlannerStage
+} from "./task-planner-stage.js";
+import {
   GitHubPullRequestApiService,
   type GitHubMergeMethod,
   type GitHubPullRequestService
@@ -830,94 +834,10 @@ export class TaskWorkflowService {
         this.readString(candidate.createdAt) ??
         this.readString(candidate["createdAt"]) ??
         now,
-      goals: this.readStringArray(candidate.goals),
-      steps: this.readStringArray(candidate.steps),
-      risks: this.readStringArray(candidate.risks)
+      goals: readStringArray(candidate.goals),
+      steps: readStringArray(candidate.steps),
+      risks: readStringArray(candidate.risks)
     };
-  }
-
-  private ensurePlanningGoals(
-    existing: string[],
-    taskTitle: string,
-    acceptanceCriteria: string[]
-  ): string[] {
-    let next = [...existing];
-    next = this.ensureContains(next, `Define implementation outcomes for: ${taskTitle}`);
-    if (acceptanceCriteria.length > 0) {
-      next = this.ensureContains(
-        next,
-        `Map implementation plan to ${acceptanceCriteria.length} acceptance criteria.`
-      );
-    } else {
-      next = this.ensureContains(next, "Clarify missing acceptance criteria before implementation.");
-    }
-    return next;
-  }
-
-  private ensurePlanningSteps(
-    existing: string[],
-    taskTitle: string,
-    acceptanceCriteria: string[]
-  ): string[] {
-    let next = [...existing];
-    next = this.ensureContains(next, `Review task scope and dependencies for "${taskTitle}".`);
-    next = this.ensureContains(next, "Draft minimal implementation approach and sequence.");
-    next = this.ensureContains(next, "Define validation strategy before coding.");
-    if (acceptanceCriteria.length === 0) {
-      next = this.ensureContains(next, "Collect acceptance criteria clarification from operator.");
-    }
-    return next;
-  }
-
-  private ensurePlanningRisks(existing: string[]): string[] {
-    let next = [...existing];
-    next = this.ensureContains(next, "Execution risk from incomplete planning assumptions.");
-    next = this.ensureContains(next, "Potential rework if clarification responses change scope.");
-    return next;
-  }
-
-  private ensureTestingPlannedGherkin(
-    existing: string[],
-    taskTitle: string,
-    acceptanceCriteria: string[]
-  ): string[] {
-    let next = [...existing];
-    next = this.ensureContains(
-      next,
-      `Given task "${taskTitle}" plan is approved, when implementation starts, then planned steps map to acceptance criteria and verification artifacts.`
-    );
-    if (acceptanceCriteria.length === 0) {
-      next = this.ensureContains(
-        next,
-        "Given missing acceptance criteria, when planner runs, then task is redirected to awaiting_human with clarification questionnaire."
-      );
-    }
-    return next;
-  }
-
-  private ensureContains(values: string[], value: string): string[] {
-    if (values.includes(value)) {
-      return values;
-    }
-    return [...values, value];
-  }
-
-  private readStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    const normalized: string[] = [];
-    for (const entry of value) {
-      if (typeof entry !== "string") {
-        continue;
-      }
-      const trimmed = entry.trim();
-      if (trimmed.length === 0) {
-        continue;
-      }
-      normalized.push(trimmed);
-    }
-    return normalized;
   }
 
   private getLatestHumanAnswer(value: unknown): string | null {
@@ -1775,67 +1695,24 @@ export class TaskWorkflowService {
     const metadata = task.metadata;
     const testingArtifacts = metadata.testingArtifacts as TaskTestingArtifactsState;
     const planningArtifact = this.resolvePlanningArtifact(metadata);
-    const acceptanceCriteria = this.readStringArray(metadata.acceptanceCriteria);
-    const reasonCodes: string[] = [];
+    const acceptanceCriteria = readStringArray(metadata.acceptanceCriteria);
     const latestHumanAnswer = this.getLatestHumanAnswer(metadata.answerThread);
+    const plannerResult = runPlannerStage({
+      taskTitle: task.title,
+      taskDescription: task.description,
+      acceptanceCriteria,
+      latestHumanAnswer,
+      transitionAt,
+      existingPlanningArtifact: planningArtifact,
+      existingTestingPlanned: testingArtifacts.planned
+    });
 
-    if (acceptanceCriteria.length === 0) {
-      reasonCodes.push("MISSING_ACCEPTANCE_CRITERIA");
-      planningArtifact.risks = this.ensureContains(
-        planningArtifact.risks,
-        "Acceptance criteria are missing; clarification required before implementation."
-      );
-    }
-    if (task.description.trim().length === 0) {
-      reasonCodes.push("MISSING_DESCRIPTION");
-      planningArtifact.risks = this.ensureContains(
-        planningArtifact.risks,
-        "Task description is empty; planning assumptions may be wrong."
-      );
-    }
-    if (acceptanceCriteria.some((criterion) => /\bor\b/i.test(criterion))) {
-      reasonCodes.push("AC_AMBIGUOUS");
-      planningArtifact.risks = this.ensureContains(
-        planningArtifact.risks,
-        "Acceptance criteria include ambiguous alternatives; clarification is required."
-      );
-    }
-
-    planningArtifact.goals = this.ensurePlanningGoals(
-      planningArtifact.goals,
-      task.title,
-      acceptanceCriteria
-    );
-    planningArtifact.steps = this.ensurePlanningSteps(
-      planningArtifact.steps,
-      task.title,
-      acceptanceCriteria
-    );
-    planningArtifact.risks = this.ensurePlanningRisks(planningArtifact.risks);
-
-    testingArtifacts.planned.gherkinScenarios = this.ensureTestingPlannedGherkin(
-      testingArtifacts.planned.gherkinScenarios,
-      task.title,
-      acceptanceCriteria
-    );
-    testingArtifacts.planned.unitTestIntent = this.ensureContains(
-      testingArtifacts.planned.unitTestIntent,
-      "Add unit tests for planner-stage artifact generation and questionnaire decision logic."
-    );
-    testingArtifacts.planned.integrationTestIntent = this.ensureContains(
-      testingArtifacts.planned.integrationTestIntent,
-      "Add integration tests for planning->awaiting_human redirect and resume flow."
-    );
-    if (!testingArtifacts.planned.notes) {
-      testingArtifacts.planned.notes =
-        "Generated by planner stage execution; refine after clarification answers if required.";
-    }
-
-    metadata.planningArtifact = planningArtifact;
+    metadata.planningArtifact = plannerResult.planningArtifact;
+    testingArtifacts.planned = plannerResult.testingPlanned;
     metadata.testingArtifacts = testingArtifacts;
     task.metadata = metadata;
 
-    const needsQuestionnaire = reasonCodes.length > 0 && !latestHumanAnswer;
+    const needsQuestionnaire = plannerResult.requiresClarification;
     if (needsQuestionnaire) {
       metadata.awaitingHumanArtifact = {
         question:
@@ -1853,7 +1730,7 @@ export class TaskWorkflowService {
         recommendedOption: "Provide missing details (Recommended)",
         requestedAt: transitionAt,
         context: {
-          reasonCodes,
+          reasonCodes: plannerResult.reasonCodes,
           affectedSections: action.affectedSections ?? [
             "planningArtifact",
             "testingArtifacts.planned"
@@ -1865,7 +1742,7 @@ export class TaskWorkflowService {
       task.status = "awaiting_human";
       runtime.blockingReasons.push({
         code: "PLANNER_CLARIFICATION_REQUIRED",
-        message: `Planner requires clarification: ${reasonCodes.join(", ")}`
+        message: `Planner requires clarification: ${plannerResult.reasonCodes.join(", ")}`
       });
 
       await this.audit.record({
@@ -1873,7 +1750,7 @@ export class TaskWorkflowService {
         actor: "task_workflow",
         payload: {
           taskId: task.id,
-          reasonCodes
+          reasonCodes: plannerResult.reasonCodes
         }
       });
     } else {
@@ -1881,10 +1758,6 @@ export class TaskWorkflowService {
         delete metadata.awaitingHumanArtifact;
       }
       if (latestHumanAnswer) {
-        planningArtifact.steps = this.ensureContains(
-          planningArtifact.steps,
-          `Incorporate human clarification: ${latestHumanAnswer}`
-        );
         metadata.transitionNote = `Planner applied questionnaire response: ${latestHumanAnswer}`;
       }
       await this.audit.record({
@@ -1892,7 +1765,7 @@ export class TaskWorkflowService {
         actor: "task_workflow",
         payload: {
           taskId: task.id,
-          reasonCodes,
+          reasonCodes: plannerResult.reasonCodes,
           resumedFromHumanAnswer: latestHumanAnswer !== null
         }
       });

@@ -47,6 +47,20 @@ Run these at repo root:
 - When introducing a pattern (Strategy, Adapter, Factory, etc.), add a brief comment at the abstraction point naming the pattern and the reason it is used.
 - Document architecture-significant choices in `documentation/standards/*` and link them from related task artifacts.
 
+## Architecture enforcement workflow (required)
+- Before `scripts/finish-task.ps1`, run the `architecture-modularity-review` skill for backend/frontend code changes.
+- Hard file-size budget for new/updated source files:
+  - backend/frontend source default max: 400 logical lines (excluding comments/blank lines)
+  - test files are exempt from this hard cap but still should be split when hard to navigate
+- Legacy large-file carve-outs are temporary and must be reduced over time; do not add new carve-outs without a task + rationale.
+- If a change would push a file above the hard cap, the agent must:
+  - split code into focused modules first, or
+  - open/attach a dedicated refactor task with explicit decomposition plan and keep feature change minimal.
+- Any PR touching orchestration/task-engine logic must include:
+  - changed responsibilities by file,
+  - why boundaries are still cohesive,
+  - what follow-up split tasks exist (if not fully refactored now).
+
 ## Testing rules
 - Unit test all domain/service logic.
 - Add integration tests for API behavior and persistence boundaries.
