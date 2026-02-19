@@ -181,4 +181,34 @@ describe("OrchestratorWorkerService", () => {
       )
     ).toBe(true);
   });
+
+  test("auto-transitions planning task to architecture_review when planning artifacts are complete", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const tasks = new TaskWorkflowService(audit, { random: () => 0 });
+    const created = await tasks.create({
+      title: "Planning autopilot ready task",
+      description: "Has enough context",
+      metadata: {
+        acceptanceCriteria: ["Complete planning artifact and move forward"]
+      }
+    });
+    await tasks.update(created.id, { status: "planning" });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date("2026-02-19T00:00:00.000Z")
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    const updated = tasks.get(created.id);
+    expect(updated.status).toBe("architecture_review");
+    expect(
+      audit.record.mock.calls.some(
+        ([event]) => event.eventType === "worker_planning_transitioned_to_architecture_review"
+      )
+    ).toBe(true);
+  });
 });

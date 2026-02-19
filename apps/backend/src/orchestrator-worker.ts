@@ -19,6 +19,7 @@ interface WorkerTaskState {
   sessionId: string;
   lastRunId: string | null;
   lastProcessedAt: string | null;
+  planningReconciliationKeys: string[];
   dispatchedActionIds: string[];
   failedActionIds: string[];
   checkpoints: WorkerCheckpoint[];
@@ -129,16 +130,46 @@ export class OrchestratorWorkerService {
       const taskRecords = new Map<string, TaskRecord>();
 
       for (const task of records) {
-        const actions = this.readNextActions(task);
-        if (actions.length === 0) {
-          continue;
-        }
+        let taskRecord = task;
         const workerMetadata = this.readWorkerMetadata(task);
         const taskState = workerMetadata.tasks[task.id] ?? this.createTaskState();
         workerMetadata.tasks[task.id] = taskState;
         workerMetadata.lastTickAt = tickAt;
         taskStates.set(task.id, taskState);
-        taskRecords.set(task.id, task);
+        taskRecords.set(task.id, taskRecord);
+
+        if (taskRecord.status === "planning") {
+          const reconciliationKey = `planning:${taskRecord.updatedAt}`;
+          if (!taskState.planningReconciliationKeys.includes(reconciliationKey)) {
+            taskState.planningReconciliationKeys.push(reconciliationKey);
+            taskState.planningReconciliationKeys = taskState.planningReconciliationKeys.slice(-50);
+            taskRecord = await this.tasks.reconcilePlanningTask(taskRecord.id, {
+              trigger: "worker_reconciliation",
+              runId,
+              sessionId: this.sessionId
+            });
+            taskRecords.set(task.id, taskRecord);
+          }
+
+          if (this.isPlanningReadyForArchitectureReview(taskRecord)) {
+            taskRecord = await this.tasks.update(taskRecord.id, { status: "architecture_review" });
+            taskRecords.set(task.id, taskRecord);
+            await this.audit.record({
+              eventType: "worker_planning_transitioned_to_architecture_review",
+              actor: "orchestrator_worker",
+              payload: {
+                taskId: taskRecord.id,
+                runId,
+                sessionId: this.sessionId
+              }
+            });
+          }
+        }
+
+        const actions = this.readNextActions(taskRecord);
+        if (actions.length === 0) {
+          continue;
+        }
 
         for (const action of actions) {
           const actionId = typeof action.id === "string" ? action.id : randomUUID();
@@ -153,7 +184,7 @@ export class OrchestratorWorkerService {
           const key = `${task.id}:${actionId}`;
           dispatcher.enqueue({
             key,
-            taskId: task.id,
+            taskId: taskRecord.id,
             actionId,
             actionType,
             runId,
@@ -255,6 +286,7 @@ export class OrchestratorWorkerService {
       sessionId: this.sessionId ?? "unknown",
       lastRunId: null,
       lastProcessedAt: null,
+      planningReconciliationKeys: [],
       dispatchedActionIds: [],
       failedActionIds: [],
       checkpoints: []
@@ -311,6 +343,7 @@ export class OrchestratorWorkerService {
         sessionId: this.readString(candidate.sessionId) ?? (this.sessionId ?? "unknown"),
         lastRunId: this.readString(candidate.lastRunId) ?? null,
         lastProcessedAt: this.readString(candidate.lastProcessedAt) ?? null,
+        planningReconciliationKeys: this.readStringArray(candidate.planningReconciliationKeys),
         dispatchedActionIds: this.readStringArray(candidate.dispatchedActionIds),
         failedActionIds: this.readStringArray(candidate.failedActionIds),
         checkpoints: this.readCheckpoints(candidate.checkpoints)
@@ -367,5 +400,26 @@ export class OrchestratorWorkerService {
       return value as Record<string, unknown>;
     }
     return {};
+  }
+
+  private isPlanningReadyForArchitectureReview(task: TaskRecord): boolean {
+    if (task.status !== "planning") {
+      return false;
+    }
+    const metadata = this.asRecord(task.metadata);
+    if (this.asRecord(metadata.awaitingHumanArtifact).question) {
+      return false;
+    }
+
+    const planningArtifact = this.asRecord(metadata.planningArtifact);
+    const goals = this.readStringArray(planningArtifact.goals);
+    const steps = this.readStringArray(planningArtifact.steps);
+    const testingArtifacts = this.asRecord(metadata.testingArtifacts);
+    const planned = this.asRecord(testingArtifacts.planned);
+    const gherkin = this.readStringArray(planned.gherkinScenarios);
+    const unit = this.readStringArray(planned.unitTestIntent);
+    const integration = this.readStringArray(planned.integrationTestIntent);
+
+    return goals.length > 0 && steps.length > 0 && gherkin.length > 0 && unit.length > 0 && integration.length > 0;
   }
 }
