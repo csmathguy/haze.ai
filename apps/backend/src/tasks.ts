@@ -291,6 +291,12 @@ export interface TaskProjectGithubConfig {
   mergeMethod?: GitHubMergeMethod;
 }
 
+interface PlanningAutopilotContext {
+  trigger: string;
+  runId?: string;
+  sessionId?: string;
+}
+
 export class TaskWorkflowService {
   private readonly tasks = new Map<string, TaskRecord>();
   private readonly now: () => Date;
@@ -734,6 +740,118 @@ export class TaskWorkflowService {
         didNotGoWellCount: artifact.didNotGoWell.length,
         actionItemCount: artifact.actionItems.length,
         sourceCount: artifact.sources.length
+      }
+    });
+
+    return this.cloneTask(existing);
+  }
+
+  async reconcilePlanningTask(
+    id: string,
+    context: PlanningAutopilotContext
+  ): Promise<TaskRecord> {
+    const existing = this.tasks.get(id);
+    if (!existing) {
+      throw new TaskServiceError(`Task not found: ${id}`, 404);
+    }
+    if (existing.status !== "planning") {
+      return this.cloneTask(existing);
+    }
+
+    const metadata = this.ensureWorkflowRuntimeMetadata(existing.metadata);
+    const testingArtifacts = metadata.testingArtifacts as TaskTestingArtifactsState;
+    const planningArtifact = this.resolvePlanningArtifact(metadata);
+    const acceptanceCriteria = readStringArray(metadata.acceptanceCriteria);
+    const latestHumanAnswer = this.getLatestHumanAnswer(metadata.answerThread);
+    const transitionAt = this.now().toISOString();
+
+    const plannerResult = runPlannerStage({
+      taskTitle: existing.title,
+      taskDescription: existing.description,
+      acceptanceCriteria,
+      latestHumanAnswer,
+      transitionAt,
+      existingPlanningArtifact: planningArtifact,
+      existingTestingPlanned: testingArtifacts.planned
+    });
+
+    metadata.planningArtifact = plannerResult.planningArtifact;
+    testingArtifacts.planned = plannerResult.testingPlanned;
+    metadata.testingArtifacts = testingArtifacts;
+
+    if (plannerResult.requiresClarification) {
+      metadata.awaitingHumanArtifact = {
+        question:
+          "Planning requires clarification before implementation. Which planning path should we adopt?",
+        options: [
+          {
+            label: "Provide missing details (Recommended)",
+            description: "Answer clarification questions so planner can finalize artifacts."
+          },
+          {
+            label: "Proceed with assumptions",
+            description: "Accept higher risk and continue with current assumptions."
+          }
+        ],
+        recommendedOption: "Provide missing details (Recommended)",
+        requestedAt: transitionAt,
+        context: {
+          reasonCodes: plannerResult.reasonCodes,
+          affectedSections: ["planningArtifact", "testingArtifacts.planned"]
+        }
+      };
+      metadata.transitionNote =
+        "Planner requested clarification and redirected task to awaiting_human.";
+      existing.status = "awaiting_human";
+
+      await this.audit.record({
+        eventType: "planner_questionnaire_requested",
+        actor: "task_workflow",
+        payload: {
+          taskId: existing.id,
+          reasonCodes: plannerResult.reasonCodes,
+          trigger: context.trigger,
+          runId: context.runId ?? null,
+          sessionId: context.sessionId ?? null
+        }
+      });
+    } else {
+      if (metadata.awaitingHumanArtifact) {
+        delete metadata.awaitingHumanArtifact;
+      }
+      if (latestHumanAnswer) {
+        metadata.transitionNote = `Planner applied questionnaire response: ${latestHumanAnswer}`;
+      }
+      await this.audit.record({
+        eventType: "planner_stage_completed",
+        actor: "task_workflow",
+        payload: {
+          taskId: existing.id,
+          reasonCodes: plannerResult.reasonCodes,
+          resumedFromHumanAnswer: latestHumanAnswer !== null,
+          trigger: context.trigger,
+          runId: context.runId ?? null,
+          sessionId: context.sessionId ?? null
+        }
+      });
+    }
+
+    existing.metadata = metadata;
+    existing.updatedAt = transitionAt;
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "planner_autopilot_reconciled",
+      actor: "task_workflow",
+      payload: {
+        taskId: existing.id,
+        decision: plannerResult.requiresClarification
+          ? "awaiting_human"
+          : "planning_ready_check",
+        reasonCodes: plannerResult.reasonCodes,
+        trigger: context.trigger,
+        runId: context.runId ?? null,
+        sessionId: context.sessionId ?? null
       }
     });
 

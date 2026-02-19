@@ -436,6 +436,28 @@ describe("TaskWorkflowService", () => {
     expect(updated.metadata.transitionNote).toMatch(/questionnaire response/i);
   });
 
+  test("reconcilePlanningTask redirects ambiguous planning task to awaiting_human", async () => {
+    const service = buildService();
+    const task = await service.create({
+      title: "Reconcile ambiguous planner task",
+      description: "",
+      metadata: {
+        acceptanceCriteria: []
+      }
+    });
+    await service.update(task.id, { status: "planning" });
+
+    const reconciled = await service.reconcilePlanningTask(task.id, {
+      trigger: "unit_test",
+      runId: "run-1",
+      sessionId: "session-1"
+    });
+    expect(reconciled.status).toBe("awaiting_human");
+    expect((reconciled.metadata.awaitingHumanArtifact as Record<string, unknown>).question).toBeTypeOf(
+      "string"
+    );
+  });
+
   test("runs architect stage on entering architecture_review and writes approved review artifact", async () => {
     const service = buildService();
     const task = await service.create({
