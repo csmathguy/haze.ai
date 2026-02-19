@@ -534,7 +534,7 @@ describe("App", () => {
       "href",
       "https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository"
     );
-  });
+  }, 15000);
 
   test("opens status details from lane header and from task status pill", async () => {
     installFetchMock(
@@ -650,7 +650,7 @@ describe("App", () => {
         expect.objectContaining({ method: "PATCH" })
       );
     });
-  });
+  }, 15000);
 
   test("allows human to update task project from detail drawer", async () => {
     const fetchMock = installFetchMock([

@@ -143,6 +143,12 @@ export interface TaskRetrospectiveInput {
   sources: string[];
 }
 
+export interface TaskPlannerDeterminationInput {
+  decision: "approved" | "needs_info";
+  source: "planning_agent" | "human_review";
+  reasonCodes?: string[];
+}
+
 export interface TaskRetrospectiveArtifact extends TaskRetrospectiveInput {
   createdAt: string;
 }
@@ -746,6 +752,84 @@ export class TaskWorkflowService {
     return this.cloneTask(existing);
   }
 
+  async recordPlannerDetermination(
+    id: string,
+    input: TaskPlannerDeterminationInput
+  ): Promise<TaskRecord> {
+    const existing = this.tasks.get(id);
+    if (!existing) {
+      throw new TaskServiceError(`Task not found: ${id}`, 404);
+    }
+
+    if (input.decision !== "approved" && input.decision !== "needs_info") {
+      throw new TaskServiceError("Planner determination decision must be approved or needs_info", 400);
+    }
+    if (input.source !== "planning_agent" && input.source !== "human_review") {
+      throw new TaskServiceError(
+        "Planner determination source must be planning_agent or human_review",
+        400
+      );
+    }
+
+    const reasonCodes = [...new Set((input.reasonCodes ?? []).map((code) => code.trim()).filter(Boolean))];
+    const metadata = this.ensureWorkflowRuntimeMetadata(existing.metadata);
+    const decidedAt = this.now().toISOString();
+    metadata.plannerDetermination = this.buildPlannerDetermination({
+      decision: input.decision,
+      reasonCodes,
+      decidedAt,
+      source: input.source
+    });
+
+    if (input.decision === "needs_info") {
+      metadata.awaitingHumanArtifact = {
+        question:
+          "Planning agent identified missing information before architecture review. Which path should we take?",
+        options: [
+          {
+            label: "Provide missing details (Recommended)",
+            description: "Answer clarification questions so planning can be approved."
+          },
+          {
+            label: "Proceed with assumptions",
+            description: "Accept higher risk and continue with current assumptions."
+          }
+        ],
+        recommendedOption: "Provide missing details (Recommended)",
+        requestedAt: decidedAt,
+        context: {
+          reasonCodes,
+          source: input.source
+        }
+      };
+      metadata.transitionNote =
+        "Planner determination requires additional information before architecture review.";
+    } else if (metadata.awaitingHumanArtifact) {
+      delete metadata.awaitingHumanArtifact;
+      metadata.transitionNote =
+        input.source === "human_review"
+          ? "Human review approved planning artifacts for architecture review."
+          : "Planning agent approved planning artifacts for architecture review.";
+    }
+
+    existing.metadata = metadata;
+    existing.updatedAt = decidedAt;
+
+    await this.commitChange();
+    await this.audit.record({
+      eventType: "planner_determination_recorded",
+      actor: "task_workflow",
+      payload: {
+        taskId: existing.id,
+        decision: input.decision,
+        source: input.source,
+        reasonCodes
+      }
+    });
+
+    return this.cloneTask(existing);
+  }
+
   async reconcilePlanningTask(
     id: string,
     context: PlanningAutopilotContext
@@ -778,6 +862,12 @@ export class TaskWorkflowService {
     metadata.planningArtifact = plannerResult.planningArtifact;
     testingArtifacts.planned = plannerResult.testingPlanned;
     metadata.testingArtifacts = testingArtifacts;
+    metadata.plannerDetermination = this.buildPlannerDetermination({
+      decision: plannerResult.requiresClarification ? "needs_info" : "approved",
+      reasonCodes: plannerResult.reasonCodes,
+      decidedAt: transitionAt,
+      source: "planner_reconcile"
+    });
 
     if (plannerResult.requiresClarification) {
       metadata.awaitingHumanArtifact = {
@@ -1002,6 +1092,20 @@ export class TaskWorkflowService {
       }
     }
     return null;
+  }
+
+  private buildPlannerDetermination(input: {
+    decision: "approved" | "needs_info";
+    reasonCodes: string[];
+    decidedAt: string;
+    source: "planner_reconcile" | "planner_status_hook" | "planning_agent" | "human_review";
+  }): Record<string, unknown> {
+    return {
+      decision: input.decision,
+      reasonCodes: [...input.reasonCodes],
+      decidedAt: input.decidedAt,
+      source: input.source
+    };
   }
 
   private normalizeStatus(status: InputTaskStatus): TaskStatus {
@@ -1863,9 +1967,14 @@ export class TaskWorkflowService {
     metadata.planningArtifact = plannerResult.planningArtifact;
     testingArtifacts.planned = plannerResult.testingPlanned;
     metadata.testingArtifacts = testingArtifacts;
-    task.metadata = metadata;
-
     const needsQuestionnaire = plannerResult.requiresClarification;
+    metadata.plannerDetermination = this.buildPlannerDetermination({
+      decision: needsQuestionnaire ? "needs_info" : "approved",
+      reasonCodes: plannerResult.reasonCodes,
+      decidedAt: transitionAt,
+      source: "planner_status_hook"
+    });
+    task.metadata = metadata;
     if (needsQuestionnaire) {
       metadata.awaitingHumanArtifact = {
         question:

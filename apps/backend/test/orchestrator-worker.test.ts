@@ -182,7 +182,7 @@ describe("OrchestratorWorkerService", () => {
     ).toBe(true);
   });
 
-  test("auto-transitions planning task to architecture_review when planning artifacts are complete", async () => {
+  test("does not auto-transition planning task when determination source is local planner hook", async () => {
     const audit = {
       record: vi.fn(async () => {})
     };
@@ -204,6 +204,176 @@ describe("OrchestratorWorkerService", () => {
     worker.stop();
 
     const updated = tasks.get(created.id);
+    expect(updated.status).toBe("planning");
+    expect(
+      audit.record.mock.calls.some(
+        ([event]) => event.eventType === "worker_planning_transitioned_to_architecture_review"
+      )
+    ).toBe(false);
+  });
+
+  test("does not auto-transition planning task when planner determination is missing", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const taskId = "planning-no-determination";
+    const updatedAt = "2026-02-19T00:00:00.000Z";
+    const tasks = new TaskWorkflowService(audit, {
+      random: () => 0,
+      initialTasks: [
+        {
+          id: taskId,
+          title: "Planning task without determination",
+          description: "Ready-looking artifacts but no planner decision",
+          priority: 3,
+          status: "planning",
+          dependencies: [],
+          createdAt: updatedAt,
+          updatedAt,
+          startedAt: updatedAt,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {
+            acceptanceCriteria: ["Document transition gate behavior"],
+            planningArtifact: {
+              createdAt: updatedAt,
+              goals: ["Define planning goal"],
+              steps: ["Define planning step"],
+              risks: []
+            },
+            testingArtifacts: {
+              schemaVersion: "1.0",
+              planned: {
+                gherkinScenarios: ["Given readiness gate..."],
+                unitTestIntent: ["Validate readiness gate"],
+                integrationTestIntent: ["Validate worker transition"],
+                notes: null
+              },
+              implemented: {
+                testsAddedOrUpdated: [],
+                evidenceLinks: [],
+                commandsRun: [],
+                notes: null
+              }
+            },
+            workerRuntime: {
+              sessionId: "session-seeded",
+              startedAt: updatedAt,
+              lastTickAt: null,
+              tasks: {
+                [taskId]: {
+                  sessionId: "session-seeded",
+                  lastRunId: null,
+                  lastProcessedAt: null,
+                  planningReconciliationKeys: [`planning:${updatedAt}`],
+                  dispatchedActionIds: [],
+                  failedActionIds: [],
+                  checkpoints: []
+                }
+              }
+            }
+          }
+        }
+      ]
+    });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date(updatedAt)
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    const updated = tasks.get(taskId);
+    expect(updated.status).toBe("planning");
+    expect(
+      audit.record.mock.calls.some(
+        ([event]) => event.eventType === "worker_planning_transitioned_to_architecture_review"
+      )
+    ).toBe(false);
+  });
+
+  test("auto-transitions planning task when approved by planning_agent source", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const taskId = "planning-agent-approved";
+    const updatedAt = "2026-02-19T00:00:00.000Z";
+    const tasks = new TaskWorkflowService(audit, {
+      random: () => 0,
+      initialTasks: [
+        {
+          id: taskId,
+          title: "Planning task approved by planning agent",
+          description: "Ready artifacts with external planner approval",
+          priority: 3,
+          status: "planning",
+          dependencies: [],
+          createdAt: updatedAt,
+          updatedAt,
+          startedAt: updatedAt,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {
+            acceptanceCriteria: ["Document transition gate behavior"],
+            planningArtifact: {
+              createdAt: updatedAt,
+              goals: ["Define planning goal"],
+              steps: ["Define planning step"],
+              risks: []
+            },
+            testingArtifacts: {
+              schemaVersion: "1.0",
+              planned: {
+                gherkinScenarios: ["Given readiness gate..."],
+                unitTestIntent: ["Validate readiness gate"],
+                integrationTestIntent: ["Validate worker transition"],
+                notes: null
+              },
+              implemented: {
+                testsAddedOrUpdated: [],
+                evidenceLinks: [],
+                commandsRun: [],
+                notes: null
+              }
+            },
+            plannerDetermination: {
+              decision: "approved",
+              source: "planning_agent",
+              reasonCodes: [],
+              decidedAt: updatedAt
+            },
+            workerRuntime: {
+              sessionId: "session-seeded",
+              startedAt: updatedAt,
+              lastTickAt: null,
+              tasks: {
+                [taskId]: {
+                  sessionId: "session-seeded",
+                  lastRunId: null,
+                  lastProcessedAt: null,
+                  planningReconciliationKeys: [`planning:${updatedAt}`],
+                  dispatchedActionIds: [],
+                  failedActionIds: [],
+                  checkpoints: []
+                }
+              }
+            }
+          }
+        }
+      ]
+    });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date(updatedAt)
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    const updated = tasks.get(taskId);
     expect(updated.status).toBe("architecture_review");
     expect(
       audit.record.mock.calls.some(

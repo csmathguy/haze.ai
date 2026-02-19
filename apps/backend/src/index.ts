@@ -23,6 +23,7 @@ import {
   TaskWorkflowService
 } from "./tasks.js";
 import { resolveRepoPath } from "./paths.js";
+import { registerTaskPlannerDeterminationRoute } from "./task-planner-determination-route.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const AUDIT_LOG_DIR = process.env.AUDIT_LOG_DIR ?? "data/audit";
@@ -260,6 +261,8 @@ async function bootstrap(): Promise<void> {
       }
     }
   });
+
+  registerTaskPlannerDeterminationRoute({ app, tasks, handleTaskError, handleUnexpectedTaskError });
 
   app.delete("/tasks/:id", async (req, res) => {
     try {

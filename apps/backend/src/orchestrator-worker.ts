@@ -410,6 +410,15 @@ export class OrchestratorWorkerService {
     if (this.asRecord(metadata.awaitingHumanArtifact).question) {
       return false;
     }
+    const plannerDetermination = this.asRecord(metadata.plannerDetermination);
+    const plannerDecision = this.readString(plannerDetermination.decision);
+    if (plannerDecision !== "approved") {
+      return false;
+    }
+    const plannerSource = this.readString(plannerDetermination.source);
+    if (plannerSource !== "planning_agent" && plannerSource !== "human_review") {
+      return false;
+    }
 
     const planningArtifact = this.asRecord(metadata.planningArtifact);
     const goals = this.readStringArray(planningArtifact.goals);
