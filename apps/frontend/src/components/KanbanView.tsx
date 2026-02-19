@@ -74,6 +74,7 @@ const DEFAULT_TASK_PROJECT_ID = "project-default";
 const columns: Array<{ status: TaskRecord["status"]; label: string }> = [
   { status: "backlog", label: "Backlog" },
   { status: "planning", label: "Planning" },
+  { status: "architecture_review", label: "Architecture Review" },
   { status: "implementing", label: "Implementing" },
   { status: "review", label: "Review" },
   { status: "verification", label: "Verification" },

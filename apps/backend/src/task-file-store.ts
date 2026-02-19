@@ -102,6 +102,7 @@ export class TaskFileStore {
         return "implementing";
       case "backlog":
       case "planning":
+      case "architecture_review":
       case "implementing":
       case "review":
       case "verification":
