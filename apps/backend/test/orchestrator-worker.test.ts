@@ -197,7 +197,13 @@ describe("OrchestratorWorkerService", () => {
     await tasks.update(created.id, { status: "planning" });
 
     const worker = new OrchestratorWorkerService(tasks, audit, {
-      now: () => new Date("2026-02-19T00:00:00.000Z")
+      now: () => new Date("2026-02-19T00:00:00.000Z"),
+      evaluatePlanningTask: async () => ({
+        decision: "needs_info",
+        reasonCodes: ["MANUAL_TEST_EXPECTS_PLANNING"],
+        evaluationSource: "heuristic",
+        usedFallback: true
+      })
     });
     worker.start();
     await worker.runOnce();
@@ -279,7 +285,13 @@ describe("OrchestratorWorkerService", () => {
     });
 
     const worker = new OrchestratorWorkerService(tasks, audit, {
-      now: () => new Date(updatedAt)
+      now: () => new Date(updatedAt),
+      evaluatePlanningTask: async () => ({
+        decision: "needs_info",
+        reasonCodes: ["MANUAL_TEST_EXPECTS_PLANNING"],
+        evaluationSource: "heuristic",
+        usedFallback: true
+      })
     });
     worker.start();
     await worker.runOnce();
@@ -378,6 +390,158 @@ describe("OrchestratorWorkerService", () => {
     expect(
       audit.record.mock.calls.some(
         ([event]) => event.eventType === "worker_planning_transitioned_to_architecture_review"
+      )
+    ).toBe(true);
+  });
+
+  test("evaluates planning task via planning-agent runner and records completion audit", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const evaluatePlanningTask = vi.fn(async () => ({
+      decision: "approved" as const,
+      reasonCodes: [],
+      evaluationSource: "heuristic" as const,
+      usedFallback: true
+    }));
+    const tasks = new TaskWorkflowService(audit, { random: () => 0 });
+    const created = await tasks.create({
+      title: "Planning runner task",
+      description: "Needs scheduler evaluation",
+      metadata: {
+        acceptanceCriteria: ["Ready for architecture review"]
+      }
+    });
+    await tasks.update(created.id, { status: "planning" });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date("2026-02-19T00:00:00.000Z"),
+      evaluatePlanningTask
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    expect(evaluatePlanningTask).toHaveBeenCalledTimes(1);
+    expect(
+      audit.record.mock.calls.some(
+        ([event]) => event.eventType === "worker_planning_agent_evaluation_completed"
+      )
+    ).toBe(true);
+  });
+
+  test("does not re-run planning-agent evaluation after task leaves planning", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const evaluatePlanningTask = vi.fn(async () => ({
+      decision: "approved" as const,
+      reasonCodes: [],
+      evaluationSource: "heuristic" as const,
+      usedFallback: true
+    }));
+    const taskId = "planning-eval-dedupe";
+    const updatedAt = "2026-02-19T00:00:00.000Z";
+    const tasks = new TaskWorkflowService(audit, {
+      random: () => 0,
+      initialTasks: [
+        {
+          id: taskId,
+          title: "Planning eval dedupe task",
+          description: "Unchanged snapshot should not be re-evaluated",
+          priority: 3,
+          status: "planning",
+          dependencies: [],
+          createdAt: updatedAt,
+          updatedAt,
+          startedAt: updatedAt,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {
+            acceptanceCriteria: ["ready"],
+            planningArtifact: {
+              createdAt: updatedAt,
+              goals: ["Goal"],
+              steps: ["Step"],
+              risks: []
+            },
+            testingArtifacts: {
+              schemaVersion: "1.0",
+              planned: {
+                gherkinScenarios: ["Scenario"],
+                unitTestIntent: ["Unit"],
+                integrationTestIntent: ["Integration"],
+                notes: null
+              },
+              implemented: {
+                testsAddedOrUpdated: [],
+                evidenceLinks: [],
+                commandsRun: [],
+                notes: null
+              }
+            },
+            workerRuntime: {
+              sessionId: "session-seeded",
+              startedAt: updatedAt,
+              lastTickAt: null,
+              tasks: {
+                [taskId]: {
+                  sessionId: "session-seeded",
+                  lastRunId: null,
+                  lastProcessedAt: null,
+                  planningReconciliationKeys: [`planning:${updatedAt}`],
+                  dispatchedActionIds: [],
+                  failedActionIds: [],
+                  checkpoints: []
+                }
+              }
+            }
+          }
+        }
+      ]
+    });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date(updatedAt),
+      evaluatePlanningTask
+    });
+    worker.start();
+    await worker.runOnce();
+    await worker.runOnce();
+    worker.stop();
+
+    expect(evaluatePlanningTask).toHaveBeenCalledTimes(1);
+  });
+
+  test("records planning-agent evaluation failure without crashing worker tick", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const evaluatePlanningTask = vi.fn(async () => {
+      throw new Error("planner_failure");
+    });
+    const tasks = new TaskWorkflowService(audit, { random: () => 0 });
+    const created = await tasks.create({
+      title: "Planning runner failure task",
+      description: "Should audit failure",
+      metadata: {
+        acceptanceCriteria: ["Any"]
+      }
+    });
+    await tasks.update(created.id, { status: "planning" });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date("2026-02-19T00:00:00.000Z"),
+      evaluatePlanningTask
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    expect(
+      audit.record.mock.calls.some(
+        ([event]) => event.eventType === "worker_planning_agent_evaluation_failed"
       )
     ).toBe(true);
   });
