@@ -5,6 +5,7 @@ import { FileAuditSink } from "./audit.js";
 import { HeartbeatMonitor } from "./heartbeat.js";
 import { logger } from "./logger.js";
 import { BasicOrchestrator } from "./orchestrator.js";
+import { OrchestratorWorkerService } from "./orchestrator-worker.js";
 import { TaskActions } from "./task-actions.js";
 import { ProjectFileStore } from "./project-file-store.js";
 import { TaskFileStore } from "./task-file-store.js";
@@ -132,6 +133,9 @@ async function bootstrap(): Promise<void> {
   }
 
   const orchestrator = new BasicOrchestrator(audit);
+  const worker = new OrchestratorWorkerService(tasks, audit, {
+    pollIntervalMs: Number(process.env.ORCHESTRATOR_WORKER_POLL_INTERVAL_MS ?? 5000)
+  });
   const heartbeat = new HeartbeatMonitor(
     orchestrator,
     {
@@ -142,6 +146,7 @@ async function bootstrap(): Promise<void> {
   );
 
   heartbeat.start();
+  worker.start();
 
   void audit.record({
     eventType: "backend_started",
@@ -165,6 +170,10 @@ async function bootstrap(): Promise<void> {
 
   app.get("/orchestrator/status", (_req, res) => {
     res.json(orchestrator.getStatus());
+  });
+
+  app.get("/orchestrator/worker/status", (_req, res) => {
+    res.json(worker.getStatus());
   });
 
   app.get("/audit/recent", async (req, res) => {
@@ -389,6 +398,16 @@ async function bootstrap(): Promise<void> {
     res.status(202).json({ accepted: true, reason, requestId: context.requestId });
   });
 
+  app.post("/orchestrator/worker/start", async (_req, res) => {
+    worker.start();
+    await audit.record({ eventType: "api_orchestrator_worker_start_requested", actor: "api" });
+    res.json(worker.getStatus());
+  });
+  app.post("/orchestrator/worker/stop", async (_req, res) => {
+    worker.stop();
+    await audit.record({ eventType: "api_orchestrator_worker_stop_requested", actor: "api" });
+    res.json(worker.getStatus());
+  });
   app.post("/heartbeat/pulse", async (req, res) => {
     const context = buildAuditContext(req);
     const source = String(req.body?.source ?? "external");
