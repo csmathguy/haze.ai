@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AuditSink } from "./audit.js";
 import type { TaskRecord, WorkflowNextAction } from "./tasks.js";
 import { TaskWorkflowService } from "./tasks.js";
+import { WorkflowHookDispatcher, type WorkflowDispatchJob } from "./workflow-hook-dispatcher.js";
 
 interface WorkerCheckpoint {
   key: string;
@@ -9,6 +10,9 @@ interface WorkerCheckpoint {
   actionType: string;
   runId: string;
   processedAt: string;
+  status?: "dispatched" | "failed";
+  attempt?: number;
+  error?: string;
 }
 
 interface WorkerTaskState {
@@ -16,6 +20,7 @@ interface WorkerTaskState {
   lastRunId: string | null;
   lastProcessedAt: string | null;
   dispatchedActionIds: string[];
+  failedActionIds: string[];
   checkpoints: WorkerCheckpoint[];
 }
 
@@ -38,15 +43,20 @@ interface OrchestratorWorkerServiceOptions {
   pollIntervalMs?: number;
   now?: () => Date;
   maxCheckpointsPerTask?: number;
+  maxDispatchAttempts?: number;
+  dispatchAction?: (job: WorkflowDispatchJob) => Promise<void>;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_MAX_CHECKPOINTS_PER_TASK = 100;
+const DEFAULT_MAX_DISPATCH_ATTEMPTS = 3;
 
 export class OrchestratorWorkerService {
   private readonly pollIntervalMs: number;
   private readonly now: () => Date;
   private readonly maxCheckpointsPerTask: number;
+  private readonly maxDispatchAttempts: number;
+  private readonly dispatchAction: (job: WorkflowDispatchJob) => Promise<void>;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private inFlight = false;
@@ -62,6 +72,8 @@ export class OrchestratorWorkerService {
     this.pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.now = options?.now ?? (() => new Date());
     this.maxCheckpointsPerTask = options?.maxCheckpointsPerTask ?? DEFAULT_MAX_CHECKPOINTS_PER_TASK;
+    this.maxDispatchAttempts = options?.maxDispatchAttempts ?? DEFAULT_MAX_DISPATCH_ATTEMPTS;
+    this.dispatchAction = options?.dispatchAction ?? this.defaultDispatchAction;
   }
 
   start(): void {
@@ -110,13 +122,120 @@ export class OrchestratorWorkerService {
 
     try {
       const records = this.tasks.list();
+      const dispatcher = new WorkflowHookDispatcher({
+        dispatch: this.dispatchAction
+      });
+      const taskStates = new Map<string, WorkerTaskState>();
+      const taskRecords = new Map<string, TaskRecord>();
+
       for (const task of records) {
         const actions = this.readNextActions(task);
         if (actions.length === 0) {
           continue;
         }
-        await this.dispatchTaskActions(task, actions, runId, tickAt);
+        const workerMetadata = this.readWorkerMetadata(task);
+        const taskState = workerMetadata.tasks[task.id] ?? this.createTaskState();
+        workerMetadata.tasks[task.id] = taskState;
+        workerMetadata.lastTickAt = tickAt;
+        taskStates.set(task.id, taskState);
+        taskRecords.set(task.id, task);
+
+        for (const action of actions) {
+          const actionId = typeof action.id === "string" ? action.id : randomUUID();
+          const actionType = typeof action.type === "string" ? action.type : "unknown";
+          if (
+            taskState.dispatchedActionIds.includes(actionId) ||
+            taskState.failedActionIds.includes(actionId)
+          ) {
+            continue;
+          }
+
+          const key = `${task.id}:${actionId}`;
+          dispatcher.enqueue({
+            key,
+            taskId: task.id,
+            actionId,
+            actionType,
+            runId,
+            sessionId: this.sessionId,
+            processedAt: tickAt,
+            maxAttempts: this.maxDispatchAttempts,
+            attempt: 0
+          });
+        }
       }
+
+      const results = await dispatcher.processAll();
+      for (const result of results) {
+        const taskState = taskStates.get(result.job.taskId);
+        const task = taskRecords.get(result.job.taskId);
+        if (!taskState || !task) {
+          continue;
+        }
+        taskState.lastRunId = runId;
+        taskState.lastProcessedAt = tickAt;
+
+        if (result.status === "dispatched") {
+          if (!taskState.dispatchedActionIds.includes(result.job.actionId)) {
+            taskState.dispatchedActionIds.push(result.job.actionId);
+          }
+          taskState.checkpoints.push({
+            key: result.job.key,
+            actionId: result.job.actionId,
+            actionType: result.job.actionType,
+            runId,
+            processedAt: tickAt,
+            status: "dispatched",
+            attempt: result.job.attempt + 1
+          });
+        } else {
+          if (!taskState.failedActionIds.includes(result.job.actionId)) {
+            taskState.failedActionIds.push(result.job.actionId);
+          }
+          taskState.checkpoints.push({
+            key: result.job.key,
+            actionId: result.job.actionId,
+            actionType: result.job.actionType,
+            runId,
+            processedAt: tickAt,
+            status: "failed",
+            attempt: result.job.attempt + 1,
+            error: result.error ?? "dispatch_failed"
+          });
+          await this.audit.record({
+            eventType: "worker_action_dispatch_failed",
+            actor: "orchestrator_worker",
+            payload: {
+              taskId: result.job.taskId,
+              sessionId: this.sessionId,
+              runId,
+              actionId: result.job.actionId,
+              actionType: result.job.actionType,
+              attempts: result.job.attempt + 1,
+              error: result.error
+            }
+          });
+        }
+
+        taskState.checkpoints = taskState.checkpoints.slice(-this.maxCheckpointsPerTask);
+      }
+
+      for (const [taskId, taskState] of taskStates.entries()) {
+        const task = taskRecords.get(taskId);
+        if (!task) {
+          continue;
+        }
+        const workerMetadata = this.readWorkerMetadata(task);
+        workerMetadata.lastTickAt = tickAt;
+        workerMetadata.tasks[taskId] = taskState;
+        await this.tasks.update(taskId, {
+          metadata: {
+            ...task.metadata,
+            workerRuntime: workerMetadata
+          }
+        });
+      }
+
       await this.audit.record({
         eventType: "worker_run_completed",
         actor: "orchestrator_worker",
@@ -131,6 +250,17 @@ export class OrchestratorWorkerService {
     }
   }
 
+  private createTaskState(): WorkerTaskState {
+    return {
+      sessionId: this.sessionId ?? "unknown",
+      lastRunId: null,
+      lastProcessedAt: null,
+      dispatchedActionIds: [],
+      failedActionIds: [],
+      checkpoints: []
+    };
+  }
+
   private readNextActions(task: TaskRecord): WorkflowNextAction[] {
     const metadata = this.asRecord(task.metadata);
     const workflowRuntime = this.asRecord(metadata.workflowRuntime);
@@ -138,64 +268,36 @@ export class OrchestratorWorkerService {
     return Array.isArray(nextActions) ? (nextActions as WorkflowNextAction[]) : [];
   }
 
-  private async dispatchTaskActions(
-    task: TaskRecord,
-    actions: WorkflowNextAction[],
-    runId: string,
-    processedAt: string
-  ): Promise<void> {
-    const workerMetadata = this.readWorkerMetadata(task);
-    const taskState = workerMetadata.tasks[task.id] ?? {
-      sessionId: this.sessionId ?? "unknown",
-      lastRunId: null,
-      lastProcessedAt: null,
-      dispatchedActionIds: [],
-      checkpoints: []
-    };
-
-    for (const action of actions) {
-      const actionId = typeof action.id === "string" ? action.id : randomUUID();
-      const actionType = typeof action.type === "string" ? action.type : "unknown";
-      const checkpointKey = `${task.id}:${actionId}`;
-      if (taskState.dispatchedActionIds.includes(actionId)) {
-        continue;
+  private defaultDispatchAction = async (job: WorkflowDispatchJob): Promise<void> => {
+    await this.audit.record({
+      eventType: "worker_action_dispatched",
+      actor: "orchestrator_worker",
+      payload: {
+        taskId: job.taskId,
+        sessionId: this.sessionId,
+        runId: job.runId,
+        checkpointKey: job.key,
+        actionId: job.actionId,
+        actionType: job.actionType,
+        attempts: job.attempt + 1
       }
-
-      taskState.dispatchedActionIds.push(actionId);
-      taskState.lastRunId = runId;
-      taskState.lastProcessedAt = processedAt;
-      taskState.checkpoints.push({
-        key: checkpointKey,
-        actionId,
-        actionType,
-        runId,
-        processedAt
-      });
-      taskState.checkpoints = taskState.checkpoints.slice(-this.maxCheckpointsPerTask);
-
+    });
+    if (job.attempt > 0) {
       await this.audit.record({
-        eventType: "worker_action_dispatched",
+        eventType: "worker_action_dispatch_retried",
         actor: "orchestrator_worker",
         payload: {
-          taskId: task.id,
+          taskId: job.taskId,
           sessionId: this.sessionId,
-          runId,
-          checkpointKey,
-          actionId,
-          actionType
+          runId: job.runId,
+          checkpointKey: job.key,
+          actionId: job.actionId,
+          actionType: job.actionType,
+          attempts: job.attempt + 1
         }
       });
     }
-
-    workerMetadata.lastTickAt = processedAt;
-    workerMetadata.tasks[task.id] = taskState;
-    await this.tasks.update(task.id, {
-      metadata: {
-        ...task.metadata,
-        workerRuntime: workerMetadata
-      }
-    });
-  }
+  };
 
   private readWorkerMetadata(task: TaskRecord): WorkerMetadataState {
     const metadata = this.asRecord(task.metadata);
@@ -210,6 +312,7 @@ export class OrchestratorWorkerService {
         lastRunId: this.readString(candidate.lastRunId) ?? null,
         lastProcessedAt: this.readString(candidate.lastProcessedAt) ?? null,
         dispatchedActionIds: this.readStringArray(candidate.dispatchedActionIds),
+        failedActionIds: this.readStringArray(candidate.failedActionIds),
         checkpoints: this.readCheckpoints(candidate.checkpoints)
       };
     }
