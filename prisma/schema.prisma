@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model HouseholdProfile {
+  id               Int      @id
+  taxYear          Int
+  filingStatus     String
+  hasDigitalAssets Boolean  @default(false)
+  primaryTaxpayer  String
+  stateResidence   String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ImportedDocument {
+  id             String        @id
+  fileName       String
+  storedFileName String
+  fileSizeBytes  Int
+  mimeType       String
+  kind           String
+  status         String
+  taxYear        Int
+  importedAt     DateTime
+  missingFacts   MissingFact[]
+  assetLots      AssetLot[]
+
+  @@index([importedAt])
+  @@index([taxYear])
+}
+
+model MissingFact {
+  id         String           @id
+  documentId String
+  sequence   Int
+  key        String
+  label      String
+  reason     String
+  severity   String
+  document   ImportedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@unique([documentId, sequence])
+}
+
+model AssetLot {
+  id               String            @id
+  accountName      String
+  acquiredOn       String
+  assetKind        String
+  assetKey         String
+  costBasisInCents Int
+  displayName      String
+  holdingTerm      String
+  quantity         String
+  sourceDocumentId String?
+  sourceDocument   ImportedDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([assetKey, acquiredOn])
+  @@index([sourceDocumentId])
+}

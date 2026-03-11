@@ -28,8 +28,10 @@ async function main(): Promise<void> {
 async function executeSteps(workflow: string, run: InitializedRun, withCoverage: boolean): Promise<boolean> {
   const npmCommand = resolveNpmCommand();
   const steps = [
+    { args: ["run", "prisma:check"], command: npmCommand, step: "prisma-check" },
     { args: ["run", "typecheck"], command: npmCommand, step: "typecheck" },
     { args: ["run", "lint"], command: npmCommand, step: "lint" },
+    { args: ["run", "stylelint"], command: npmCommand, step: "stylelint" },
     { args: ["run", withCoverage ? "test:coverage" : "test"], command: npmCommand, step: withCoverage ? "test-coverage" : "test" }
   ];
 

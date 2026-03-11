@@ -17,6 +17,7 @@ Build a local-only web application that helps ingest tax documents, extract stru
 3. Review low-confidence or missing fields in a guided UI.
 4. Produce summary reports, spreadsheet exports, and filing inputs.
 5. Maintain an auditable local trail of how final values were derived.
+6. Track asset lots and compare disposal scenarios that reduce taxes while remaining within tax-law constraints.
 
 ## Non-Goals For The First Phase
 
@@ -30,5 +31,6 @@ Build a local-only web application that helps ingest tax documents, extract stru
 1. Foundation: repository standards, docs, workspace shape, and architecture rules
 2. Ingestion: upload flow, secure local storage, extraction pipeline contracts
 3. Review UI: editable tax workspace, validation messages, discrepancy tracking
-4. Outputs: spreadsheet exports, reports, and filing packet generation
-5. Hardening: higher test coverage, architecture enforcement, and privacy controls
+4. Tax modeling: asset-lot tracking, scenario comparison, and tax-law rule modeling
+5. Outputs: spreadsheet exports, reports, and filing packet generation
+6. Hardening: higher test coverage, architecture enforcement, and privacy controls

@@ -56,6 +56,17 @@ describe("architecture rules", () => {
     ).toPassAsync();
   });
 
+  it("requires web code to use the public theme entrypoint", async () => {
+    const themeTokenImportPattern = /["'][^"']*\/theme\/tokens(?:\.[^"']+)?["']/u;
+
+    await expect(
+      webFiles.should().adhereTo(
+        (file) => file.path.includes("apps/web/src/theme/") || !themeTokenImportPattern.test(file.content),
+        "Web code must import theme concerns through the public theme entrypoint instead of internal token files."
+      )
+    ).toPassAsync();
+  });
+
   it("keeps production code from depending on test files", async () => {
     await expect(
       appFiles.should().adhereTo(
@@ -100,7 +111,7 @@ describe("architecture rules", () => {
 });
 
 function importsTestFile(content: string): boolean {
-  return content.includes(".test") || content.includes(".spec");
+  return /(?:from|import)\s*(?:\(|)["'][^"']+\.(?:test|spec)\.[^"']+["']/u.test(content);
 }
 
 function isProductionFile(filePath: string): boolean {

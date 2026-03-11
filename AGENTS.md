@@ -14,20 +14,26 @@
 1. Read the relevant docs in `docs/` before making non-trivial changes.
 2. Work in red-green-refactor order for behavior changes whenever practical.
 3. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
-4. Before finishing, run the strongest available validation for the touched area:
+4. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
+5. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
+6. Before finishing, run the strongest available validation for the touched area:
    - Fast iteration: `npm run quality:changed -- <files...>` or let the git `pre-commit` hook run `npm run quality:changed:staged`
+   - Database changes: `npm run prisma:check` and `npm run prisma:migrate:deploy`
    - Full compile checks with `npm run typecheck`
    - Full ESLint with `npm run lint`
+   - Frontend styling changes: `npm run stylelint`
    - Full tests with `npm test` or architecture-only tests with `npm run test:arch`
    - Use `npm run quality:logged -- implementation` when you want a single audited full guardrail run
-5. Close audited work with `npm run workflow:end implementation success` or `failed`.
-6. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
+7. Close audited work with `npm run workflow:end implementation success` or `failed`.
+8. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
 ## Architecture Rules
 - Keep a strict separation between `apps/web`, `apps/api`, and `packages/shared`.
 - `packages/shared` must stay framework-light and hold reusable domain types, schemas, and pure helpers.
 - UI components should not parse raw tax documents directly. Extraction belongs behind backend application services.
 - External document conversion or OCR tools must sit behind adapters so they can be swapped without rewriting business logic.
+- Treat `prisma/schema.prisma` as the backend persistence contract. Keep raw uploaded files on disk, and keep structured metadata in SQLite through Prisma-backed services.
+- Treat `apps/web/src/theme/` as the frontend styling contract. Theme tokens own colors, typography, shape, and component defaults.
 - Prefer composition over inheritance. Apply SOLID, DRY, and KISS without adding abstractions before there is a second real use case.
 
 ## Privacy And Security

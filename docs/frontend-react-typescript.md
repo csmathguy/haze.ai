@@ -29,6 +29,15 @@
 - Use MUI theme tokens and component variants instead of ad hoc inline styling.
 - Favor composition and small focused components over deep inheritance or giant container components.
 
+## Styling System
+
+- Treat `apps/web/src/theme/` as the source of truth for palette, typography, shape, and component defaults.
+- Keep reusable visual primitives in `styled()` wrappers or theme overrides before repeating `sx` blocks.
+- Use `sx` for local adjustments only; do not let it become a hidden stylesheet.
+- Use CSS Modules for page layout or larger local CSS where class-based styling is clearer.
+- Do not use inline `style` except for truly runtime-computed values.
+- Do not hard-code colors outside the theme layer.
+
 ## UX For Tax Workflows
 
 - Optimize for reviewability over novelty. Dense, accurate, easy-to-scan screens matter more than decorative motion.

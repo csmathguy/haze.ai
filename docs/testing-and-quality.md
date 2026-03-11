@@ -13,8 +13,11 @@ Use red-green-refactor as the default loop:
 Before closing a change, run the strongest available checks for the touched scope:
 
 - `npm run quality:changed -- <files...>` while iterating on a focused change
+- `npm run prisma:check` when Prisma schema or database code changes
+- `npm run prisma:migrate:deploy` when local schema changes need to be applied
 - `npm run typecheck`
 - `npm run lint`
+- `npm run stylelint` for frontend CSS and CSS Modules
 - `npm test` or a narrower test command such as `npm run test:arch`
 
 Git hooks also enforce the workflow:
@@ -82,5 +85,8 @@ These are intentionally strict enough to push decomposition early without forcin
 - Vitest is the default unit test runner.
 - V8 coverage is enabled through `npm run test:coverage`.
 - `vitest related --run` is used by the changed-file guardrail script for focused source changes.
+- `npm run prisma:check` validates `schema.prisma` and regenerates the Prisma client.
+- `npm run prisma:migrate:dev -- --name <change-name>` creates a checked-in SQL migration from schema changes.
+- `npm run stylelint` enforces frontend CSS and CSS Module rules.
 - ArchUnitTS rules live in `tools/quality/architecture/architecture.spec.ts`.
 - `npm run quality:logged` executes the main guardrails with per-step audit logs under `artifacts/audit/YYYY-MM-DD/`.

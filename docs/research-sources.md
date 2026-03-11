@@ -17,7 +17,10 @@ Researched on March 11, 2026.
 ## Node, Vite, And Frontend Tooling
 
 - Vite guide: https://vite.dev/guide/
+- Vite features docs, CSS Modules: https://vite.dev/guide/features.html
 - ESLint docs, configuration files: https://eslint.org/docs/latest/use/configure/configuration-files
+- ESLint `no-restricted-syntax`: https://eslint.org/docs/latest/rules/no-restricted-syntax
+- ESLint custom rule tutorial: https://eslint.org/docs/latest/extend/custom-rules
 - ESLint `max-lines`: https://eslint.org/docs/latest/rules/max-lines
 - ESLint `max-lines-per-function`: https://eslint.org/docs/latest/rules/max-lines-per-function
 - ESLint `complexity`: https://eslint.org/docs/latest/rules/complexity
@@ -25,6 +28,7 @@ Researched on March 11, 2026.
 - ESLint `max-params`: https://eslint.org/docs/latest/rules/max-params
 - typescript-eslint typed linting: https://typescript-eslint.io/getting-started/typed-linting
 - typescript-eslint shared configs: https://typescript-eslint.io/users/configs#strict-type-checked
+- Stylelint getting started: https://stylelint.io/user-guide/get-started
 
 ## Testing
 
@@ -38,6 +42,10 @@ Researched on March 11, 2026.
 
 - MUI TypeScript guide: https://mui.com/material-ui/guides/typescript/
 - MUI customization docs: https://mui.com/material-ui/customization/how-to-customize/
+- MUI theming docs: https://mui.com/material-ui/customization/theming/
+- MUI CSS theme variables docs: https://mui.com/material-ui/customization/css-theme-variables/usage/
+- MUI `styled()` utility docs: https://mui.com/system/styled/
+- MUI `sx` prop docs: https://mui.com/system/getting-started/the-sx-prop/
 - MUI X Charts overview: https://mui.com/x/react-charts/
 
 ## Architecture Enforcement
@@ -70,6 +78,15 @@ Researched on March 11, 2026.
 - simple-git-hooks package: https://github.com/toplenboren/simple-git-hooks
 - simple-git-hooks npm package: https://www.npmjs.com/package/simple-git-hooks
 
+## Pull Requests And Review Quality
+
+- GitHub Docs, creating a pull request template: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
+- GitHub Docs, adding repository custom instructions for GitHub Copilot: https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot
+- GitHub Docs, configuring custom instructions for pull request creation: https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/configure-the-pull-request-assistant/using-custom-instructions-for-pull-request-creation
+- Google Engineering Practices, change list descriptions: https://google.github.io/eng-practices/review/developer/cl-descriptions.html
+- Kubernetes contributor docs, suggestions for getting your pull request reviewed: https://kubernetes.io/docs/contribute/review/for-contributors/
+- GitLab code review guidelines: https://docs.gitlab.com/development/code_review/
+
 ## GitHub Repository Plumbing
 
 - GitHub Actions checkout action: https://github.com/actions/checkout
@@ -86,3 +103,25 @@ Researched on March 11, 2026.
 
 - Microsoft MarkItDown: https://github.com/microsoft/markitdown
 - MarkItDown package index: https://pypi.org/project/markitdown/
+
+## Tax Domain Research
+
+- IRS instructions for Form 1040: https://www.irs.gov/instructions/i1040gi
+- IRS instructions for Form 8949: https://www.irs.gov/instructions/i8949
+- IRS Publication 550, Investment Income and Expenses: https://www.irs.gov/publications/p550
+- IRS virtual currency FAQs: https://www.irs.gov/individuals/international-taxpayers/frequently-asked-questions-on-virtual-currency-transactions
+- IRS instructions for Forms W-2 and W-3: https://www.irs.gov/instructions/iw2w3
+- IRS instructions for Form 1099-INT: https://www.irs.gov/instructions/i1099int
+
+## Application Stack Research
+
+- Vite guide: https://vite.dev/guide/
+- Fastify TypeScript reference: https://fastify.dev/docs/latest/Reference/TypeScript/
+- MUI TypeScript guide: https://mui.com/material-ui/guides/typescript/
+- MUI X Charts docs: https://mui.com/x/react-charts/
+- Prisma SQLite connector docs: https://www.prisma.io/docs/orm/overview/databases/sqlite
+- Prisma configuration docs: https://www.prisma.io/docs/orm/reference/prisma-config-reference
+- Prisma generate docs: https://www.prisma.io/docs/orm/reference/prisma-cli-reference#generate
+- Prisma migrate diff docs: https://www.prisma.io/docs/orm/reference/prisma-cli-reference#migrate-diff
+- Prisma driver adapters docs: https://www.prisma.io/docs/orm/overview/databases/database-drivers
+- SQLite write-ahead logging docs: https://sqlite.org/wal.html

@@ -122,11 +122,27 @@ function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>): LoggedCom
   const npmCommand = resolveNpmCommand();
   const commands: LoggedCommand[] = [];
 
+  if (plan.prismaCheck) {
+    commands.push({
+      args: ["run", "prisma:check"],
+      command: npmCommand,
+      step: "prisma-check"
+    });
+  }
+
   if (plan.lintTargets.length > 0) {
     commands.push({
       args: ["exec", "eslint", "--", "--max-warnings=0", ...plan.lintTargets],
       command: npmCommand,
       step: "lint-changed"
+    });
+  }
+
+  if (plan.stylelintTargets.length > 0) {
+    commands.push({
+      args: ["exec", "stylelint", "--", "--allow-empty-input", ...plan.stylelintTargets],
+      command: npmCommand,
+      step: "stylelint-changed"
     });
   }
 

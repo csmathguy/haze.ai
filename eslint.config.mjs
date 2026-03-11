@@ -3,14 +3,16 @@ import globals from "globals";
 import security from "eslint-plugin-security";
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
+import frontendStylePlugin from "./tools/eslint/frontend-style-plugin.mjs";
 
-const sourceFiles = ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}", "tools/**/*.ts", "vitest.config.ts"];
+const sourceFiles = ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}", "prisma.config.ts", "tools/**/*.ts", "vitest.config.ts"];
 
 export default tseslint.config(
   {
     ignores: [
       "**/coverage/**",
       "**/dist/**",
+      "apps/**/dist/**",
       "**/build/**",
       "**/node_modules/**",
       "eslint.config.mjs",
@@ -143,7 +145,18 @@ export default tseslint.config(
         ...globals.browser
       }
     },
+    plugins: {
+      "frontend-style": frontendStylePlugin
+    },
     rules: {
+      "frontend-style/max-sx-props": [
+        "error",
+        {
+          maxProperties: 6
+        }
+      ],
+      "frontend-style/no-hardcoded-color-literals": "error",
+      "frontend-style/no-inline-styles": "error",
       "no-restricted-imports": [
         "error",
         {
@@ -159,10 +172,20 @@ export default tseslint.config(
             {
               group: ["node:*"],
               message: "Frontend code must stay browser-compatible and avoid Node built-ins."
+            },
+            {
+              group: ["**/theme/tokens", "**/theme/tokens.*"],
+              message: "Import frontend theme concerns through the public theme entrypoint instead of internal token files."
             }
           ]
         }
       ]
+    }
+  },
+  {
+    files: ["apps/web/src/theme/**/*.{ts,tsx}"],
+    rules: {
+      "frontend-style/no-hardcoded-color-literals": "off"
     }
   },
   {

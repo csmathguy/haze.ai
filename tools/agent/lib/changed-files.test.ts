@@ -17,6 +17,7 @@ describe("buildChangedFilePlan", () => {
     const plan = buildChangedFilePlan(["docs/architecture.md"]);
 
     expect(plan.lintTargets).toEqual([]);
+    expect(plan.stylelintTargets).toEqual([]);
     expect(plan.testCommand).toEqual({
       kind: "none",
       targets: []
@@ -28,6 +29,7 @@ describe("buildChangedFilePlan", () => {
     const plan = buildChangedFilePlan(["eslint.config.mjs", "tools/runtime/run-npm.cjs"]);
 
     expect(plan.lintTargets).toEqual([]);
+    expect(plan.stylelintTargets).toEqual([]);
     expect(plan.testCommand).toEqual({
       kind: "full",
       targets: []
@@ -44,6 +46,18 @@ describe("buildChangedFilePlan", () => {
     expect(plan.typecheckScopes).toEqual(["quality"]);
   });
 
+  it("runs Prisma validation and full tests for schema changes", () => {
+    const plan = buildChangedFilePlan(["prisma/schema.prisma"]);
+
+    expect(plan.prismaCheck).toBe(true);
+    expect(plan.stylelintTargets).toEqual([]);
+    expect(plan.testCommand).toEqual({
+      kind: "full",
+      targets: []
+    });
+    expect(plan.typecheckScopes).toEqual(["api", "quality"]);
+  });
+
   it("falls back to the full suite for test and tooling changes", () => {
     const testPlan = buildChangedFilePlan(["apps/api/src/index.test.ts"]);
     const toolingPlan = buildChangedFilePlan(["tools/agent/workflow-log.ts"]);
@@ -54,6 +68,16 @@ describe("buildChangedFilePlan", () => {
     });
     expect(toolingPlan.testCommand).toEqual({
       kind: "full",
+      targets: []
+    });
+  });
+
+  it("routes CSS changes into stylelint", () => {
+    const plan = buildChangedFilePlan(["apps/web/src/app/App.module.css"]);
+
+    expect(plan.stylelintTargets).toEqual(["apps/web/src/app/App.module.css"]);
+    expect(plan.testCommand).toEqual({
+      kind: "none",
       targets: []
     });
   });

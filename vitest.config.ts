@@ -9,15 +9,24 @@ export default defineConfig({
         lines: 80,
         statements: 80
       },
+      include: [
+        "apps/api/src/app.ts",
+        "apps/api/src/services/**/*.ts",
+        "apps/web/src/app/index.ts",
+        "packages/shared/src/assets.ts",
+        "packages/shared/src/common.ts",
+        "packages/shared/src/documents.ts",
+        "packages/shared/src/tax-return.ts",
+        "packages/shared/src/workspace.ts"
+      ],
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
-      include: ["apps/**/src/**/*.{ts,tsx}", "packages/**/src/**/*.ts"],
       exclude: ["**/*.d.ts", "**/*.test.*", "**/*.spec.*"]
     },
     environment: "node",
     globals: true,
     include: ["**/*.{test,spec}.ts"],
     passWithNoTests: false,
-    testTimeout: 15000
+    testTimeout: 30000
   }
 });

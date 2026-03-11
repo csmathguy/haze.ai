@@ -1,5 +1,7 @@
 export interface ChangedFilePlan {
   lintTargets: string[];
+  prismaCheck: boolean;
+  stylelintTargets: string[];
   testCommand: TestCommand;
   typecheckScopes: TypecheckScope[];
 }
@@ -14,6 +16,7 @@ export type TypecheckScope = "api" | "quality" | "shared" | "web";
 export function buildChangedFilePlan(files: string[]): ChangedFilePlan {
   const normalizedFiles = [...new Set(files.map((file) => file.replaceAll("\\", "/")))];
   const lintTargets = normalizedFiles.filter(isLintTarget);
+  const stylelintTargets = normalizedFiles.filter(isStylelintTarget);
   const scopeSet = new Set<TypecheckScope>();
   const relatedTestTargets = normalizedFiles.filter(isRelatedTestTarget);
 
@@ -45,11 +48,19 @@ export function buildChangedFilePlan(files: string[]): ChangedFilePlan {
 
     if (file.startsWith("tools/")) {
       scopeSet.add("quality");
+      continue;
+    }
+
+    if (file.startsWith("prisma/") || file === "prisma.config.ts") {
+      scopeSet.add("api");
+      scopeSet.add("quality");
     }
   }
 
   return {
     lintTargets,
+    prismaCheck: normalizedFiles.some(requiresPrismaCheck),
+    stylelintTargets,
     testCommand: buildTestCommand(normalizedFiles, relatedTestTargets),
     typecheckScopes: [...scopeSet]
   };
@@ -98,8 +109,19 @@ function isLintTarget(file: string): boolean {
   return /\.(?:cts|mts|ts|tsx|js|mjs|cjs)$/u.test(file);
 }
 
+function isStylelintTarget(file: string): boolean {
+  return /\.(?:css|scss)$/u.test(file);
+}
+
 function isRepositoryWideConfig(file: string): boolean {
-  return file === "package.json" || file === "package-lock.json" || file.startsWith("tsconfig") || file === "eslint.config.mjs" || file === "vitest.config.ts";
+  return (
+    file === "package.json" ||
+    file === "package-lock.json" ||
+    file.startsWith("tsconfig") ||
+    file === "eslint.config.mjs" ||
+    file === "stylelint.config.mjs" ||
+    file === "vitest.config.ts"
+  );
 }
 
 function isArchitectureRuleFile(file: string): boolean {
@@ -116,9 +138,14 @@ function isDirectTestFile(file: string): boolean {
 
 function requiresFullTestRun(file: string): boolean {
   return (
+    requiresPrismaCheck(file) ||
     isRepositoryWideConfig(file) ||
     file.startsWith("tools/agent/") ||
     (file.startsWith("tools/") && !isArchitectureRuleFile(file)) ||
     isDirectTestFile(file)
   );
+}
+
+function requiresPrismaCheck(file: string): boolean {
+  return file.startsWith("prisma/") || file === "prisma.config.ts" || file === ".env.example";
 }

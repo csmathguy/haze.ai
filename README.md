@@ -4,11 +4,14 @@ Local-first tax workflow application for ingesting private tax documents, extrac
 
 ## Current Focus
 
-This repository is in the project-definition stage. The current deliverables are:
+This repository now has an initial working scaffold. The current deliverables are:
 - repository guidance in `AGENTS.md`
 - stack and workflow documentation in `docs/`
 - project-local agent skills in `skills/`
-- an agreed folder layout for future frontend and backend implementation
+- a Fastify API scaffold in `apps/api`
+- a Vite + React + MUI web scaffold in `apps/web`
+- shared tax-domain contracts in `packages/shared`
+- SQLite + Prisma persistence for structured metadata, review state, and lot tracking
 
 ## Planned Repository Shape
 
@@ -29,8 +32,11 @@ tools/arch/   architecture rule configuration
 - npm `11.6.4+`
 - `npm run typecheck`
 - `npm run lint`
+- `npm run stylelint`
 - `npm test`
 - `npm run test:coverage`
+- `npm run prisma:check`
+- `npm run prisma:migrate:deploy`
 - `npm run quality`
 - `npm run quality:changed -- <files...>`
 - `node tools/runtime/run-npm.cjs run <script>` when the shell default Node version does not match `.nvmrc`
@@ -53,7 +59,10 @@ tools/arch/   architecture rule configuration
 - `docs/project-vision.md`
 - `docs/architecture.md`
 - `docs/frontend-react-typescript.md`
+- `docs/frontend-styling-standards.md`
 - `docs/backend-node-typescript.md`
+- `docs/database-prisma-sqlite.md`
+- `docs/tax-domain-model.md`
 - `docs/testing-and-quality.md`
 - `docs/architecture-enforcement.md`
 - `docs/security-and-privacy.md`

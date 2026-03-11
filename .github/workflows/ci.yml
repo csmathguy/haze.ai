@@ -21,6 +21,8 @@ jobs:
     name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATABASE_URL: file:./data/sqlite/taxes.db
 
     steps:
       - name: Checkout repository
@@ -35,11 +37,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prisma check
+        run: npm run prisma:check
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Lint
         run: npm run lint
+
+      - name: Stylelint
+        run: npm run stylelint
 
       - name: Test with coverage
         run: npm run test:coverage
