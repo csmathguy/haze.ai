@@ -78,6 +78,15 @@ Researched on March 11, 2026.
 - simple-git-hooks package: https://github.com/toplenboren/simple-git-hooks
 - simple-git-hooks npm package: https://www.npmjs.com/package/simple-git-hooks
 
+## Pull Requests And Review Quality
+
+- GitHub Docs, creating a pull request template: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
+- GitHub Docs, adding repository custom instructions for GitHub Copilot: https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot
+- GitHub Docs, configuring custom instructions for pull request creation: https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/configure-the-pull-request-assistant/using-custom-instructions-for-pull-request-creation
+- Google Engineering Practices, change list descriptions: https://google.github.io/eng-practices/review/developer/cl-descriptions.html
+- Kubernetes contributor docs, suggestions for getting your pull request reviewed: https://kubernetes.io/docs/contribute/review/for-contributors/
+- GitLab code review guidelines: https://docs.gitlab.com/development/code_review/
+
 ## GitHub Repository Plumbing
 
 - GitHub Actions checkout action: https://github.com/actions/checkout

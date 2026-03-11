@@ -6,6 +6,7 @@
 - `.github/dependabot.yml`
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/pull_request_template.md`
+- `.github/copilot-instructions.md`
 - `.github/CODEOWNERS`
 - `SECURITY.md`
 - `CONTRIBUTING.md`
@@ -49,5 +50,10 @@ Regardless of GitHub plan, treat secret scanning as a backstop, not the primary 
 
 - CI verifies type safety, linting, tests, and coverage thresholds on pull requests and main-branch pushes.
 - Dependabot keeps action and npm versions moving without manual tracking.
-- Templates standardize triage and review quality.
+- Templates and Copilot instructions standardize triage, review quality, and agent-authored PR descriptions.
 - CODEOWNERS and a ruleset give GitHub enough structure to enforce review policy once enabled.
+
+## Pull Request Review Quality
+
+- Use `docs/pull-request-standards.md` as the repository standard for PR summaries, review order, risks, and validation notes.
+- Use `node tools/runtime/run-npm.cjs run pr:draft -- --base origin/main` to generate a first-pass PR body from the changed files in a branch.

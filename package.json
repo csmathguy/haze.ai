@@ -29,6 +29,7 @@
     "prisma:migrate:deploy": "tsx tools/database/apply-migrations.ts",
     "prisma:migrate:dev": "tsx tools/database/create-migration.ts",
     "prisma:studio": "prisma studio",
+    "pr:draft": "tsx tools/agent/pull-request-draft.ts",
     "prisma:validate": "prisma validate",
     "prepare": "simple-git-hooks",
     "lint": "eslint apps/api/src apps/web/src apps/web/vite.config.ts packages/shared/src prisma.config.ts tools/agent tools/database tools/quality vitest.config.ts --max-warnings=0",
