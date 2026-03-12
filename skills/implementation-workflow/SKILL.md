@@ -19,8 +19,9 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 6. For behavior changes, write or update a failing test first.
 7. Implement the smallest change that makes the test pass.
 8. Refactor only after behavior is green.
-9. Run the strongest available validation for the touched scope before finishing.
-10. Close the workflow with `npm run workflow:end implementation success` or `failed`.
+9. Run the strongest available validation for the touched scope.
+10. Commit the finished work in atomic commits, then run `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed` to push the branch and create or update the PR.
+11. Close the workflow with `npm run workflow:end implementation success` or `failed`.
 
 ## Key Rules
 
@@ -29,6 +30,7 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 - Keep shared packages free of React and backend transport concerns.
 - Prefer `npm run quality:logged -- implementation` over hand-running the whole guardrail stack.
 - Use `npm run typecheck`, `npm run lint`, and targeted tests as the minimum completion bar when those commands exist.
+- Treat an open PR as part of definition of done for branch-ready work, not as optional follow-up.
 - If the repo lacks a needed script or guardrail, document the gap and move the scaffold toward that standard.
 
 ## When To Pull More Context

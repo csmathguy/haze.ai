@@ -22,6 +22,8 @@
 - Run `npm run lint`.
 - Run `npm run stylelint` when frontend CSS or styling structure changed.
 - Run `npm test`, `npm run test:arch`, or `npm run quality:logged -- implementation`.
+- Commit the finished change in atomic commits so the worktree is clean.
+- Run `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed`.
 - If architecture changed, update `docs/architecture.md` or `docs/architecture-enforcement.md`.
 - If a new major tool or practice was introduced, update `docs/research-sources.md`.
 - End the workflow with `npm run workflow:end implementation success`.
