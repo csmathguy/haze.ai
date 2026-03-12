@@ -4,9 +4,20 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 export const AUDIT_ROOT = path.resolve("artifacts", "audit");
-const ACTIVE_RUNS_PATH = path.join(AUDIT_ROOT, "active-runs.json");
 
-export type WorkflowStatus = "failed" | "running" | "success";
+export type AuditExecutionKind = "command" | "hook" | "operation" | "skill" | "tool" | "validation";
+export type WorkflowStatus = "failed" | "running" | "skipped" | "success";
+export type AuditMetadataValue =
+  | AuditMetadata
+  | AuditMetadataValue[]
+  | boolean
+  | null
+  | number
+  | string;
+
+export interface AuditMetadata {
+  [key: string]: AuditMetadataValue;
+}
 
 export interface AuditPaths {
   eventsPath: string;
@@ -20,16 +31,22 @@ export interface AuditEvent {
   command?: string[];
   cwd: string;
   durationMs?: number;
+  errorMessage?: string;
+  errorName?: string;
   eventId: string;
   eventType:
-    | "command-end"
-    | "command-start"
+    | "execution-end"
+    | "execution-start"
     | "workflow-end"
     | "workflow-note"
     | "workflow-start";
+  executionId?: string;
+  executionKind?: AuditExecutionKind;
+  executionName?: string;
   exitCode?: number;
   logFile?: string;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: AuditMetadata;
+  parentExecutionId?: string;
   runId: string;
   status?: WorkflowStatus;
   step?: string;
@@ -43,12 +60,31 @@ export interface AuditSummary {
   completedAt?: string;
   cwd: string;
   durationMs?: number;
+  executions: AuditExecutionSummary[];
   runId: string;
   startedAt: string;
+  stats: AuditSummaryStats;
   status: WorkflowStatus;
   steps: AuditStepSummary[];
   task?: string;
   workflow: string;
+}
+
+export interface AuditExecutionSummary {
+  command?: string[];
+  durationMs: number;
+  errorMessage?: string;
+  errorName?: string;
+  executionId: string;
+  exitCode?: number;
+  kind: AuditExecutionKind;
+  logFile?: string;
+  metadata?: AuditMetadata;
+  name: string;
+  parentExecutionId?: string;
+  startedAt: string;
+  status: WorkflowStatus;
+  step?: string;
 }
 
 export interface AuditStepSummary {
@@ -61,13 +97,12 @@ export interface AuditStepSummary {
   step: string;
 }
 
-interface ActiveRunRecord {
-  runId: string;
-  startedAt: string;
-  task?: string;
+export interface AuditSummaryStats {
+  byKind: Partial<Record<AuditExecutionKind, number>>;
+  byStatus: Partial<Record<WorkflowStatus, number>>;
+  executionCount: number;
+  failedExecutionCount: number;
 }
-
-type ActiveRuns = Record<string, Record<string, ActiveRunRecord>>;
 
 export function createRunId(workflow: string, now: Date = new Date()): string {
   const stamp = formatLocalRunTimestamp(now);
@@ -83,14 +118,35 @@ export function createWorkflowSummary(runId: string, workflow: string, task?: st
   return {
     actor: detectActor(),
     cwd: process.cwd(),
+    executions: [],
     runId,
     startedAt: new Date().toISOString(),
+    stats: createEmptySummaryStats(),
     status: "running",
     steps: [],
     workflow,
     ...(task === undefined ? {} : { task })
   };
 }
+
+export function createEmptySummaryStats(): AuditSummaryStats {
+  return {
+    byKind: {},
+    byStatus: {},
+    executionCount: 0,
+    failedExecutionCount: 0
+  };
+}
+
+export type { ActiveExecutionRecord } from "./audit-active-runs.js";
+export {
+  clearActiveExecution,
+  clearActiveRun,
+  getActiveExecution,
+  getActiveRunId,
+  setActiveExecution,
+  setActiveRun
+} from "./audit-active-runs.js";
 
 export function slugify(value: string): string {
   const characters = value.trim().toLowerCase().split("");
@@ -140,7 +196,7 @@ export async function appendAuditEvent(paths: AuditPaths, event: AuditEvent): Pr
 export async function readSummary(paths: AuditPaths): Promise<AuditSummary | null> {
   try {
     const contents = await readFile(paths.summaryPath, "utf8");
-    return JSON.parse(contents) as AuditSummary;
+    return normalizeSummary(JSON.parse(contents) as Partial<AuditSummary>);
   } catch (error) {
     if (isMissingFile(error)) {
       return null;
@@ -155,47 +211,44 @@ export async function writeSummary(paths: AuditPaths, summary: AuditSummary): Pr
   await writeFile(paths.summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
 }
 
-export async function setActiveRun(workflow: string, runId: string, task?: string): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const runsForCwd = activeRuns[cwd] ?? {};
+export function appendExecutionSummary(summary: AuditSummary, execution: AuditExecutionSummary): void {
+  summary.executions.push(execution);
+  summary.stats.executionCount += 1;
+  summary.stats.byKind[execution.kind] = (summary.stats.byKind[execution.kind] ?? 0) + 1;
+  summary.stats.byStatus[execution.status] = (summary.stats.byStatus[execution.status] ?? 0) + 1;
 
-  runsForCwd[workflow] = {
-    runId,
-    startedAt: new Date().toISOString(),
-    ...(task === undefined ? {} : { task })
+  if (execution.status === "failed") {
+    summary.stats.failedExecutionCount += 1;
+  }
+
+  if (isCommandExecutionSummary(execution)) {
+    summary.steps.push({
+      command: execution.command,
+      durationMs: execution.durationMs,
+      exitCode: execution.exitCode,
+      logFile: execution.logFile,
+      startedAt: execution.startedAt,
+      status: execution.status,
+      step: execution.step
+    });
+  }
+}
+
+function normalizeSummary(summary: Partial<AuditSummary>): AuditSummary {
+  const executions = summary.executions ?? [];
+
+  return {
+    actor: summary.actor ?? detectActor(),
+    cwd: summary.cwd ?? process.cwd(),
+    executions,
+    runId: summary.runId ?? createRunId("workflow"),
+    startedAt: summary.startedAt ?? new Date().toISOString(),
+    stats: summarizeExecutions(executions),
+    status: summary.status ?? "running",
+    steps: summary.steps ?? [],
+    workflow: summary.workflow ?? "workflow",
+    ...getOptionalSummaryFields(summary)
   };
-
-  activeRuns[cwd] = runsForCwd;
-
-  await writeActiveRuns(activeRuns);
-}
-
-export async function getActiveRunId(workflow: string): Promise<string | null> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const runsForCwd = activeRuns[cwd];
-
-  if (runsForCwd === undefined) {
-    return null;
-  }
-
-  return runsForCwd[workflow]?.runId ?? null;
-}
-
-export async function clearActiveRun(workflow: string): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const runsForCwd = activeRuns[cwd];
-
-  if (runsForCwd === undefined) {
-    return;
-  }
-
-  activeRuns[cwd] = Object.fromEntries(
-    Object.entries(runsForCwd).filter(([candidateWorkflow]) => candidateWorkflow !== workflow)
-  );
-  await writeActiveRuns(activeRuns);
 }
 
 export function createEvent(
@@ -220,24 +273,6 @@ function detectActor(): string {
   return process.env.CODEX_AGENT_NAME ?? process.env.USERNAME ?? process.env.USER ?? os.userInfo().username;
 }
 
-async function readActiveRuns(): Promise<ActiveRuns> {
-  try {
-    const contents = await readFile(ACTIVE_RUNS_PATH, "utf8");
-    return JSON.parse(contents) as ActiveRuns;
-  } catch (error) {
-    if (isMissingFile(error)) {
-      return {};
-    }
-
-    throw error;
-  }
-}
-
-async function writeActiveRuns(activeRuns: ActiveRuns): Promise<void> {
-  await mkdir(path.dirname(ACTIVE_RUNS_PATH), { recursive: true });
-  await writeFile(ACTIVE_RUNS_PATH, `${JSON.stringify(activeRuns, null, 2)}\n`);
-}
-
 function isMissingFile(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -256,4 +291,39 @@ function pad(value: number): string {
 
 function padMilliseconds(value: number): string {
   return value.toString().padStart(3, "0");
+}
+
+function isCommandExecutionSummary(execution: AuditExecutionSummary): execution is AuditExecutionSummary &
+  Required<Pick<AuditExecutionSummary, "command" | "exitCode" | "logFile" | "step">> {
+  return (
+    execution.kind === "command" &&
+    execution.command !== undefined &&
+    execution.exitCode !== undefined &&
+    execution.logFile !== undefined &&
+    execution.step !== undefined
+  );
+}
+
+function summarizeExecutions(executions: AuditExecutionSummary[]): AuditSummaryStats {
+  const stats = createEmptySummaryStats();
+
+  for (const execution of executions) {
+    stats.executionCount += 1;
+    stats.byKind[execution.kind] = (stats.byKind[execution.kind] ?? 0) + 1;
+    stats.byStatus[execution.status] = (stats.byStatus[execution.status] ?? 0) + 1;
+
+    if (execution.status === "failed") {
+      stats.failedExecutionCount += 1;
+    }
+  }
+
+  return stats;
+}
+
+function getOptionalSummaryFields(summary: Partial<AuditSummary>): Partial<AuditSummary> {
+  return {
+    ...(summary.completedAt === undefined ? {} : { completedAt: summary.completedAt }),
+    ...(summary.durationMs === undefined ? {} : { durationMs: summary.durationMs }),
+    ...(summary.task === undefined ? {} : { task: summary.task })
+  };
 }

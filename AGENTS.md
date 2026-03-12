@@ -17,9 +17,10 @@
 1. Read the relevant docs in `docs/` before making non-trivial changes.
 2. Work in red-green-refactor order for behavior changes whenever practical.
 3. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
-4. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
-5. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
-6. Before finishing, run the strongest available validation for the touched area:
+4. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
+5. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
+6. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
+7. Before finishing, run the strongest available validation for the touched area:
    - Fast iteration: `npm run quality:changed -- <files...>` or let the git `pre-commit` hook run `npm run quality:changed:staged`
    - Database changes: `npm run prisma:check` and `npm run prisma:migrate:deploy`
    - Full compile checks with `npm run typecheck`
@@ -27,8 +28,8 @@
    - Frontend styling changes: `npm run stylelint`
    - Full tests with `npm test` or architecture-only tests with `npm run test:arch`
    - Use `npm run quality:logged -- implementation` when you want a single audited full guardrail run
-7. Close audited work with `npm run workflow:end implementation success` or `failed`.
-8. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
+8. Close audited work with `npm run workflow:end implementation success` or `failed`.
+9. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
 ## Architecture Rules
 - Keep a strict separation between `apps/web`, `apps/api`, and `packages/shared`.

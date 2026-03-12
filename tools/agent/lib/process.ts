@@ -4,13 +4,8 @@ import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 
-import {
-  appendAuditEvent,
-  type AuditPaths,
-  type AuditStepSummary,
-  createEvent,
-  type WorkflowStatus
-} from "./audit.js";
+import type { AuditStepSummary } from "./audit.js";
+import { endExecution, startExecution, type AuditRunContext, type StartedExecution } from "./execution.js";
 
 export interface LoggedCommand {
   args: string[];
@@ -23,57 +18,25 @@ export interface ResolvedCommand {
   prefixArgs: string[];
 }
 
+export type LoggedCommandContext = AuditRunContext;
+
 export async function runLoggedCommand(
-  workflow: string,
-  runId: string,
-  paths: AuditPaths,
+  context: LoggedCommandContext,
   loggedCommand: LoggedCommand
 ): Promise<AuditStepSummary> {
-  await mkdir(paths.logsDir, { recursive: true });
+  await mkdir(context.paths.logsDir, { recursive: true });
 
-  const startedAt = new Date();
-  const logFile = path.join(paths.logsDir, `${loggedCommand.step}.log`);
+  const logFile = path.join(context.paths.logsDir, `${loggedCommand.step}.log`);
   const output = createWriteStream(logFile, { flags: "a" });
-
-  await appendAuditEvent(
-    paths,
-    createEvent(runId, workflow, "command-start", {
-      command: getCommandLine(loggedCommand),
-      logFile,
-      status: "running",
-      step: loggedCommand.step
-    })
-  );
-
-  const exitCode = await spawnWithTee(
-    loggedCommand.command.command,
-    [...loggedCommand.command.prefixArgs, ...loggedCommand.args],
-    output
-  );
-  const durationMs = Date.now() - startedAt.getTime();
-  const status: WorkflowStatus = exitCode === 0 ? "success" : "failed";
-
-  await appendAuditEvent(
-    paths,
-    createEvent(runId, workflow, "command-end", {
-      command: getCommandLine(loggedCommand),
-      durationMs,
-      exitCode,
-      logFile,
-      status,
-      step: loggedCommand.step
-    })
-  );
-
-  return {
-    command: getCommandLine(loggedCommand),
-    durationMs,
-    exitCode,
+  const startedExecution = await startCommandExecution(context, loggedCommand, logFile);
+  const execution = await executeLoggedCommand(context, {
     logFile,
-    startedAt: startedAt.toISOString(),
-    status,
-    step: loggedCommand.step
-  };
+    loggedCommand,
+    output,
+    startedExecution
+  });
+
+  return toStepSummary(execution, loggedCommand, logFile);
 }
 
 export function resolveNpmCommand(): ResolvedCommand {
@@ -130,6 +93,70 @@ function sanitizeEnv(environment: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(
     Object.entries(environment).flatMap(([key, value]) => (value === undefined ? [] : [[key, value]]))
   );
+}
+
+async function startCommandExecution(
+  context: LoggedCommandContext,
+  loggedCommand: LoggedCommand,
+  logFile: string
+): Promise<StartedExecution> {
+  return startExecution(context, {
+    command: getCommandLine(loggedCommand),
+    kind: "command",
+    metadata: {
+      logFile
+    },
+    name: loggedCommand.step,
+    step: loggedCommand.step
+  });
+}
+
+async function executeLoggedCommand(
+  context: LoggedCommandContext,
+  state: {
+    logFile: string;
+    loggedCommand: LoggedCommand;
+    output: NodeJS.WritableStream;
+    startedExecution: StartedExecution;
+  }
+): Promise<Awaited<ReturnType<typeof endExecution>>> {
+  try {
+    const exitCode = await spawnWithTee(
+      state.loggedCommand.command.command,
+      [...state.loggedCommand.command.prefixArgs, ...state.loggedCommand.args],
+      state.output
+    );
+
+    return await endExecution(context, state.startedExecution, {
+      exitCode,
+      logFile: state.logFile,
+      status: exitCode === 0 ? "success" : "failed"
+    });
+  } catch (error) {
+    state.output.end();
+    await endExecution(context, state.startedExecution, {
+      error,
+      logFile: state.logFile,
+      status: "failed"
+    });
+    throw error;
+  }
+}
+
+function toStepSummary(
+  execution: Awaited<ReturnType<typeof endExecution>>,
+  loggedCommand: LoggedCommand,
+  logFile: string
+): AuditStepSummary {
+  return {
+    command: execution.command ?? getCommandLine(loggedCommand),
+    durationMs: execution.durationMs,
+    exitCode: execution.exitCode ?? 1,
+    logFile: execution.logFile ?? logFile,
+    startedAt: execution.startedAt,
+    status: execution.status,
+    step: execution.step ?? loggedCommand.step
+  };
 }
 
 function getCommandLine(loggedCommand: LoggedCommand): string[] {

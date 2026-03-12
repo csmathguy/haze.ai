@@ -79,6 +79,9 @@ Researched on March 11, 2026.
 - OpenAI curated skills catalog checked via local `skill-installer` helper on March 11, 2026
 - Git worktree docs: https://git-scm.com/docs/git-worktree
 - GitHub Docs, merge queue: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue
+- Microsoft Learn, "Semantic Kernel Filters": https://learn.microsoft.com/en-us/semantic-kernel/concepts/enterprise-readiness/filters
+- Microsoft Learn, "Function Invocation": https://learn.microsoft.com/en-us/semantic-kernel/concepts/ai-services/chat-completion/function-calling/function-invocation
+- Microsoft Learn, "Semantic Kernel Components": https://learn.microsoft.com/en-us/semantic-kernel/concepts/semantic-kernel-components
 
 ## Documentation Writing And Structure
 

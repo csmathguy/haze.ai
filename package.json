@@ -51,6 +51,8 @@
     "quality:logged": "tsx tools/agent/quality-gates.ts",
     "quality:logged:coverage": "tsx tools/agent/quality-gates.ts --with-coverage",
     "agent:worktree:create": "tsx tools/agent/parallel-worktree.ts",
+    "execution:start": "tsx tools/agent/execution-log.ts start",
+    "execution:end": "tsx tools/agent/execution-log.ts end",
     "workflow:start": "tsx tools/agent/workflow-log.ts start",
     "workflow:note": "tsx tools/agent/workflow-log.ts note",
     "workflow:end": "tsx tools/agent/workflow-log.ts end"

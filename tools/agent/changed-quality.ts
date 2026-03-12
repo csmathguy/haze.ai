@@ -9,10 +9,12 @@ import {
   ensureAuditPaths,
   getActiveRunId,
   readSummary,
+  setActiveRun,
   type AuditSummary,
   writeSummary
 } from "./lib/audit.js";
 import { buildChangedFilePlan } from "./lib/changed-files.js";
+import { endExecution, startExecution } from "./lib/execution.js";
 import { resolveNpmCommand, runLoggedCommand, type LoggedCommand, type ResolvedCommand } from "./lib/process.js";
 
 async function main(): Promise<void> {
@@ -208,6 +210,7 @@ async function initializeRun(workflow: string, files: string[]): Promise<Initial
         ...(summary.task === undefined ? {} : { task: summary.task })
       })
     );
+    await setActiveRun(workflow, runId, summary.task);
   }
 
   return {
@@ -219,16 +222,68 @@ async function initializeRun(workflow: string, files: string[]): Promise<Initial
 }
 
 async function executeSteps(workflow: string, run: InitializedRun, steps: LoggedCommand[]): Promise<boolean> {
+  const scope = await startExecution(
+    {
+      paths: run.paths,
+      runId: run.runId,
+      summary: run.summary,
+      workflow
+    },
+    {
+      kind: workflow.startsWith("pre-") ? "hook" : "validation",
+      metadata: {
+        mode: "changed-files"
+      },
+      name: workflow
+    }
+  );
   let failed = false;
 
-  for (const step of steps) {
-    const result = await runLoggedCommand(workflow, run.runId, run.paths, step);
-    run.summary.steps.push(result);
+  try {
+    for (const step of steps) {
+      const result = await runLoggedCommand(
+        {
+          paths: run.paths,
+          runId: run.runId,
+          summary: run.summary,
+          workflow
+        },
+        step
+      );
 
-    if (result.exitCode !== 0) {
-      failed = true;
-      break;
+      if (result.exitCode !== 0) {
+        failed = true;
+        break;
+      }
     }
+
+    await endExecution(
+      {
+        paths: run.paths,
+        runId: run.runId,
+        summary: run.summary,
+        workflow
+      },
+      scope,
+      {
+        status: failed ? "failed" : "success"
+      }
+    );
+  } catch (error) {
+    await endExecution(
+      {
+        paths: run.paths,
+        runId: run.runId,
+        summary: run.summary,
+        workflow
+      },
+      scope,
+      {
+        error,
+        status: "failed"
+      }
+    );
+    throw error;
   }
 
   return failed;

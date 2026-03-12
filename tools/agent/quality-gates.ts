@@ -8,8 +8,10 @@ import {
   ensureAuditPaths,
   getActiveRunId,
   readSummary,
+  setActiveRun,
   writeSummary
 } from "./lib/audit.js";
+import { endExecution, startExecution } from "./lib/execution.js";
 import { resolveNpmCommand, runLoggedCommand } from "./lib/process.js";
 
 async function main(): Promise<void> {
@@ -35,16 +37,68 @@ async function executeSteps(workflow: string, run: InitializedRun, withCoverage:
     { args: ["run", withCoverage ? "test:coverage" : "test"], command: npmCommand, step: withCoverage ? "test-coverage" : "test" }
   ];
 
+  const scope = await startExecution(
+    {
+      paths: run.paths,
+      runId: run.runId,
+      summary: run.summary,
+      workflow
+    },
+    {
+      kind: workflow.startsWith("pre-") ? "hook" : "validation",
+      metadata: {
+        withCoverage
+      },
+      name: workflow
+    }
+  );
   let failed = false;
 
-  for (const step of steps) {
-    const result = await runLoggedCommand(workflow, run.runId, run.paths, step);
-    run.summary.steps.push(result);
+  try {
+    for (const step of steps) {
+      const result = await runLoggedCommand(
+        {
+          paths: run.paths,
+          runId: run.runId,
+          summary: run.summary,
+          workflow
+        },
+        step
+      );
 
-    if (result.exitCode !== 0) {
-      failed = true;
-      break;
+      if (result.exitCode !== 0) {
+        failed = true;
+        break;
+      }
     }
+
+    await endExecution(
+      {
+        paths: run.paths,
+        runId: run.runId,
+        summary: run.summary,
+        workflow
+      },
+      scope,
+      {
+        status: failed ? "failed" : "success"
+      }
+    );
+  } catch (error) {
+    await endExecution(
+      {
+        paths: run.paths,
+        runId: run.runId,
+        summary: run.summary,
+        workflow
+      },
+      scope,
+      {
+        error,
+        status: "failed"
+      }
+    );
+    throw error;
   }
 
   return failed;
@@ -103,6 +157,7 @@ async function initializeRun(workflow: string): Promise<InitializedRun> {
       paths,
       createEvent(runId, workflow, "workflow-start", summary.task === undefined ? { status: "running" } : { status: "running", task: summary.task })
     );
+    await setActiveRun(workflow, runId, summary.task);
   }
 
   return {
