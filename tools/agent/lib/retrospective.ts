@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { AUDIT_ROOT, getAuditDateSegment, type AuditEvent, type AuditStepSummary, type AuditSummary } from "./audit.js";
+import { formatAuditLogReference } from "./retrospective-paths.js";
 import { buildTimelineEntries, type TimelineEntry } from "./retrospective-timeline.js";
 
 export const RETROSPECTIVE_ROOT = path.resolve("artifacts", "retrospectives");
@@ -259,7 +260,7 @@ function formatFailurePoints(failedSteps: AuditStepSummary[], runDir: string): s
   }
 
   return failedSteps
-    .map((step) => `${step.step} (${formatDuration(step.durationMs)}; log: \`${toPortablePath(path.relative(runDir, step.logFile))}\`)`)
+    .map((step) => `${step.step} (${formatDuration(step.durationMs)}; log: ${formatAuditLogReference(step.logFile, runDir)})`)
     .join("; ");
 }
 

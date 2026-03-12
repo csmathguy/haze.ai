@@ -1,6 +1,5 @@
-import * as path from "node:path";
-
 import type { AuditEvent } from "./audit.js";
+import { formatAuditLogReference } from "./retrospective-paths.js";
 
 export interface TimelineEntry {
   message: string;
@@ -64,7 +63,7 @@ function createFailedExecutionEntry(
   const attempt = getFailedAttemptNumber(event, failedAttemptsByLabel, label);
 
   return {
-    message: `${label} failed on attempt ${String(attempt)} after ${formatDuration(event.durationMs)}. Review ${formatLogPath(event.logFile, runDir)}.`,
+    message: `${label} failed on attempt ${String(attempt)} after ${formatDuration(event.durationMs)}. Review ${formatAuditLogReference(event.logFile, runDir)}.`,
     timestamp: event.timestamp
   };
 }
@@ -99,14 +98,6 @@ function getFailedAttemptNumber(
   return attempt;
 }
 
-function formatLogPath(logFile: string | undefined, runDir: string): string {
-  if (logFile === undefined) {
-    return "the related command log";
-  }
-
-  return `\`${toPortablePath(path.relative(runDir, logFile))}\``;
-}
-
 function formatDuration(durationMs: number | undefined): string {
   if (durationMs === undefined) {
     return "Not recorded";
@@ -123,8 +114,4 @@ function formatDuration(durationMs: number | undefined): string {
   ].filter((value): value is string => value !== null);
 
   return parts.join(" ");
-}
-
-function toPortablePath(filePath: string): string {
-  return filePath.split(path.sep).join("/");
 }
