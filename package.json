@@ -57,7 +57,7 @@
     "workflow:end": "tsx tools/agent/workflow-log.ts end"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.4.0",
     "@vitest/coverage-v8": "^4.0.18",
     "archunit": "^2.1.63",
