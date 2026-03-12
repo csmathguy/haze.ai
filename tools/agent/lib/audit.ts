@@ -4,7 +4,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 export const AUDIT_ROOT = path.resolve("artifacts", "audit");
-const ACTIVE_RUNS_PATH = path.join(AUDIT_ROOT, "active-runs.json");
 
 export type AuditExecutionKind = "command" | "hook" | "operation" | "skill" | "tool" | "validation";
 export type WorkflowStatus = "failed" | "running" | "skipped" | "success";
@@ -105,30 +104,6 @@ export interface AuditSummaryStats {
   failedExecutionCount: number;
 }
 
-export interface ActiveExecutionRecord {
-  command?: string[];
-  executionId: string;
-  kind: AuditExecutionKind;
-  metadata?: AuditMetadata;
-  name: string;
-  parentExecutionId?: string;
-  startedAt: string;
-  step?: string;
-}
-
-interface ActiveRunRecord {
-  executions: Record<string, ActiveExecutionRecord>;
-  runId: string;
-  startedAt: string;
-  task?: string;
-}
-
-type ActiveRuns = Record<string, Record<string, ActiveRunRecord>>;
-type RawActiveRunRecord = Omit<ActiveRunRecord, "executions"> & {
-  executions?: Record<string, ActiveExecutionRecord>;
-};
-type RawActiveRuns = Record<string, Record<string, RawActiveRunRecord>>;
-
 export function createRunId(workflow: string, now: Date = new Date()): string {
   const stamp = formatLocalRunTimestamp(now);
   return `${stamp}-${slugify(workflow)}-${randomUUID().slice(0, 8)}`;
@@ -162,6 +137,16 @@ export function createEmptySummaryStats(): AuditSummaryStats {
     failedExecutionCount: 0
   };
 }
+
+export type { ActiveExecutionRecord } from "./audit-active-runs.js";
+export {
+  clearActiveExecution,
+  clearActiveRun,
+  getActiveExecution,
+  getActiveRunId,
+  setActiveExecution,
+  setActiveRun
+} from "./audit-active-runs.js";
 
 export function slugify(value: string): string {
   const characters = value.trim().toLowerCase().split("");
@@ -226,94 +211,6 @@ export async function writeSummary(paths: AuditPaths, summary: AuditSummary): Pr
   await writeFile(paths.summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
 }
 
-export async function setActiveRun(workflow: string, runId: string, task?: string): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const existingRun = activeRuns[cwd]?.[workflow];
-  const runsForCwd = activeRuns[cwd] ?? {};
-
-  runsForCwd[workflow] = {
-    executions: existingRun?.runId === runId ? existingRun.executions : {},
-    runId,
-    startedAt: new Date().toISOString(),
-    ...(task === undefined ? {} : { task })
-  };
-
-  activeRuns[cwd] = runsForCwd;
-
-  await writeActiveRuns(activeRuns);
-}
-
-export async function getActiveRunId(workflow: string): Promise<string | null> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const runsForCwd = activeRuns[cwd];
-
-  if (runsForCwd === undefined) {
-    return null;
-  }
-
-  return runsForCwd[workflow]?.runId ?? null;
-}
-
-export async function clearActiveRun(workflow: string): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const runsForCwd = activeRuns[cwd];
-
-  if (runsForCwd === undefined) {
-    return;
-  }
-
-  activeRuns[cwd] = Object.fromEntries(
-    Object.entries(runsForCwd).filter(([candidateWorkflow]) => candidateWorkflow !== workflow)
-  );
-  await writeActiveRuns(activeRuns);
-}
-
-export async function setActiveExecution(workflow: string, execution: ActiveExecutionRecord): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const activeRun = activeRuns[cwd]?.[workflow];
-
-  if (activeRun === undefined) {
-    throw new Error(`No active workflow found for "${workflow}". Run workflow:start first.`);
-  }
-
-  activeRun.executions[execution.executionId] = execution;
-  await writeActiveRuns(activeRuns);
-}
-
-export async function getActiveExecution(
-  workflow: string,
-  executionId: string
-): Promise<ActiveExecutionRecord | null> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const activeRun = activeRuns[cwd]?.[workflow];
-
-  if (activeRun === undefined) {
-    return null;
-  }
-
-  return activeRun.executions[executionId] ?? null;
-}
-
-export async function clearActiveExecution(workflow: string, executionId: string): Promise<void> {
-  const activeRuns = await readActiveRuns();
-  const cwd = process.cwd();
-  const activeRun = activeRuns[cwd]?.[workflow];
-
-  if (activeRun === undefined) {
-    return;
-  }
-
-  activeRun.executions = Object.fromEntries(
-    Object.entries(activeRun.executions).filter(([candidateExecutionId]) => candidateExecutionId !== executionId)
-  );
-  await writeActiveRuns(activeRuns);
-}
-
 export function appendExecutionSummary(summary: AuditSummary, execution: AuditExecutionSummary): void {
   summary.executions.push(execution);
   summary.stats.executionCount += 1;
@@ -376,24 +273,6 @@ function detectActor(): string {
   return process.env.CODEX_AGENT_NAME ?? process.env.USERNAME ?? process.env.USER ?? os.userInfo().username;
 }
 
-async function readActiveRuns(): Promise<ActiveRuns> {
-  try {
-    const contents = await readFile(ACTIVE_RUNS_PATH, "utf8");
-    return normalizeActiveRuns(JSON.parse(contents) as RawActiveRuns);
-  } catch (error) {
-    if (isMissingFile(error)) {
-      return {};
-    }
-
-    throw error;
-  }
-}
-
-async function writeActiveRuns(activeRuns: ActiveRuns): Promise<void> {
-  await mkdir(path.dirname(ACTIVE_RUNS_PATH), { recursive: true });
-  await writeFile(ACTIVE_RUNS_PATH, `${JSON.stringify(activeRuns, null, 2)}\n`);
-}
-
 function isMissingFile(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -447,22 +326,4 @@ function getOptionalSummaryFields(summary: Partial<AuditSummary>): Partial<Audit
     ...(summary.durationMs === undefined ? {} : { durationMs: summary.durationMs }),
     ...(summary.task === undefined ? {} : { task: summary.task })
   };
-}
-
-function normalizeActiveRuns(activeRuns: RawActiveRuns): ActiveRuns {
-  return Object.fromEntries(
-    Object.entries(activeRuns).map(([cwd, runsForCwd]) => [cwd, normalizeRunsForCwd(runsForCwd)])
-  );
-}
-
-function normalizeRunsForCwd(runsForCwd: Record<string, RawActiveRunRecord>): Record<string, ActiveRunRecord> {
-  return Object.fromEntries(
-    Object.entries(runsForCwd).map(([workflow, activeRun]) => [
-      workflow,
-      {
-        ...activeRun,
-        executions: activeRun.executions ?? {}
-      }
-    ])
-  );
 }
