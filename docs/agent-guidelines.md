@@ -33,6 +33,8 @@ This repository defines three local skills:
   - use for frontend layout, forms, tables, charts, and MUI usage
 - `workflow-audit`
   - use for audited workflow start/end logging and deterministic guardrail execution
+- `workflow-retrospective`
+  - use for audit-backed retrospectives, workflow debriefs, and follow-up action capture under `artifacts/retrospectives`
 
 Each skill keeps the core workflow in `SKILL.md` and pushes extra detail into `references/` so the agent only loads more context when needed.
 

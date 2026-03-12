@@ -12,6 +12,7 @@ This repository uses script-based audit logging rather than product-native hooks
 
 - `npm run workflow:start implementation "<summary>"`
 - `npm run workflow:note implementation "<note>"`
+- `npm run workflow:retro -- <run-id>`
 - `npm run quality:changed -- <files...>`
 - `npm run quality:logged -- implementation`
 - `npm run workflow:end implementation success`
@@ -26,11 +27,13 @@ This repository uses script-based audit logging rather than product-native hooks
 ## Audit Artifacts
 
 - Audit data is written to `artifacts/audit/`
+- Retrospectives derived from audit runs are written to `artifacts/retrospectives/`
 - Runs are grouped by date under `artifacts/audit/YYYY-MM-DD/`
 - Each run gets its own folder with:
   - `events.ndjson`
   - `summary.json`
   - `logs/*.log`
+- Retrospective outputs use `artifacts/retrospectives/YYYY-MM-DD/<runId>.md`
 
 ## Event Types
 
@@ -46,3 +49,4 @@ This repository uses script-based audit logging rather than product-native hooks
 - readable by humans and machines
 - works for Codex-style workflows without requiring proprietary hook support
 - easy to attach to git hooks now and CI later
+- supports evidence-backed retrospectives instead of relying on chat history alone

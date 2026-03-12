@@ -50,6 +50,7 @@
     "quality:changed:staged": "tsx tools/agent/changed-quality.ts --staged --workflow pre-commit",
     "quality:logged": "tsx tools/agent/quality-gates.ts",
     "quality:logged:coverage": "tsx tools/agent/quality-gates.ts --with-coverage",
+    "workflow:retro": "tsx tools/agent/retrospective.ts",
     "workflow:start": "tsx tools/agent/workflow-log.ts start",
     "workflow:note": "tsx tools/agent/workflow-log.ts note",
     "workflow:end": "tsx tools/agent/workflow-log.ts end"
