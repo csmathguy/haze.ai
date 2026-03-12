@@ -51,6 +51,7 @@
     "quality:logged": "tsx tools/agent/quality-gates.ts",
     "quality:logged:coverage": "tsx tools/agent/quality-gates.ts --with-coverage",
     "agent:worktree:create": "tsx tools/agent/parallel-worktree.ts",
+    "workflow:retro": "tsx tools/agent/retrospective.ts",
     "execution:start": "tsx tools/agent/execution-log.ts start",
     "execution:end": "tsx tools/agent/execution-log.ts end",
     "workflow:start": "tsx tools/agent/workflow-log.ts start",
@@ -58,7 +59,7 @@
     "workflow:end": "tsx tools/agent/workflow-log.ts end"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.4.0",
     "@vitest/coverage-v8": "^4.0.18",
     "archunit": "^2.1.63",

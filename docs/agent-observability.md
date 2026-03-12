@@ -21,6 +21,7 @@ That shape is intentionally compatible with Semantic Kernel's filter model: befo
 
 - `npm run workflow:start implementation "<summary>"`
 - `npm run workflow:note implementation "<note>"`
+- `npm run workflow:retro -- <run-id>`
 - `npm run execution:start -- --workflow implementation --kind skill --name workflow-audit`
 - `npm run execution:end -- --workflow implementation --execution-id <id> --status success`
 - `npm run quality:changed -- <files...>`
@@ -38,11 +39,13 @@ That shape is intentionally compatible with Semantic Kernel's filter model: befo
 ## Audit Artifacts
 
 - Audit data is written to `artifacts/audit/`
+- Retrospectives derived from audit runs are written to `artifacts/retrospectives/`
 - Runs are grouped by date under `artifacts/audit/YYYY-MM-DD/`
 - Each run gets its own folder with:
   - `events.ndjson`
   - `summary.json`
   - `logs/*.log`
+- Retrospective outputs use `artifacts/retrospectives/YYYY-MM-DD/<runId>.md`
 
 ## Event Types
 
@@ -73,4 +76,5 @@ That shape is intentionally compatible with Semantic Kernel's filter model: befo
 - readable by humans and machines
 - works for Codex-style workflows without requiring proprietary hook support
 - easy to attach to git hooks now and CI later
+- supports evidence-backed retrospectives instead of relying on chat history alone
 - supports explicit skill/tool instrumentation today and Semantic Kernel filter adapters later

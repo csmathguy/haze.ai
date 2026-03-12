@@ -104,6 +104,12 @@ Researched on March 11, 2026.
 - simple-git-hooks package: https://github.com/toplenboren/simple-git-hooks
 - simple-git-hooks npm package: https://www.npmjs.com/package/simple-git-hooks
 
+## Retrospectives And Postmortems
+
+- Scrum Guides, "The Scrum Guide": https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf
+- Atlassian Team Playbook, "Retrospective": https://www.atlassian.com/team-playbook/plays/retrospective
+- Google SRE, "Postmortem Culture: Learning from Failure": https://sre.google/resources/practices-and-processes/postmortem-culture-learning-from-failure/
+
 ## Pull Requests And Review Quality
 
 - GitHub Docs, creating a pull request template: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
