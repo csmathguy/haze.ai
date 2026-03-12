@@ -1,6 +1,6 @@
 # Research Sources
 
-Researched on March 11, 2026.
+Researched on March 12, 2026.
 
 ## React
 
@@ -123,9 +123,14 @@ Researched on March 11, 2026.
 
 - GitHub Actions checkout action: https://github.com/actions/checkout
 - GitHub Actions setup-node action: https://github.com/actions/setup-node
+- GitHub Docs, workflow syntax for GitHub Actions: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+- GitHub Docs, events that trigger workflows: https://docs.github.com/en/actions/reference/events-that-trigger-workflows
+- GitHub Docs, automatic token authentication: https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication
 - GitHub Docs, issue templates: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
 - GitHub Docs, pull request templates: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
 - GitHub Docs, CODEOWNERS: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+- GitHub Docs, protected branches: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+- GitHub Docs, merge queue: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue
 - GitHub Docs, rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository
 - GitHub Docs, dependency graph: https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/enabling-the-dependency-graph
 - GitHub Docs, secret scanning: https://docs.github.com/en/code-security/how-tos/secure-your-secrets/detect-secret-leaks/enabling-secret-scanning-for-your-repository
@@ -157,3 +162,12 @@ Researched on March 11, 2026.
 - Prisma migrate diff docs: https://www.prisma.io/docs/orm/reference/prisma-cli-reference#migrate-diff
 - Prisma driver adapters docs: https://www.prisma.io/docs/orm/overview/databases/database-drivers
 - SQLite write-ahead logging docs: https://sqlite.org/wal.html
+
+## Planning And Backlog Research
+
+- Scrum Guides, "The Scrum Guide" (Product Backlog refinement, description, order, and size): https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf
+- GitHub Docs, "About fields in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-fields-in-projects
+- GitHub Docs, "About iterations in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-iterations
+- Microsoft Learn, "About work items and work item types": https://learn.microsoft.com/en-us/azure/devops/boards/work-items/about-work-items?view=azure-devops
+- Microsoft Learn, "Link work items to track dependencies": https://learn.microsoft.com/en-us/azure/devops/boards/backlogs/add-link?view=azure-devops
+- Atlassian, "Backlog refinement: 7 best practices for agile teams": https://www.atlassian.com/agile/project-management/backlog-refinement-meeting

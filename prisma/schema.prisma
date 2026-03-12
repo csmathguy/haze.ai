@@ -143,3 +143,97 @@ model QuestionnaireResponse {
   @@index([sourceDocumentId])
   @@index([sourceGapId])
 }
+
+model PlanWorkItem {
+  id                    String                    @id
+  sequence              Int                       @unique
+  title                 String
+  summary               String
+  kind                  String
+  priority              String
+  status                String
+  targetIteration       String?
+  owner                 String?
+  auditWorkflowRunId    String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  acceptanceCriteria    PlanAcceptanceCriterion[]
+  blockedByDependencies WorkItemDependency[]      @relation("BlockedWorkItem")
+  blockingDependencies  WorkItemDependency[]      @relation("BlockingWorkItem")
+  planRuns              PlanRun[]
+  tasks                 PlanWorkItemTask[]
+
+  @@index([priority])
+  @@index([status])
+  @@index([updatedAt])
+}
+
+model PlanWorkItemTask {
+  id         String       @id
+  workItemId String
+  sequence   Int
+  title      String
+  status     String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  workItem   PlanWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@index([workItemId])
+  @@unique([workItemId, sequence])
+}
+
+model PlanAcceptanceCriterion {
+  id         String       @id
+  workItemId String
+  sequence   Int
+  title      String
+  status     String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  workItem   PlanWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@index([workItemId])
+  @@unique([workItemId, sequence])
+}
+
+model PlanRun {
+  id                 String     @id
+  workItemId         String
+  mode               String
+  status             String
+  summary            String
+  auditWorkflowRunId String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  steps              PlanStep[]
+  workItem           PlanWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@index([workItemId])
+  @@index([status])
+}
+
+model PlanStep {
+  id        String   @id
+  planRunId String
+  sequence  Int
+  phase     String
+  title     String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  planRun   PlanRun  @relation(fields: [planRunId], references: [id], onDelete: Cascade)
+
+  @@index([planRunId])
+  @@unique([planRunId, sequence])
+}
+
+model WorkItemDependency {
+  blockedWorkItemId  String
+  blockingWorkItemId String
+  createdAt          DateTime     @default(now())
+  blockedWorkItem    PlanWorkItem @relation("BlockedWorkItem", fields: [blockedWorkItemId], references: [id], onDelete: Cascade)
+  blockingWorkItem   PlanWorkItem @relation("BlockingWorkItem", fields: [blockingWorkItemId], references: [id], onDelete: Cascade)
+
+  @@id([blockedWorkItemId, blockingWorkItemId])
+  @@index([blockingWorkItemId])
+}

@@ -3,6 +3,7 @@
 ## Files Added In-Repo
 
 - `.github/workflows/ci.yml`
+- `.github/workflows/pr-hygiene.yml`
 - `.github/dependabot.yml`
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/pull_request_template.md`
@@ -23,6 +24,7 @@ Create a branch ruleset for `main` with:
 
 - require pull requests before merging
 - require at least one approval
+- require review from code owners
 - require status checks before merging
 - require branches to be up to date before merging
 - require conversation resolution before merging
@@ -30,7 +32,15 @@ Create a branch ruleset for `main` with:
 - block branch deletion
 - require a linear history
 
-Set the required status check to `quality`, which matches the job name in `.github/workflows/ci.yml`.
+Set the required status checks to:
+
+- `prisma-check`
+- `typecheck`
+- `lint`
+- `stylelint`
+- `test-coverage`
+
+If you enable GitHub's merge queue later, keep `.github/workflows/ci.yml` listening to `merge_group` so those required checks still run for queued merges.
 
 ### Dependency Visibility
 
@@ -48,10 +58,10 @@ Regardless of GitHub plan, treat secret scanning as a backstop, not the primary 
 
 ## Why This Baseline
 
-- CI verifies type safety, linting, tests, and coverage thresholds on pull requests and main-branch pushes.
+- CI verifies Prisma validation, type safety, linting, styling, and coverage in separate required checks on pull requests and main-branch pushes.
 - Dependabot keeps action and npm versions moving without manual tracking.
-- Templates and Copilot instructions standardize triage, review quality, and agent-authored PR descriptions.
-- CODEOWNERS and a ruleset give GitHub enough structure to enforce review policy once enabled.
+- The PR hygiene workflow validates the repository's required PR sections before review on non-draft pull requests.
+- Templates, Copilot instructions, and CODEOWNERS give GitHub enough structure to request review automatically and keep review quality consistent once the ruleset is enabled.
 
 ## Pull Request Review Quality
 

@@ -10,10 +10,10 @@ export default defineConfig({
         statements: 80
       },
       include: [
-        "apps/api/src/app.ts",
-        "apps/api/src/services/**/*.ts",
-        "apps/web/src/app/api.ts",
-        "apps/web/src/app/index.ts",
+        "apps/taxes/api/src/app.ts",
+        "apps/taxes/api/src/services/**/*.ts",
+        "apps/taxes/web/src/app/api.ts",
+        "apps/taxes/web/src/app/index.ts",
         "packages/shared/src/assets.ts",
         "packages/shared/src/common.ts",
         "packages/shared/src/documents.ts",

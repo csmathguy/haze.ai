@@ -3,7 +3,7 @@
 ## Before Editing
 
 - Read `docs/architecture.md` and the closest stack-specific guide.
-- Confirm which boundary is affected: `apps/web`, `apps/api`, or `packages/shared`.
+- Confirm which boundary is affected: `apps/*/web`, `apps/*/api`, or `packages/shared`.
 - Decide the test seam before changing behavior.
 - For substantial work, start an audit run with `npm run workflow:start implementation "<summary>"`.
 

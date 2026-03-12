@@ -24,7 +24,7 @@
 ## Guardrails
 
 - Do not use inline `style={{ ... }}` in frontend components.
-- Do not hard-code color literals outside `apps/web/src/theme/`.
+- Do not hard-code color literals outside the owning web app's `apps/<product>/web/src/theme/`.
 - Keep `sx` blocks small. If a block grows past a handful of top-level properties, extract it.
 - Import theme concerns through the public theme entrypoint instead of internal token files.
 - Keep shared visual primitives in reusable components before repeating style patterns.

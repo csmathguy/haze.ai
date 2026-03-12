@@ -31,7 +31,7 @@
 
 ## Styling System
 
-- Treat `apps/web/src/theme/` as the source of truth for palette, typography, shape, and component defaults.
+- Treat each product web app's `apps/<product>/web/src/theme/` directory as the source of truth for palette, typography, shape, and component defaults.
 - Keep reusable visual primitives in `styled()` wrappers or theme overrides before repeating `sx` blocks.
 - Use `sx` for local adjustments only; do not let it become a hidden stylesheet.
 - Use CSS Modules for page layout or larger local CSS where class-based styling is clearer.

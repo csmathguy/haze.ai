@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node ../../tools/runtime/run-npm.cjs run prisma:migrate:deploy && tsx watch src/index.ts",
-    "start": "node ../../tools/runtime/run-npm.cjs run prisma:migrate:deploy && tsx src/index.ts"
+    "dev": "node ../../../tools/runtime/run-npm.cjs run prisma:migrate:deploy && tsx watch src/index.ts",
+    "start": "node ../../../tools/runtime/run-npm.cjs run prisma:migrate:deploy && tsx src/index.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

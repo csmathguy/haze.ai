@@ -11,6 +11,8 @@ Pull requests in this repository should let a reviewer answer four questions qui
 
 That matters more here because a growing share of changes will be produced by agents. The PR body is the human checkpoint.
 
+Non-draft pull requests targeting `main` are also checked by `.github/workflows/pr-hygiene.yml`, which verifies that the required sections below are still present before review proceeds.
+
 ## Required Sections
 
 ### Summary
@@ -73,11 +75,11 @@ That matters more here because a growing share of changes will be produced by ag
 - Review shared contracts before reviewing API or web consumers.
 - Confirm every downstream consumer was updated consistently.
 
-### `apps/api/`
+### `apps/*/api/`
 
 - Focus on request validation, service boundaries, file handling, persistence, and privacy controls.
 
-### `apps/web/`
+### `apps/*/web/`
 
 - Focus on the user workflow, API assumptions, and any reviewer-visible regressions.
 
@@ -114,3 +116,8 @@ node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value
 ```
 
 That command pushes the current branch and creates or updates the PR using the generated review sections plus the validation commands recorded in the current or latest workflow audit summary.
+
+## GitHub Review Automation
+
+- `.github/CODEOWNERS` lets GitHub request the repository owner as a reviewer automatically when a pull request is ready for review.
+- `.github/workflows/pr-hygiene.yml` enforces the required section headings on pull requests so review starts with the expected context.

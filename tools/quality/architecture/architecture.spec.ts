@@ -3,29 +3,29 @@ import { projectFiles } from "archunit";
 
 const allFiles = projectFiles("./tsconfig.arch.json");
 const appFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**");
-const apiFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/api/src/**");
+const apiFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**/api/src/**");
 const sharedFiles = projectFiles("./tsconfig.arch.json").inFolder("packages/shared/src/**");
 const toolFiles = projectFiles("./tsconfig.arch.json").inFolder("tools/**");
-const webFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/web/src/**");
+const webFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**/web/src/**");
 
 describe("architecture rules", () => {
   it("prevents frontend code from importing backend implementation details", async () => {
     await expect(
       allFiles
-        .inFolder("apps/web/src/**")
+        .inFolder("apps/**/web/src/**")
         .shouldNot()
         .dependOnFiles()
-        .inFolder("apps/api/src/**")
+        .inFolder("apps/**/api/src/**")
     ).toPassAsync();
   });
 
   it("prevents backend code from importing frontend implementation details", async () => {
     await expect(
       allFiles
-        .inFolder("apps/api/src/**")
+        .inFolder("apps/**/api/src/**")
         .shouldNot()
         .dependOnFiles()
-        .inFolder("apps/web/src/**")
+        .inFolder("apps/**/web/src/**")
     ).toPassAsync();
   });
 
@@ -61,7 +61,7 @@ describe("architecture rules", () => {
 
     await expect(
       webFiles.should().adhereTo(
-        (file) => file.path.includes("apps/web/src/theme/") || !themeTokenImportPattern.test(file.content),
+        (file) => /apps\/[^/]+\/web\/src\/theme\//u.test(file.path) || !themeTokenImportPattern.test(file.content),
         "Web code must import theme concerns through the public theme entrypoint instead of internal token files."
       )
     ).toPassAsync();

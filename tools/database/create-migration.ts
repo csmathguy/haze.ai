@@ -3,8 +3,8 @@ import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
 
-import { DATABASE_URL } from "../../apps/api/src/config.js";
-import { applyPendingMigrations } from "../../apps/api/src/db/migrations.js";
+import { DATABASE_URL } from "../../apps/taxes/api/src/config.js";
+import { applyPendingMigrations } from "../../apps/taxes/api/src/db/migrations.js";
 
 const execFileAsync = promisify(execFile);
 const MIGRATIONS_DIRECTORY = path.resolve("prisma", "migrations");

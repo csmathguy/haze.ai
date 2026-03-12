@@ -29,12 +29,12 @@ export function buildChangedFilePlan(files: string[]): ChangedFilePlan {
       continue;
     }
 
-    if (file.startsWith("apps/api/")) {
+    if (isApiAppFile(file)) {
       scopeSet.add("api");
       continue;
     }
 
-    if (file.startsWith("apps/web/")) {
+    if (isWebAppFile(file)) {
       scopeSet.add("web");
       continue;
     }
@@ -122,6 +122,14 @@ function isRepositoryWideConfig(file: string): boolean {
     file === "stylelint.config.mjs" ||
     file === "vitest.config.ts"
   );
+}
+
+function isApiAppFile(file: string): boolean {
+  return /^apps\/[^/]+\/api\//u.test(file);
+}
+
+function isWebAppFile(file: string): boolean {
+  return /^apps\/[^/]+\/web\//u.test(file);
 }
 
 function isArchitectureRuleFile(file: string): boolean {

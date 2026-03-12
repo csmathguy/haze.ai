@@ -16,8 +16,10 @@ Keep it short enough that an agent can apply it on every turn without loading un
 
 Use nested `AGENTS.md` files for local context where the rules differ by area:
 
-- `apps/api/AGENTS.md`
-- `apps/web/AGENTS.md`
+- `apps/taxes/api/AGENTS.md`
+- `apps/taxes/web/AGENTS.md`
+- `apps/plan/api/AGENTS.md`
+- `apps/plan/web/AGENTS.md`
 - `packages/shared/AGENTS.md`
 - `tools/AGENTS.md`
 
@@ -25,10 +27,12 @@ This follows the pattern described by `agents.md`: the nearest applicable file s
 
 ## Project Skills
 
-This repository defines seven local skills:
+This repository defines eight local skills:
 
 - `implementation-workflow`
   - use for implementation, refactor, testing, and architecture changes
+- `planning-workflow`
+  - use for backlog creation, work decomposition, acceptance criteria capture, and audit-linked planning
 - `ui-design-workflow`
   - use for frontend layout, forms, tables, charts, and MUI usage
 - `workflow-audit`
