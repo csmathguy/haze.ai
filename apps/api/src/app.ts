@@ -6,6 +6,7 @@ import { API_HOST, MAX_UPLOAD_FILE_BYTES } from "./config.js";
 import { disconnectPrismaClient } from "./db/client.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerQuestionnaireRoutes } from "./routes/questionnaire.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import type { WorkspacePersistenceOptions } from "./services/context.js";
 
@@ -27,6 +28,7 @@ export async function buildApp(options: WorkspacePersistenceOptions = {}) {
     await disconnectPrismaClient(options.databaseUrl);
   });
   registerHealthRoutes(app);
+  registerQuestionnaireRoutes(app, options);
   registerWorkspaceRoutes(app, options);
   registerDocumentRoutes(app, options);
 

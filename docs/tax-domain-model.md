@@ -37,6 +37,29 @@ The initial domain is shaped around official IRS forms and guidance:
 - optional source document
 - action label for guided remediation
 
+### Document Extraction
+
+- extractor key and lifecycle status
+- timestamped parsing attempt metadata
+- extracted field collection with confidence, provenance hint, and source page
+- status message describing why a document still needs modeling or review
+
+### Data Gap
+
+- stable id and semantic key
+- source document and optional extracted field linkage
+- gap kind such as missing tax lot, source field, compliance question, or optimization input
+- severity and open or resolved workflow state
+- human-readable title and remediation description
+
+### Questionnaire Prompt And Response
+
+- prompt category such as household, income, asset lots, deductions, compliance, or optimization
+- response type such as boolean, text, select, date, or currency
+- optional source document or source gap linkage
+- current answer value and answer timestamp
+- tax-year scoping so prior-year answers do not silently bleed into current filings
+
 ### Tax Return Draft
 
 - required federal forms
@@ -75,6 +98,8 @@ The initial domain is shaped around official IRS forms and guidance:
 ## Current Scaffold Coverage
 
 - document intake metadata
+- extraction attempt records and open data gaps
+- questionnaire prompt generation based on imported documents and open gaps
 - review queue generation
 - required-form derivation
 - empty asset-lot ledger
@@ -82,8 +107,10 @@ The initial domain is shaped around official IRS forms and guidance:
 
 ## Planned Next Additions
 
-- extraction provenance and confidence scoring
-- transaction history for buys, sells, transfers, and wash-sale-like reconciliations where applicable
+- parser adapters that populate extracted fields for W-2, 1099-INT, 1099-DIV, 1099-B, and crypto exports
+- normalized transaction history for buys, sells, transfers, basis adjustments, and wallet-to-wallet moves
+- explicit provenance links from extracted fields into downstream draft return items
+- questionnaire branches for deductions, carryovers, filing elections, and state-specific obligations
 - state-specific tax modeling
 - taxpayer elections and carryovers
 - filing packet output models for generated forms and attachments

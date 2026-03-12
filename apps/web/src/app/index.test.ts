@@ -1,13 +1,48 @@
 import { describe, expect, it } from "vitest";
+import type { WorkspaceSnapshot } from "@taxes/shared";
 
 import { buildReviewBanner, buildScenarioChartData, formatScenarioTax, summarizeRequiredForms } from "./index.js";
+
+function createWorkspaceSnapshot(overrides: Partial<WorkspaceSnapshot>): WorkspaceSnapshot {
+  return {
+    assetLots: [],
+    dataGaps: [],
+    documents: [],
+    draft: {
+      deductionItems: [],
+      household: {
+        filingStatus: "single",
+        hasDigitalAssets: false,
+        primaryTaxpayer: "Local owner",
+        stateResidence: "NY",
+        taxYear: 2025
+      },
+      incomeItems: [],
+      notes: [],
+      requiredForms: ["1040"]
+    },
+    extractions: [],
+    generatedAt: "2026-03-10T23:00:00.000Z",
+    household: {
+      filingStatus: "single",
+      hasDigitalAssets: false,
+      primaryTaxpayer: "Local owner",
+      stateResidence: "NY",
+      taxYear: 2025
+    },
+    localOnly: true,
+    questionnaire: [],
+    reviewQueue: [],
+    scenarios: [],
+    ...overrides
+  };
+}
 
 describe("buildReviewBanner", () => {
   it("uses a warning banner when the workspace has blocking review tasks", () => {
     expect(
-      buildReviewBanner({
-        assetLots: [],
-        documents: [],
+      buildReviewBanner(
+        createWorkspaceSnapshot({
         draft: {
           deductionItems: [],
           household: {
@@ -41,6 +76,7 @@ describe("buildReviewBanner", () => {
         ],
         scenarios: []
       })
+      )
     ).toEqual({
       emphasis: "warning",
       message: "1 review checkpoint(s) need attention before the imported values can be trusted for filing or lot optimization."
@@ -49,9 +85,8 @@ describe("buildReviewBanner", () => {
 
   it("uses an informational banner for an empty workspace", () => {
     expect(
-      buildReviewBanner({
-        assetLots: [],
-        documents: [],
+      buildReviewBanner(
+        createWorkspaceSnapshot({
         draft: {
           deductionItems: [],
           household: {
@@ -77,6 +112,7 @@ describe("buildReviewBanner", () => {
         reviewQueue: [],
         scenarios: []
       })
+      )
     ).toEqual({
       emphasis: "info",
       message: "The workspace is ready for document intake. Uploaded files will stay local and generate review steps as needed."
@@ -87,9 +123,8 @@ describe("buildReviewBanner", () => {
 describe("summarizeRequiredForms", () => {
   it("renders the current draft form list for dashboard cards", () => {
     expect(
-      summarizeRequiredForms({
-        assetLots: [],
-        documents: [],
+      summarizeRequiredForms(
+        createWorkspaceSnapshot({
         draft: {
           deductionItems: [],
           household: {
@@ -115,6 +150,7 @@ describe("summarizeRequiredForms", () => {
         reviewQueue: [],
         scenarios: []
       })
+      )
     ).toBe("1040, schedule-b");
   });
 });

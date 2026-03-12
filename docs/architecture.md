@@ -58,8 +58,9 @@ tools/
 2. Detect document type and select an extractor strategy.
 3. Convert raw content into normalized intermediate text or structured fields.
 4. Run tax-domain mappers that translate extraction output into domain entities.
-5. Persist reviewable results plus provenance metadata.
-6. Surface uncertain fields in the frontend for manual confirmation.
+5. Persist extraction runs, extracted fields, open data gaps, and questionnaire responses.
+6. Surface uncertain fields in the frontend for manual confirmation and guided remediation.
+7. Feed reconciled facts into lot tracking, tax-law modeling, and generated filing artifacts.
 
 ## Persistence Rules
 
@@ -74,10 +75,11 @@ tools/
   - `GET /api/health` for local runtime checks
   - `GET /api/workspace` for the current tax workspace snapshot
   - `POST /api/documents` for local multipart file intake
+  - `POST /api/questionnaire-responses` for guided gap-remediation answers
 - `apps/web`
-  - Vite-based React shell with upload, document ledger, review queue, and scenario surfaces
+  - Vite-based React shell with upload, document ledger, review queue, questionnaire, and scenario surfaces
 - `packages/shared`
-  - tax-domain schemas for documents, lots, review tasks, scenarios, and return drafts
+  - tax-domain schemas for documents, extractions, gaps, questionnaire prompts, lots, review tasks, scenarios, and return drafts
 
 ## Extraction Guidance
 

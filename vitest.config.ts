@@ -12,18 +12,22 @@ export default defineConfig({
       include: [
         "apps/api/src/app.ts",
         "apps/api/src/services/**/*.ts",
+        "apps/web/src/app/api.ts",
         "apps/web/src/app/index.ts",
         "packages/shared/src/assets.ts",
         "packages/shared/src/common.ts",
         "packages/shared/src/documents.ts",
+        "packages/shared/src/extraction.ts",
+        "packages/shared/src/questionnaire.ts",
         "packages/shared/src/tax-return.ts",
         "packages/shared/src/workspace.ts"
       ],
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
-      exclude: ["**/*.d.ts", "**/*.test.*", "**/*.spec.*"]
+      exclude: ["**/*.d.ts", "**/*.test.*", "**/*.spec.*", ".worktrees/**", "artifacts/**", "node_modules/**"]
     },
     environment: "node",
+    exclude: [".worktrees/**", "artifacts/**", "coverage/**", "dist/**", "node_modules/**"],
     globals: true,
     include: ["**/*.{test,spec}.ts"],
     passWithNoTests: false,

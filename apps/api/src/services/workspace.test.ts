@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { TestWorkspaceContext } from "../test/database.js";
 import { createTestWorkspaceContext } from "../test/database.js";
 import { saveUploadedDocument } from "./document-store.js";
+import { saveQuestionnaireResponse } from "./questionnaire.js";
 import { getWorkspaceSnapshot } from "./workspace.js";
 
 describe("getWorkspaceSnapshot", () => {
@@ -21,7 +22,10 @@ describe("getWorkspaceSnapshot", () => {
     const snapshot = await getWorkspaceSnapshot(workspace);
 
     expect(snapshot.localOnly).toBe(true);
+    expect(snapshot.dataGaps).toEqual([]);
     expect(snapshot.documents).toEqual([]);
+    expect(snapshot.extractions).toEqual([]);
+    expect(snapshot.questionnaire.length).toBeGreaterThan(0);
     expect(snapshot.reviewQueue).toEqual([]);
     expect(snapshot.draft.requiredForms).toEqual(["1040"]);
   });
@@ -31,11 +35,30 @@ describe("getWorkspaceSnapshot", () => {
     workspaces.push(workspace);
 
     await saveUploadedDocument(createMultipartFile("coinbase-wallet-export.csv"), 2025, workspace);
+    await saveQuestionnaireResponse(
+      {
+        promptKey: "optimization-lot-selection-preference",
+        taxYear: 2025,
+        value: "highest-basis"
+      },
+      workspace
+    );
 
     const snapshot = await getWorkspaceSnapshot(workspace);
 
     expect(snapshot.household.hasDigitalAssets).toBe(true);
+    expect(snapshot.dataGaps.length).toBeGreaterThan(0);
     expect(snapshot.draft.requiredForms).toEqual(["1040", "schedule-d", "form-8949"]);
+    expect(snapshot.extractions).toEqual([
+      expect.objectContaining({
+        documentId: snapshot.documents[0]?.id,
+        extractorKey: "intake/crypto-wallet-export",
+        status: "pending"
+      })
+    ]);
+    expect(snapshot.questionnaire.find((prompt) => prompt.key === "optimization-lot-selection-preference")?.currentValue).toBe(
+      "highest-basis"
+    );
     expect(snapshot.reviewQueue.length).toBeGreaterThan(0);
   });
 });

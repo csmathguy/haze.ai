@@ -27,7 +27,11 @@ model ImportedDocument {
   status         String
   taxYear        Int
   importedAt     DateTime
+  extractedFields ExtractedField[]
+  extractions    DocumentExtraction[]
+  gaps           DataGap[]
   missingFacts   MissingFact[]
+  questionnaireResponses QuestionnaireResponse[]
   assetLots      AssetLot[]
 
   @@index([importedAt])
@@ -63,4 +67,79 @@ model AssetLot {
 
   @@index([assetKey, acquiredOn])
   @@index([sourceDocumentId])
+}
+
+model DocumentExtraction {
+  id            String           @id
+  documentId    String
+  extractorKey  String
+  status        String
+  statusMessage String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  parsedAt      DateTime?
+  document      ImportedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  fields        ExtractedField[]
+
+  @@index([documentId])
+  @@index([status])
+}
+
+model ExtractedField {
+  id             String             @id
+  extractionId   String
+  documentId     String
+  key            String
+  label          String
+  valueType      String
+  rawValue       String
+  normalizedValue String?
+  confidence     String
+  taxRelevance   String
+  isMissing      Boolean            @default(false)
+  sourcePage     Int?
+  provenanceHint String?
+  extraction     DocumentExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  document       ImportedDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  gaps           DataGap[]
+
+  @@index([documentId])
+  @@index([extractionId])
+}
+
+model DataGap {
+  id              String          @id
+  documentId      String?
+  extractedFieldId String?
+  gapKind         String
+  key             String
+  title           String
+  description     String
+  severity        String
+  status          String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  document        ImportedDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extractedField  ExtractedField? @relation(fields: [extractedFieldId], references: [id], onDelete: SetNull)
+  questionnaireResponses QuestionnaireResponse[]
+
+  @@index([documentId])
+  @@index([extractedFieldId])
+  @@index([status])
+}
+
+model QuestionnaireResponse {
+  id              String           @id
+  promptKey       String
+  taxYear         Int
+  value           String
+  answeredAt      DateTime         @default(now())
+  sourceDocumentId String?
+  sourceGapId     String?
+  sourceDocument  ImportedDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sourceGap       DataGap?         @relation(fields: [sourceGapId], references: [id], onDelete: SetNull)
+
+  @@index([promptKey, taxYear])
+  @@index([sourceDocumentId])
+  @@index([sourceGapId])
 }

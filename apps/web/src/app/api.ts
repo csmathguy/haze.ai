@@ -11,6 +11,14 @@ interface UploadResponse {
   };
 }
 
+export interface SaveQuestionnaireResponseInput {
+  promptKey: string;
+  sourceDocumentId?: string;
+  sourceGapId?: string;
+  taxYear: number;
+  value: string;
+}
+
 export async function fetchWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   const response = await fetch("/api/workspace");
 
@@ -38,4 +46,18 @@ export async function uploadTaxDocument(file: File): Promise<string> {
 
   const payload = (await response.json()) as UploadResponse;
   return payload.document.id;
+}
+
+export async function saveQuestionnaireResponse(input: SaveQuestionnaireResponseInput): Promise<void> {
+  const response = await fetch("/api/questionnaire-responses", {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Questionnaire save failed with ${response.status.toString()}.`);
+  }
 }

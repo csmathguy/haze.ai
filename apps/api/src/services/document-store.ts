@@ -11,7 +11,7 @@ import {
   type ImportedDocument
 } from "@taxes/shared";
 import type { MultipartFile } from "@fastify/multipart";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { getPrismaClient } from "../db/client.js";
 import type { WorkspacePersistenceOptions } from "./context.js";
@@ -88,12 +88,66 @@ export async function saveUploadedDocument(
       },
       include: importedDocumentInclude
     });
+    await seedDocumentIntakeArtifacts(prisma, document);
 
     return mapImportedDocument(savedDocument);
   } catch (error) {
     await rm(storedFilePath, { force: true });
     throw error;
   }
+}
+
+async function seedDocumentIntakeArtifacts(prisma: PrismaClient, document: ImportedDocument): Promise<void> {
+  await prisma.documentExtraction.create({
+    data: {
+      documentId: document.id,
+      extractorKey: inferExtractorKey(document),
+      id: `${document.id}-extraction`,
+      status: "pending",
+      statusMessage: inferExtractionStatusMessage(document)
+    }
+  });
+  await prisma.dataGap.createMany({
+    data: document.missingFacts.map((fact, index) => ({
+      description: fact.reason,
+      documentId: document.id,
+      gapKind: inferGapKind(document.kind, fact.key),
+      id: `${document.id}-gap-${(index + 1).toString()}`,
+      key: fact.key,
+      severity: fact.severity,
+      status: "open",
+      title: `${document.fileName}: ${fact.label}`
+    }))
+  });
+}
+
+function inferExtractionStatusMessage(document: ImportedDocument): string {
+  if (document.mimeType.includes("csv")) {
+    return "CSV and tabular extraction can be layered in with a local parser adapter for this document family.";
+  }
+
+  return "Document queued for local extraction modeling. A parser adapter has not been implemented for this format yet.";
+}
+
+function inferExtractorKey(document: ImportedDocument): string {
+  return `intake/${document.kind}`;
+}
+
+function inferGapKind(documentKind: ImportedDocument["kind"], factKey: string): "document-classification" | "missing-source-field" | "missing-tax-lot" {
+  if (factKey === "document-classification" || factKey === "field-mapping-review") {
+    return "document-classification";
+  }
+
+  if (
+    documentKind === "1099-b" ||
+    documentKind === "1099-da" ||
+    documentKind === "brokerage-statement" ||
+    documentKind === "crypto-wallet-export"
+  ) {
+    return "missing-tax-lot";
+  }
+
+  return "missing-source-field";
 }
 
 interface CreateImportedDocumentInput {

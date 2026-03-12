@@ -3,6 +3,8 @@ import { z } from "zod";
 import { AssetLotSchema, TaxScenarioSchema } from "./assets.js";
 import { ReviewSeveritySchema } from "./common.js";
 import { ImportedDocumentSchema } from "./documents.js";
+import { DataGapSchema, DocumentExtractionSchema } from "./extraction.js";
+import { QuestionnairePromptSchema } from "./questionnaire.js";
 import { HouseholdProfileSchema, TaxReturnDraftSchema } from "./tax-return.js";
 
 export const ReviewTaskSchema = z.object({
@@ -15,11 +17,14 @@ export const ReviewTaskSchema = z.object({
 });
 export const WorkspaceSnapshotSchema = z.object({
   assetLots: z.array(AssetLotSchema),
+  dataGaps: z.array(DataGapSchema),
   documents: z.array(ImportedDocumentSchema),
   draft: TaxReturnDraftSchema,
+  extractions: z.array(DocumentExtractionSchema),
   generatedAt: z.iso.datetime(),
   household: HouseholdProfileSchema,
   localOnly: z.literal(true),
+  questionnaire: z.array(QuestionnairePromptSchema),
   reviewQueue: z.array(ReviewTaskSchema),
   scenarios: z.array(TaxScenarioSchema)
 });

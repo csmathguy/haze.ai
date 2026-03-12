@@ -85,6 +85,7 @@ These are intentionally strict enough to push decomposition early without forcin
 - Vitest is the default unit test runner.
 - V8 coverage is enabled through `npm run test:coverage`.
 - `vitest related --run` is used by the changed-file guardrail script for focused source changes.
+- Vitest excludes `.worktrees/`, `node_modules/`, `artifacts/`, and other generated folders so parallel worktrees and third-party package tests do not contaminate branch validation.
 - `npm run prisma:check` validates `schema.prisma` and regenerates the Prisma client.
 - `npm run prisma:migrate:dev -- --name <change-name>` creates a checked-in SQL migration from schema changes.
 - `npm run stylelint` enforces frontend CSS and CSS Module rules.

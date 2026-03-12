@@ -34,3 +34,12 @@
 - SQLite runs in WAL mode with foreign keys enabled for the local metadata store.
 - Tests should use isolated SQLite files and apply the checked-in migrations before exercising persistence code.
 - Prisma validation and client generation are part of the repository guardrails through `npm run prisma:check`.
+- The repo-local Prisma generate script clears stale generated client output before rebuilding so runtime delegates stay aligned with `schema.prisma`.
+
+## Current Persistence Coverage
+
+- imported document metadata and missing-fact placeholders
+- extraction runs and extracted fields
+- open data gaps tied to documents or extracted fields
+- questionnaire responses tied to the active tax year
+- household profile and asset-lot ledger

@@ -1,8 +1,11 @@
 import {
   AssetLotSchema,
+  buildQuestionnairePrompts,
   createEmptyTaxReturnDraft,
-  createReviewTasksFromDocuments,
+  createReviewTasksFromDataGaps,
+  DataGapSchema,
   deriveRequiredForms,
+  DocumentExtractionSchema,
   HouseholdProfileSchema,
   makeUsd,
   type TaxScenario,
@@ -19,6 +22,33 @@ export async function getWorkspaceSnapshot(options: WorkspacePersistenceOptions 
   const prisma = await getPrismaClient(options.databaseUrl);
   const documents = await listImportedDocuments(options);
   const activeTaxYear = inferActiveTaxYear();
+  const state = await loadWorkspaceState(prisma, activeTaxYear);
+  const household = buildHouseholdProfile(state.storedHousehold, documents);
+  const parsedGaps = mapDataGaps(state.gaps);
+  const draft = buildDraft(documents, household);
+
+  return {
+    assetLots: mapAssetLots(state.assetLots),
+    dataGaps: parsedGaps,
+    documents,
+    draft,
+    extractions: mapDocumentExtractions(state.extractions),
+    generatedAt: new Date().toISOString(),
+    household,
+    localOnly: true,
+    questionnaire: buildQuestionnairePrompts({
+      documents,
+      gaps: parsedGaps,
+      household,
+      responses: mapQuestionnaireResponses(state.questionnaireResponses),
+      taxYear: household.taxYear
+    }),
+    reviewQueue: createReviewTasksFromDataGaps(parsedGaps),
+    scenarios: buildScenarioTemplates()
+  };
+}
+
+async function loadWorkspaceState(prisma: Awaited<ReturnType<typeof getPrismaClient>>, activeTaxYear: number) {
   const storedHousehold = await prisma.householdProfile.upsert({
     create: createDefaultHousehold(activeTaxYear),
     update: {},
@@ -29,43 +59,36 @@ export async function getWorkspaceSnapshot(options: WorkspacePersistenceOptions 
   const assetLots = await prisma.assetLot.findMany({
     orderBy: [{ assetKey: "asc" }, { acquiredOn: "asc" }]
   });
-  const household = HouseholdProfileSchema.parse({
-    filingStatus: storedHousehold.filingStatus,
-    hasDigitalAssets:
-      storedHousehold.hasDigitalAssets ||
-      documents.some((document) => document.kind === "1099-da" || document.kind === "crypto-wallet-export"),
-    primaryTaxpayer: storedHousehold.primaryTaxpayer,
-    stateResidence: storedHousehold.stateResidence,
-    taxYear: storedHousehold.taxYear
+  const extractions = await prisma.documentExtraction.findMany({
+    include: {
+      fields: {
+        orderBy: {
+          key: "asc"
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
   });
-  const draft = createEmptyTaxReturnDraft(household.taxYear);
-
-  draft.household = household;
-  draft.requiredForms = deriveRequiredForms(documents);
-  draft.notes = buildDraftNotes(documents);
+  const gaps = await prisma.dataGap.findMany({
+    orderBy: [{ status: "asc" }, { createdAt: "asc" }]
+  });
+  const questionnaireResponses = await prisma.questionnaireResponse.findMany({
+    orderBy: {
+      answeredAt: "desc"
+    },
+    where: {
+      taxYear: activeTaxYear
+    }
+  });
 
   return {
-    assetLots: assetLots.map((lot) =>
-      AssetLotSchema.parse({
-        accountName: lot.accountName,
-        acquiredOn: lot.acquiredOn,
-        assetKey: lot.assetKey,
-        assetKind: lot.assetKind,
-        costBasis: makeUsd(lot.costBasisInCents),
-        displayName: lot.displayName,
-        holdingTerm: lot.holdingTerm,
-        id: lot.id,
-        quantity: lot.quantity,
-        sourceDocumentId: lot.sourceDocumentId ?? undefined
-      })
-    ),
-    documents,
-    draft,
-    generatedAt: new Date().toISOString(),
-    household,
-    localOnly: true,
-    reviewQueue: createReviewTasksFromDocuments(documents),
-    scenarios: buildScenarioTemplates()
+    assetLots,
+    extractions,
+    gaps,
+    questionnaireResponses,
+    storedHousehold
   };
 }
 
@@ -76,8 +99,100 @@ function buildDraftNotes(documents: WorkspaceSnapshot["documents"]): string[] {
 
   return [
     `${documents.length.toString()} document(s) uploaded for review.`,
-    "Line-item extraction, lot matching, and tax law modeling will be layered onto this scaffold next."
+    "Structured extraction records, questionnaire prompts, and lot-reconciliation gaps are now part of the local workspace model."
   ];
+}
+
+function buildDraft(documents: WorkspaceSnapshot["documents"], household: WorkspaceSnapshot["household"]) {
+  const draft = createEmptyTaxReturnDraft(household.taxYear);
+
+  draft.household = household;
+  draft.requiredForms = deriveRequiredForms(documents);
+  draft.notes = buildDraftNotes(documents);
+
+  return draft;
+}
+
+function buildHouseholdProfile(storedHousehold: WorkspaceState["storedHousehold"], documents: WorkspaceSnapshot["documents"]) {
+  return HouseholdProfileSchema.parse({
+    filingStatus: storedHousehold.filingStatus,
+    hasDigitalAssets:
+      storedHousehold.hasDigitalAssets ||
+      documents.some((document) => document.kind === "1099-da" || document.kind === "crypto-wallet-export"),
+    primaryTaxpayer: storedHousehold.primaryTaxpayer,
+    stateResidence: storedHousehold.stateResidence,
+    taxYear: storedHousehold.taxYear
+  });
+}
+
+function mapAssetLots(assetLots: WorkspaceState["assetLots"]) {
+  return assetLots.map((lot) =>
+    AssetLotSchema.parse({
+      accountName: lot.accountName,
+      acquiredOn: lot.acquiredOn,
+      assetKey: lot.assetKey,
+      assetKind: lot.assetKind,
+      costBasis: makeUsd(lot.costBasisInCents),
+      displayName: lot.displayName,
+      holdingTerm: lot.holdingTerm,
+      id: lot.id,
+      quantity: lot.quantity,
+      sourceDocumentId: lot.sourceDocumentId ?? undefined
+    })
+  );
+}
+
+function mapDataGaps(gaps: WorkspaceState["gaps"]) {
+  return gaps.map((gap) =>
+    DataGapSchema.parse({
+      description: gap.description,
+      documentId: gap.documentId ?? undefined,
+      extractedFieldId: gap.extractedFieldId ?? undefined,
+      gapKind: gap.gapKind,
+      id: gap.id,
+      key: gap.key,
+      severity: gap.severity,
+      status: gap.status,
+      title: gap.title
+    })
+  );
+}
+
+function mapDocumentExtractions(extractions: WorkspaceState["extractions"]) {
+  return extractions.map((extraction) =>
+    DocumentExtractionSchema.parse({
+      createdAt: extraction.createdAt.toISOString(),
+      documentId: extraction.documentId,
+      extractorKey: extraction.extractorKey,
+      fields: extraction.fields.map((field) => ({
+        confidence: field.confidence,
+        id: field.id,
+        isMissing: field.isMissing,
+        key: field.key,
+        label: field.label,
+        normalizedValue: field.normalizedValue ?? undefined,
+        provenanceHint: field.provenanceHint ?? undefined,
+        rawValue: field.rawValue,
+        sourceDocumentId: field.documentId,
+        sourcePage: field.sourcePage ?? undefined,
+        taxRelevance: field.taxRelevance,
+        valueType: field.valueType
+      })),
+      id: extraction.id,
+      parsedAt: extraction.parsedAt?.toISOString(),
+      status: extraction.status,
+      statusMessage: extraction.statusMessage ?? undefined,
+      updatedAt: extraction.updatedAt.toISOString()
+    })
+  );
+}
+
+function mapQuestionnaireResponses(questionnaireResponses: WorkspaceState["questionnaireResponses"]) {
+  return questionnaireResponses.map((response) => ({
+    answeredAt: response.answeredAt.toISOString(),
+    promptKey: response.promptKey,
+    value: response.value
+  }));
 }
 
 function buildScenarioTemplates(): TaxScenario[] {
@@ -126,3 +241,5 @@ function createDefaultHousehold(taxYear: number) {
     taxYear
   };
 }
+
+type WorkspaceState = Awaited<ReturnType<typeof loadWorkspaceState>>;
