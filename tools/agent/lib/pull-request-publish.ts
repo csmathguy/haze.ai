@@ -81,7 +81,7 @@ function appendUniqueValidationCommands(
   commands: string[]
 ): void {
   for (const step of summary.steps) {
-    const command = step.command.join(" ").trim();
+    const command = normalizeValidationCommand(step.command);
 
     if (command.length === 0 || seen.has(command)) {
       continue;
@@ -152,4 +152,46 @@ function renderAreaDetails(area: PullRequestArea): string | undefined {
   }
 
   return details.map((detail) => `  - ${detail}`).join("\n");
+}
+
+function normalizeValidationCommand(command: string[]): string {
+  return normalizeCommandTokens(command).join(" ").trim();
+}
+
+function normalizeCommandTokens(command: string[]): string[] {
+  if (command.length === 0) {
+    return [];
+  }
+
+  const first = command[0];
+  const second = command[1];
+
+  if (first !== undefined && second !== undefined && isNodeExecutable(first) && isNpmCliPath(second)) {
+    return ["npm", ...command.slice(2)];
+  }
+
+  if (first !== undefined && isNpmExecutable(first)) {
+    return ["npm", ...command.slice(1)];
+  }
+
+  return [...command];
+}
+
+function isNodeExecutable(value: string): boolean {
+  const executable = getExecutableName(value);
+  return executable === "node" || executable === "node.exe";
+}
+
+function isNpmExecutable(value: string): boolean {
+  const executable = getExecutableName(value);
+  return executable === "npm" || executable === "npm.cmd" || executable === "npm.ps1";
+}
+
+function isNpmCliPath(value: string): boolean {
+  return getExecutableName(value) === "npm-cli.js";
+}
+
+function getExecutableName(value: string): string {
+  const segments = value.split(/[\\/]/u);
+  return (segments[segments.length - 1] ?? "").toLowerCase();
 }

@@ -80,6 +80,63 @@ describe("collectValidationCommands", () => {
       "node tools/runtime/run-npm.cjs run pr:draft -- --staged"
     ]);
   });
+
+  it("normalizes node-plus-npm-cli audit commands into stable npm invocations", () => {
+    const summary = {
+      steps: [
+        {
+          command: [
+            "C:\\Users\\csmat\\AppData\\Local\\nvm\\v24.14.0\\node.exe",
+            "C:\\Users\\csmat\\AppData\\Local\\nvm\\v24.14.0\\node_modules\\npm\\bin\\npm-cli.js",
+            "run",
+            "typecheck"
+          ],
+          durationMs: 1,
+          exitCode: 0,
+          logFile: "logs/typecheck.log",
+          startedAt: "2026-03-11T20:00:00.000Z",
+          status: "success",
+          step: "typecheck"
+        },
+        {
+          command: [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+            "run",
+            "typecheck"
+          ],
+          durationMs: 1,
+          exitCode: 0,
+          logFile: "logs/typecheck-second.log",
+          startedAt: "2026-03-11T20:01:00.000Z",
+          status: "success",
+          step: "typecheck-duplicate"
+        },
+        {
+          command: [
+            "C:\\Users\\csmat\\AppData\\Local\\nvm\\v24.14.0\\node.exe",
+            "C:\\Users\\csmat\\AppData\\Local\\nvm\\v24.14.0\\node_modules\\npm\\bin\\npm-cli.js",
+            "exec",
+            "eslint",
+            "--",
+            "--max-warnings=0",
+            "tools/agent/pull-request-sync.ts"
+          ],
+          durationMs: 1,
+          exitCode: 0,
+          logFile: "logs/eslint.log",
+          startedAt: "2026-03-11T20:02:00.000Z",
+          status: "success",
+          step: "eslint"
+        }
+      ]
+    } satisfies Pick<AuditSummary, "steps">;
+
+    expect(collectValidationCommands(summary)).toEqual([
+      "npm run typecheck",
+      "npm exec eslint -- --max-warnings=0 tools/agent/pull-request-sync.ts"
+    ]);
+  });
 });
 
 describe("collectValidationCommandsFromSummaries", () => {
