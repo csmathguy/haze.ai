@@ -24,6 +24,11 @@ export const appTheme = createTheme({
         }
       }
     },
+    MuiStack: {
+      defaultProps: {
+        useFlexGap: true
+      }
+    },
     MuiChip: {
       styleOverrides: {
         label: {
@@ -39,6 +44,7 @@ export const appTheme = createTheme({
     }
   },
   cssVariables: true,
+  spacing: 4,
   palette: {
     background: colorTokens.background,
     primary: {
