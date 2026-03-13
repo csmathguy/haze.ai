@@ -166,8 +166,10 @@ Researched on March 12, 2026.
 ## Planning And Backlog Research
 
 - Scrum Guides, "The Scrum Guide" (Product Backlog refinement, description, order, and size): https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf
+- Kanban Guides, "The Kanban Guide": https://kanbanguides.org/english/
 - GitHub Docs, "About fields in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-fields-in-projects
 - GitHub Docs, "About iterations in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-iterations
 - Microsoft Learn, "About work items and work item types": https://learn.microsoft.com/en-us/azure/devops/boards/work-items/about-work-items?view=azure-devops
 - Microsoft Learn, "Link work items to track dependencies": https://learn.microsoft.com/en-us/azure/devops/boards/backlogs/add-link?view=azure-devops
 - Atlassian, "Backlog refinement: 7 best practices for agile teams": https://www.atlassian.com/agile/project-management/backlog-refinement-meeting
+- OpenAI, "A practical guide to building agents": https://openai.com/index/a-practical-guide-to-building-agents/

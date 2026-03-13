@@ -1,0 +1,3 @@
+interface:
+  display_name: "Planning Session"
+  short_description: "Run agent planning sessions well"

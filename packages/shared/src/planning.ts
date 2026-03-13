@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+export const ProjectKeySchema = z.string().regex(/^[a-z][a-z0-9-]{1,31}$/u);
 export const WorkItemIdSchema = z.string().regex(/^PLAN-\d+$/u);
 export const WorkItemKindSchema = z.enum(["epic", "feature", "maintenance", "spike", "task"]);
 export const WorkItemPrioritySchema = z.enum(["critical", "high", "medium", "low"]);
@@ -40,6 +41,15 @@ export const PlanRunSchema = z.object({
   summary: z.string().min(1),
   updatedAt: z.iso.datetime()
 });
+export const PlanningProjectSchema = z.object({
+  createdAt: z.iso.datetime(),
+  description: z.string().min(1).optional(),
+  isActive: z.boolean(),
+  key: ProjectKeySchema,
+  name: z.string().min(1),
+  sortOrder: z.int().nonnegative(),
+  updatedAt: z.iso.datetime()
+});
 export const WorkItemSchema = z.object({
   acceptanceCriteria: z.array(AcceptanceCriterionSchema),
   auditWorkflowRunId: z.string().min(1).optional(),
@@ -50,6 +60,7 @@ export const WorkItemSchema = z.object({
   owner: z.string().min(1).optional(),
   planRuns: z.array(PlanRunSchema),
   priority: WorkItemPrioritySchema,
+  projectKey: ProjectKeySchema,
   status: WorkItemStatusSchema,
   summary: z.string().min(1),
   targetIteration: z.string().min(1).optional(),
@@ -68,10 +79,16 @@ export const PlanningWorkspaceSummarySchema = z.object({
 export const PlanningWorkspaceSchema = z.object({
   generatedAt: z.iso.datetime(),
   localOnly: z.literal(true),
+  projects: z.array(PlanningProjectSchema),
   summary: PlanningWorkspaceSummarySchema,
   workItems: z.array(WorkItemSchema)
 });
 
+export const CreatePlanningProjectInputSchema = z.object({
+  description: z.string().min(1).optional(),
+  key: ProjectKeySchema,
+  name: z.string().min(1)
+});
 export const CreatePlanRunInputSchema = z.object({
   auditWorkflowRunId: z.string().min(1).optional(),
   mode: PlanRunModeSchema,
@@ -86,6 +103,7 @@ export const CreateWorkItemInputSchema = z.object({
   owner: z.string().min(1).optional(),
   plan: CreatePlanRunInputSchema.optional(),
   priority: WorkItemPrioritySchema,
+  projectKey: ProjectKeySchema,
   summary: z.string().min(1),
   targetIteration: z.string().min(1).optional(),
   tasks: z.array(z.string().min(1)).default([]),
@@ -93,15 +111,25 @@ export const CreateWorkItemInputSchema = z.object({
 });
 export const UpdateWorkItemInputSchema = z
   .object({
+    acceptanceCriteriaAdditions: z.array(z.string().min(1)).min(1).optional(),
     auditWorkflowRunId: z.string().min(1).optional().nullable(),
+    blockedByWorkItemIds: z.array(WorkItemIdSchema).optional(),
     owner: z.string().min(1).optional().nullable(),
+    plan: CreatePlanRunInputSchema.optional(),
     priority: WorkItemPrioritySchema.optional(),
+    projectKey: ProjectKeySchema.optional(),
     status: WorkItemStatusSchema.optional(),
-    targetIteration: z.string().min(1).optional().nullable()
+    summary: z.string().min(1).optional(),
+    taskAdditions: z.array(z.string().min(1)).min(1).optional(),
+    targetIteration: z.string().min(1).optional().nullable(),
+    title: z.string().min(1).optional()
   })
   .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
     message: "Provide at least one field to update."
   });
+export const NextWorkItemInputSchema = z.object({
+  projectKey: ProjectKeySchema.optional()
+});
 export const UpdateWorkItemTaskStatusInputSchema = z.object({
   status: WorkItemTaskStatusSchema
 });
@@ -111,18 +139,24 @@ export const UpdateAcceptanceCriterionStatusInputSchema = z.object({
 
 export type AcceptanceCriterion = z.infer<typeof AcceptanceCriterionSchema>;
 export type AcceptanceCriterionStatus = z.infer<typeof AcceptanceCriterionStatusSchema>;
+export type CreatePlanningProjectDraftInput = z.input<typeof CreatePlanningProjectInputSchema>;
+export type CreatePlanningProjectInput = z.infer<typeof CreatePlanningProjectInputSchema>;
 export type CreatePlanRunDraftInput = z.input<typeof CreatePlanRunInputSchema>;
 export type CreatePlanRunInput = z.infer<typeof CreatePlanRunInputSchema>;
 export type CreateWorkItemDraftInput = z.input<typeof CreateWorkItemInputSchema>;
 export type CreateWorkItemInput = z.infer<typeof CreateWorkItemInputSchema>;
+export type NextWorkItemDraftInput = z.input<typeof NextWorkItemInputSchema>;
+export type NextWorkItemInput = z.infer<typeof NextWorkItemInputSchema>;
 export type PlanRun = z.infer<typeof PlanRunSchema>;
 export type PlanRunMode = z.infer<typeof PlanRunModeSchema>;
 export type PlanRunStatus = z.infer<typeof PlanRunStatusSchema>;
 export type PlanStep = z.infer<typeof PlanStepSchema>;
 export type PlanStepPhase = z.infer<typeof PlanStepPhaseSchema>;
 export type PlanStepStatus = z.infer<typeof PlanStepStatusSchema>;
+export type PlanningProject = z.infer<typeof PlanningProjectSchema>;
 export type PlanningWorkspace = z.infer<typeof PlanningWorkspaceSchema>;
 export type PlanningWorkspaceSummary = z.infer<typeof PlanningWorkspaceSummarySchema>;
+export type ProjectKey = z.infer<typeof ProjectKeySchema>;
 export type UpdateAcceptanceCriterionStatusPatchInput = z.input<typeof UpdateAcceptanceCriterionStatusInputSchema>;
 export type UpdateAcceptanceCriterionStatusInput = z.infer<typeof UpdateAcceptanceCriterionStatusInputSchema>;
 export type UpdateWorkItemPatchInput = z.input<typeof UpdateWorkItemInputSchema>;

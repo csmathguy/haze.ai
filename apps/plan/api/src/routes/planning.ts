@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import {
+  CreatePlanningProjectInputSchema,
   CreateWorkItemInputSchema,
+  NextWorkItemInputSchema,
   UpdateAcceptanceCriterionStatusInputSchema,
   UpdateWorkItemInputSchema,
   UpdateWorkItemTaskStatusInputSchema
@@ -9,8 +11,11 @@ import type { ZodType } from "zod";
 
 import type { PlanningPersistenceOptions } from "../services/context.js";
 import {
+  createPlanningProject,
   createWorkItem,
+  getNextWorkItem,
   getPlanningWorkspace,
+  PlanningConflictError,
   PlanningNotFoundError,
   updateAcceptanceCriterionStatus,
   updateTaskStatus,
@@ -21,6 +26,18 @@ export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPe
   app.get("/api/planning/workspace", async () => ({
     workspace: await getPlanningWorkspace(options)
   }));
+
+  app.post("/api/planning/projects", async (request, reply) => {
+    try {
+      const input = readBody(request.body, CreatePlanningProjectInputSchema);
+      const project = await createPlanningProject(input, options);
+
+      reply.code(201);
+      return { project };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
 
   app.post("/api/planning/work-items", async (request, reply) => {
     try {
@@ -34,13 +51,23 @@ export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPe
     }
   });
 
+  app.get("/api/planning/work-items/next", async (request, reply) => {
+    try {
+      const input = NextWorkItemInputSchema.parse(request.query);
+      return {
+        workItem: await getNextWorkItem(input, options)
+      };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   app.patch("/api/planning/work-items/:workItemId", async (request, reply) => {
     try {
       const input = readBody(request.body, UpdateWorkItemInputSchema);
-      await updateWorkItem((request.params as { workItemId: string }).workItemId, input, options);
+      const workItem = await updateWorkItem((request.params as { workItemId: string }).workItemId, input, options);
 
-      reply.code(204);
-      return await reply.send();
+      return { workItem };
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -78,6 +105,11 @@ function readBody<T>(body: unknown, schema: ZodType<T>): T {
 }
 
 function sendDomainError(reply: FastifyReply, error: unknown) {
+  if (error instanceof PlanningConflictError) {
+    reply.code(409);
+    return { error: error.message };
+  }
+
   if (error instanceof PlanningNotFoundError) {
     reply.code(404);
     return { error: error.message };

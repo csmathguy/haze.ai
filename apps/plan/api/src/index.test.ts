@@ -30,6 +30,7 @@ describe("plan buildApp", () => {
 
     expect(response.statusCode).toBe(200);
     expect(payload.workspace.localOnly).toBe(true);
+    expect(payload.workspace.projects.map((project) => project.key)).toEqual(["planning", "audit", "taxes"]);
     expect(payload.workspace.summary.totalItems).toBe(0);
     expect(payload.workspace.workItems).toEqual([]);
 
@@ -74,6 +75,7 @@ describe("plan buildApp", () => {
           summary: "Initial plan for work item orchestration."
         },
         priority: "high",
+        projectKey: "planning",
         summary: "Store work items, tasks, criteria, and plan steps in a shared local backlog.",
         targetIteration: "2026-W11",
         tasks: ["Design the schema", "Expose the API", "Build the backlog view"],
@@ -97,6 +99,7 @@ describe("plan buildApp", () => {
         id: "PLAN-1",
         kind: "feature",
         priority: "high",
+        projectKey: "planning",
         status: "backlog",
         targetIteration: "2026-W11",
         title: "Planning backlog foundation"
@@ -107,6 +110,59 @@ describe("plan buildApp", () => {
     expect(createdItem?.planRuns[0]?.steps).toHaveLength(3);
     expect(createdItem?.tasks).toHaveLength(3);
     expect(payload.workspace.summary.totalItems).toBe(1);
+
+    await app.close();
+  });
+
+  it("creates custom projects and returns the next actionable item", async () => {
+    const workspace = await createTestPlanningContext("plan-build-app-next");
+    workspaces.push(workspace);
+    const app = await buildApp(workspace);
+
+    const projectResponse = await app.inject({
+      method: "POST",
+      payload: {
+        description: "Internal ops and workflow platform work.",
+        key: "ops",
+        name: "Operations"
+      },
+      url: "/api/planning/projects"
+    });
+    expect(projectResponse.statusCode).toBe(201);
+
+    const readyResponse = await app.inject({
+      method: "POST",
+      payload: {
+        kind: "task",
+        priority: "high",
+        projectKey: "planning",
+        summary: "Render the first Kanban board slice.",
+        title: "Kanban board MVP"
+      },
+      url: "/api/planning/work-items"
+    });
+    const readyPayload: { workItem: { id: string } } = readyResponse.json();
+    await app.inject({
+      method: "PATCH",
+      payload: {
+        status: "ready"
+      },
+      url: `/api/planning/work-items/${readyPayload.workItem.id}`
+    });
+
+    const nextResponse = await app.inject({
+      method: "GET",
+      url: "/api/planning/work-items/next?projectKey=planning"
+    });
+    const nextPayload: { workItem: { id: string; projectKey: string } | null } = nextResponse.json();
+
+    expect(nextResponse.statusCode).toBe(200);
+    expect(nextPayload.workItem).toEqual(
+      expect.objectContaining({
+        id: readyPayload.workItem.id,
+        projectKey: "planning"
+      })
+    );
 
     await app.close();
   });

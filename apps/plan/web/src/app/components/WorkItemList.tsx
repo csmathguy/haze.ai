@@ -44,7 +44,7 @@ export function WorkItemList({ onSelect, selectedWorkItemId, workItems }: WorkIt
 }
 
 function renderWorkItemSummary(workItem: WorkItem): string {
-  return `${workItem.id} - ${workItem.kind} - ${workItem.priority}`;
+  return `${workItem.id} - ${workItem.projectKey} - ${workItem.kind} - ${workItem.priority}`;
 }
 
 function renderTaskProgress(workItem: WorkItem): string {
