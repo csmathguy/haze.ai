@@ -1,0 +1,6 @@
+interface:
+  display_name: "Parallel Work Implementer"
+  short_description: "Execute a single scoped slice in its own worktree"
+  default_prompt: "Use $parallel-work-implementer to complete one managed parallel slice in this repo."
+policy:
+  allow_implicit_invocation: true

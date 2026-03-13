@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import {
   appendAuditEvent,
   clearActiveRun,
@@ -10,6 +12,11 @@ import {
   setActiveRun,
   writeSummary
 } from "./lib/audit.js";
+import {
+  createDirtyWorktreeMessage,
+  createMissingPullRequestMessage,
+  getCompletionRequirements
+} from "./lib/pull-request-publish.js";
 
 type CommandName = "end" | "note" | "start";
 
@@ -71,6 +78,7 @@ async function writeWorkflowNote(workflow: string, message: string): Promise<voi
 }
 
 async function endWorkflow(workflow: string, status: "failed" | "success", message?: string): Promise<void> {
+  ensureWorkflowCanClose(workflow, status);
   const runId = await getExistingRunId(workflow);
   const paths = await ensureAuditPaths(runId);
   const summary = (await readSummary(paths)) ?? createWorkflowSummary(runId, workflow);
@@ -91,6 +99,67 @@ async function endWorkflow(workflow: string, status: "failed" | "success", messa
     )
   );
   await clearActiveRun(workflow);
+}
+
+function ensureWorkflowCanClose(workflow: string, status: "failed" | "success"): void {
+  const worktreeDirty = isWorktreeDirty();
+  const completionRequirements = getCompletionRequirements({
+    commitsAhead: getCommitsAhead("main"),
+    status,
+    workflow,
+    worktreeDirty
+  });
+
+  if (completionRequirements.requiresCleanWorktree && worktreeDirty) {
+    throw new Error(createDirtyWorktreeMessage());
+  }
+
+  if (completionRequirements.requiresPullRequest && !hasOpenPullRequestForCurrentBranch()) {
+    throw new Error(createMissingPullRequestMessage());
+  }
+}
+
+function isWorktreeDirty(): boolean {
+  return runGit(["status", "--porcelain"]).trim().length > 0;
+}
+
+function getCommitsAhead(baseBranch: string): number {
+  const compareRef = resolveCompareRef(baseBranch);
+  return Number(runGit(["rev-list", "--count", `${compareRef}..HEAD`]).trim());
+}
+
+function resolveCompareRef(baseBranch: string): string {
+  try {
+    runGit(["rev-parse", "--verify", `origin/${baseBranch}`], "ignore");
+    return `origin/${baseBranch}`;
+  } catch {
+    return baseBranch;
+  }
+}
+
+function hasOpenPullRequestForCurrentBranch(): boolean {
+  const branch = runGit(["branch", "--show-current"]).trim();
+
+  if (branch.length === 0 || branch === "HEAD" || branch === "main") {
+    return false;
+  }
+
+  const stdout = execFileSync("gh", ["pr", "list", "--state", "open", "--head", branch, "--json", "number"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+  const pullRequests = JSON.parse(stdout) as { number: number }[];
+
+  return pullRequests.length > 0;
+}
+
+function runGit(args: string[], stdio: "ignore" | "pipe" = "pipe"): string {
+  return execFileSync("git", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio
+  });
 }
 
 async function getExistingRunId(workflow: string): Promise<string> {

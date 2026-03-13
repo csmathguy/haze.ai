@@ -65,13 +65,20 @@ Researched on March 11, 2026.
 
 - Agents.md project: https://agents.md/
 - Agents.md docs, nested agent files and closest-file behavior: https://agents.md/
+- OpenAI Codex docs, AGENTS.md: https://developers.openai.com/codex/agents.md
+- OpenAI Codex docs, multi-agents: https://developers.openai.com/codex/multi-agents
+- OpenAI Codex docs, skills: https://developers.openai.com/codex/skills
 - Anthropic Claude Code memory docs: https://docs.anthropic.com/en/docs/claude-code/memory
 - Anthropic Claude Code hooks docs: https://docs.anthropic.com/en/docs/claude-code/hooks
+- Anthropic Claude Code subagents docs: https://docs.anthropic.com/en/docs/claude-code/sub-agents
+- Anthropic engineering, Claude Code best practices: https://www.anthropic.com/engineering/claude-code-best-practices
 - OpenAI Codex repository docs: https://github.com/openai/codex
 - OpenAI skills catalog: https://github.com/openai/skills
 - OpenAI curated `figma` skill: https://github.com/openai/skills/tree/main/skills/.curated/figma
 - OpenAI curated `figma-implement-design` skill: https://github.com/openai/skills/tree/main/skills/.curated/figma-implement-design
 - OpenAI curated skills catalog checked via local `skill-installer` helper on March 11, 2026
+- Git worktree docs: https://git-scm.com/docs/git-worktree
+- GitHub Docs, merge queue: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue
 - Microsoft Learn, "Semantic Kernel Filters": https://learn.microsoft.com/en-us/semantic-kernel/concepts/enterprise-readiness/filters
 - Microsoft Learn, "Function Invocation": https://learn.microsoft.com/en-us/semantic-kernel/concepts/ai-services/chat-completion/function-calling/function-invocation
 - Microsoft Learn, "Semantic Kernel Components": https://learn.microsoft.com/en-us/semantic-kernel/concepts/semantic-kernel-components
@@ -96,6 +103,12 @@ Researched on March 11, 2026.
 
 - simple-git-hooks package: https://github.com/toplenboren/simple-git-hooks
 - simple-git-hooks npm package: https://www.npmjs.com/package/simple-git-hooks
+
+## Retrospectives And Postmortems
+
+- Scrum Guides, "The Scrum Guide": https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf
+- Atlassian Team Playbook, "Retrospective": https://www.atlassian.com/team-playbook/plays/retrospective
+- Google SRE, "Postmortem Culture: Learning from Failure": https://sre.google/resources/practices-and-processes/postmortem-culture-learning-from-failure/
 
 ## Pull Requests And Review Quality
 

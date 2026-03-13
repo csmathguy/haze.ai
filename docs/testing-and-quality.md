@@ -28,6 +28,24 @@ Git hooks also enforce the workflow:
 
 That keeps fast feedback on staged files while reserving the full suite for branch publication.
 
+## Definition Of Done
+
+Implementation work is not done just because the code passes locally. For branch-ready changes, definition of done includes:
+
+- the intended behavior or documentation outcome is complete
+- the strongest relevant validation has passed
+- the worktree is clean because the finished change was committed in atomic commits
+- the branch is pushed
+- the branch has an open pull request that follows `docs/pull-request-standards.md`
+
+Use this command for the publication step:
+
+```powershell
+node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed
+```
+
+`npm run workflow:end implementation success` now treats a clean worktree and an open PR as completion requirements when the branch has commits ahead of `main`.
+
 ## Enforced Budgets
 
 The current repository guardrails enforce these defaults:

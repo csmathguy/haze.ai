@@ -19,6 +19,8 @@ artifacts/
 generated/
 tmp/
 temp/
+.worktrees/
+.codex-local/
 
 apps/web/.vercel/
 apps/api/storage/

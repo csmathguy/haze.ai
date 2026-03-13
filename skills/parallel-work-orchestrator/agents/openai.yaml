@@ -1,0 +1,6 @@
+interface:
+  display_name: "Parallel Work Orchestrator"
+  short_description: "Plan parallel agent slices and managed worktrees"
+  default_prompt: "Use $parallel-work-orchestrator to split broad work into conflict-resistant slices for this repo."
+policy:
+  allow_implicit_invocation: true

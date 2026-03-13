@@ -9,6 +9,8 @@
 - Use `skills/implementation-workflow` for code changes, refactors, tests, build tooling, or architecture work.
 - Use `skills/ui-design-workflow` for frontend UX, component design, charting, layout, accessibility, or MUI theming work.
 - Use `skills/workflow-audit` when a task needs explicit workflow start/end logging, audited command execution, or a reviewable command trail.
+- Use `skills/parallel-work-orchestrator` when work should be split into multiple agents or worktrees.
+- Use `skills/parallel-work-implementer` when an agent is executing one bounded slice inside its own worktree.
 - Use `skills/research-agent` when a task needs external research, source comparison, documentation best-practice review, or tax-law research planning with dated citations.
 
 ## Required Workflow
@@ -28,7 +30,9 @@
    - Full tests with `npm test` or architecture-only tests with `npm run test:arch`
    - Use `npm run quality:logged -- implementation` when you want a single audited full guardrail run
 9. Close audited work with `npm run workflow:end implementation success` or `failed`.
-10. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
+9. When the task produces branch-ready changes, make atomic commits, push the branch, and create or update the pull request before claiming the work is done. Use `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed`.
+10. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
+11. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
 ## Architecture Rules
 - Keep a strict separation between `apps/web`, `apps/api`, and `packages/shared`.

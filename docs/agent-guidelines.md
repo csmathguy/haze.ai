@@ -25,7 +25,7 @@ This follows the pattern described by `agents.md`: the nearest applicable file s
 
 ## Project Skills
 
-This repository defines four local skills:
+This repository defines seven local skills:
 
 - `implementation-workflow`
   - use for implementation, refactor, testing, and architecture changes
@@ -33,8 +33,14 @@ This repository defines four local skills:
   - use for frontend layout, forms, tables, charts, and MUI usage
 - `workflow-audit`
   - use for audited workflow start/end logging and deterministic guardrail execution
+- `parallel-work-orchestrator`
+  - use for slicing work across multiple agents and managed worktrees
+- `parallel-work-implementer`
+  - use for carrying one bounded slice through implementation and handoff
 - `research-agent`
   - use for external research, source comparison, documentation drafting input, and tax-law research planning
+- `workflow-retrospective`
+  - use for audit-backed retrospectives, workflow debriefs, and follow-up action capture under `artifacts/retrospectives`
 
 Each skill keeps the core workflow in `SKILL.md` and pushes extra detail into `references/` so the agent only loads more context when needed.
 

@@ -100,3 +100,17 @@ node tools/runtime/run-npm.cjs run pr:draft
 ```
 
 The helper does not replace author judgment. It only suggests structure, review order, and likely risk areas from the changed paths.
+
+## Publication Workflow
+
+For branch-ready work, PR creation is part of definition of done, not a follow-up request.
+
+1. Finish the implementation and run the required validation.
+2. Commit the finished work in atomic commits so the worktree is clean.
+3. Run:
+
+```powershell
+node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed
+```
+
+That command pushes the current branch and creates or updates the PR using the generated review sections plus the validation commands recorded in the current or latest workflow audit summary.

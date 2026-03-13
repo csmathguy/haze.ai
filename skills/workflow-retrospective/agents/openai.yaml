@@ -1,0 +1,6 @@
+interface:
+  display_name: "Workflow Retrospective"
+  short_description: "Write evidence-backed workflow retrospectives"
+  default_prompt: "Use $workflow-retrospective to review an audited run, identify improvement opportunities, and write a retrospective artifact."
+policy:
+  allow_implicit_invocation: true
