@@ -3,9 +3,7 @@ import {
   Alert,
   Box,
   Container,
-  MenuItem,
   Stack,
-  TextField,
   Typography
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -159,7 +157,7 @@ function usePlanningActions({
   setErrorMessage,
   setSuccessMessage
 }: PlanningActionsOptions) {
-  async function handleCreateWorkItem(input: CreateWorkItemDraftInput): Promise<void> {
+  async function handleCreateWorkItem(input: CreateWorkItemDraftInput): Promise<boolean> {
     setErrorMessage(null);
     setSuccessMessage(null);
 
@@ -167,8 +165,10 @@ function usePlanningActions({
       await createPlanningWorkItem(input);
       setSuccessMessage("Planning work item saved.");
       await refreshWorkspace();
+      return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to save planning work item.");
+      return false;
     }
   }
 
@@ -255,7 +255,7 @@ async function runWorkspaceMutation(options: WorkspaceMutationOptions): Promise<
 
 interface PlanningPageLayoutProps {
   readonly errorMessage: string | null;
-  readonly handleCreateWorkItem: (input: CreateWorkItemDraftInput) => Promise<void>;
+  readonly handleCreateWorkItem: (input: CreateWorkItemDraftInput) => Promise<boolean>;
   readonly handleCriterionToggle: (criterionId: string, checked: boolean) => Promise<void>;
   readonly handleStatusChange: (status: WorkItemStatus) => Promise<void>;
   readonly handleTaskToggle: (taskId: string, checked: boolean) => Promise<void>;
@@ -310,15 +310,11 @@ function PlanningPageLayout({
             handleStatusChange={handleStatusChange}
             handleTaskToggle={handleTaskToggle}
             isBusy={isBusy}
-            projectScopeBar={
-              <ProjectScopeBar
-                projects={workspace?.projects ?? []}
-                selectedProjectKey={selectedProjectKey}
-                setSelectedProjectKey={setSelectedProjectKey}
-              />
-            }
+            projects={workspace?.projects ?? []}
+            selectedProjectKey={selectedProjectKey}
             selectedWorkItem={selectedWorkItem}
             selectedWorkItemId={selectedWorkItemId}
+            setSelectedProjectKey={setSelectedProjectKey}
             setSelectedWorkItemId={setSelectedWorkItemId}
             visibleWorkItems={visibleWorkItems}
             workspace={workspace}
@@ -326,37 +322,5 @@ function PlanningPageLayout({
         </Stack>
       </Container>
     </Box>
-  );
-}
-
-interface ProjectScopeBarProps {
-  readonly projects: PlanningWorkspace["projects"];
-  readonly selectedProjectKey: string;
-  readonly setSelectedProjectKey: (projectKey: string) => void;
-}
-
-function ProjectScopeBar({ projects, selectedProjectKey, setSelectedProjectKey }: ProjectScopeBarProps) {
-  return (
-    <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
-      <Typography color="text.secondary">
-        Filter the backlog by project while keeping one shared planning database across worktrees.
-      </Typography>
-      <TextField
-        label="Project scope"
-        onChange={(event) => {
-          setSelectedProjectKey(event.target.value);
-        }}
-        select
-        sx={{ minWidth: 220 }}
-        value={selectedProjectKey}
-      >
-        <MenuItem value="all">All projects</MenuItem>
-        {projects.map((project) => (
-          <MenuItem key={project.key} value={project.key}>
-            {project.name}
-          </MenuItem>
-        ))}
-      </TextField>
-    </Stack>
   );
 }

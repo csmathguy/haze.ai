@@ -26,11 +26,21 @@ const DEFAULT_FORM_STATE = {
 
 interface CreateWorkItemFormProps {
   readonly disabled: boolean;
-  readonly onSubmit: (input: CreateWorkItemDraftInput) => Promise<void>;
+  readonly onSubmit: (input: CreateWorkItemDraftInput) => Promise<boolean>;
   readonly projects: PlanningProject[];
+  readonly showTitle?: boolean;
+  readonly submitLabel?: string;
+  readonly surface?: "paper" | "plain";
 }
 
-export function CreateWorkItemForm({ disabled, onSubmit, projects }: CreateWorkItemFormProps) {
+export function CreateWorkItemForm({
+  disabled,
+  onSubmit,
+  projects,
+  showTitle = true,
+  submitLabel = "Save work item",
+  surface = "paper"
+}: CreateWorkItemFormProps) {
   const [formState, setFormState] = useState(DEFAULT_FORM_STATE);
   const handleFieldChange = <Key extends keyof typeof DEFAULT_FORM_STATE>(field: Key, value: (typeof DEFAULT_FORM_STATE)[Key]) => {
     setFormState((current) => ({
@@ -44,7 +54,7 @@ export function CreateWorkItemForm({ disabled, onSubmit, projects }: CreateWorkI
     const acceptanceCriteria = parseMultilineInput(formState.acceptanceCriteriaText);
     const planSteps = parseMultilineInput(formState.planStepsText);
 
-    await onSubmit({
+    const wasSaved = await onSubmit({
       acceptanceCriteria,
       auditWorkflowRunId: emptyToUndefined(formState.auditWorkflowRunId),
       kind: formState.kind,
@@ -63,29 +73,36 @@ export function CreateWorkItemForm({ disabled, onSubmit, projects }: CreateWorkI
       tasks,
       title: formState.title.trim()
     });
-    setFormState(DEFAULT_FORM_STATE);
+
+    if (wasSaved) {
+      setFormState(DEFAULT_FORM_STATE);
+    }
   }
 
-  return (
-    <Paper sx={{ p: 3 }}>
-      <Stack spacing={2}>
-        <Typography variant="h2">Create a planning work item</Typography>
-        <BasicFieldsSection formState={formState} onFieldChange={handleFieldChange} />
-        <MetadataFieldsSection formState={formState} onFieldChange={handleFieldChange} projects={projects} />
-        <TaskFieldsSection formState={formState} onFieldChange={handleFieldChange} />
-        <PlanFieldsSection formState={formState} onFieldChange={handleFieldChange} />
-        <Button
-          disabled={disabled || formState.title.trim().length === 0 || formState.summary.trim().length === 0}
-          onClick={() => {
-            void handleSubmit();
-          }}
-          variant="contained"
-        >
-          Save work item
-        </Button>
-      </Stack>
-    </Paper>
+  const content = (
+    <Stack spacing={2.5}>
+      {showTitle ? <Typography variant="h2">Create a planning work item</Typography> : null}
+      <BasicFieldsSection formState={formState} onFieldChange={handleFieldChange} />
+      <MetadataFieldsSection formState={formState} onFieldChange={handleFieldChange} projects={projects} />
+      <TaskFieldsSection formState={formState} onFieldChange={handleFieldChange} />
+      <PlanFieldsSection formState={formState} onFieldChange={handleFieldChange} />
+      <Button
+        disabled={disabled || formState.title.trim().length === 0 || formState.summary.trim().length === 0}
+        onClick={() => {
+          void handleSubmit();
+        }}
+        variant="contained"
+      >
+        {submitLabel}
+      </Button>
+    </Stack>
   );
+
+  if (surface === "plain") {
+    return content;
+  }
+
+  return <Paper sx={{ p: 3 }}>{content}</Paper>;
 }
 
 interface FieldSectionProps {
