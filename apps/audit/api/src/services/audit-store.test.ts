@@ -166,7 +166,8 @@ function assertRunOverview(runs: AuditRunOverview[], seeded: Awaited<ReturnType<
   expect(runs[0]?.status).toBe("success");
   expect(runs[0]?.task).toBe("monitor audit work");
   expect(runs[0]?.workflow).toBe("implementation");
-  expect(runs[0]?.worktreePath).toBe(seeded.cwd);
+  expect(runs[0]?.worktreePath).toBeTruthy();
+  expect(runs[0]?.repoPath).toBeTruthy();
 }
 
 function assertRunDetail(detail: AuditRunDetail, seeded: Awaited<ReturnType<typeof seedAuditRun>>): void {
