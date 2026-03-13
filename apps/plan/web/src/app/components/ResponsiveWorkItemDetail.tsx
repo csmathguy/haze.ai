@@ -25,11 +25,11 @@ export function ResponsiveWorkItemDetail({
       description={
         workItem === null
           ? "Pick a card from the board to inspect tasks, criteria, and plan steps."
-          : "Review tasks, criteria, and the latest plan without leaving the board."
+          : `${workItem.id} · ${workItem.projectKey} · ${formatStatusLabel(workItem.status)}`
       }
       onClose={onClose}
       open={open && workItem !== null}
-      title={workItem?.title ?? "Work item detail"}
+      title="Work item detail"
     >
       <WorkItemDetail
         onCriterionToggle={onCriterionToggle}
@@ -40,4 +40,8 @@ export function ResponsiveWorkItemDetail({
       />
     </PlanningSurfaceDrawer>
   );
+}
+
+function formatStatusLabel(status: WorkItemStatus): string {
+  return status.replace("-", " ");
 }

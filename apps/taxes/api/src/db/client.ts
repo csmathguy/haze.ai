@@ -1,8 +1,14 @@
 import { mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import * as path from "node:path";
 
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient as PrismaClientType } from "@prisma/client";
+
+type PrismaClientConstructor = new (...args: unknown[]) => PrismaClientType;
+
+const require = createRequire(import.meta.url);
+const { PrismaClient } = require("@prisma/client") as { PrismaClient: PrismaClientConstructor };
 
 const DEFAULT_DATABASE_URL = process.env.DATABASE_URL ?? "file:./data/sqlite/taxes.db";
 const SQLITE_FILE_PREFIX = "file:";
@@ -12,9 +18,9 @@ const SQLITE_PRAGMA_COMMANDS = [
   "PRAGMA journal_mode = WAL",
   "PRAGMA synchronous = NORMAL"
 ] as const;
-const clients = new Map<string, PrismaClient>();
+const clients = new Map<string, PrismaClientType>();
 
-export async function getPrismaClient(databaseUrl: string = DEFAULT_DATABASE_URL): Promise<PrismaClient> {
+export async function getPrismaClient(databaseUrl: string = DEFAULT_DATABASE_URL): Promise<PrismaClientType> {
   const existingClient = clients.get(databaseUrl);
 
   if (existingClient !== undefined) {
@@ -87,7 +93,7 @@ export function resolveDatabaseFilePath(databaseUrl: string): string {
   return path.resolve(rawPath);
 }
 
-async function applySqlitePragmas(client: PrismaClient, databaseUrl: string): Promise<void> {
+async function applySqlitePragmas(client: PrismaClientType, databaseUrl: string): Promise<void> {
   const pragmas = databaseUrl === ":memory:" ? SQLITE_PRAGMA_COMMANDS.slice(0, 2) : SQLITE_PRAGMA_COMMANDS;
 
   for (const command of pragmas) {

@@ -127,8 +127,12 @@ function WorkItemBoardCard({
         borderColor: selected
           ? theme.palette.primary.main
           : alpha(theme.palette.text.primary, 0.08),
+        boxShadow: selected
+          ? `0 20px 44px -34px ${alpha(theme.palette.primary.main, 0.6)}`
+          : `0 18px 36px -34px ${alpha(theme.palette.text.primary, 0.5)}`,
         "&:hover": {
           borderColor: alpha(theme.palette.primary.main, 0.4),
+          boxShadow: `0 22px 40px -32px ${alpha(theme.palette.primary.main, 0.55)}`,
           transform: "translateY(-1px)"
         }
       }}
@@ -158,7 +162,7 @@ function EmptyColumnState({ title }: { readonly title: string }) {
   return (
     <Paper
       sx={{
-        borderRadius: 4,
+        borderRadius: "20px",
         p: 2
       }}
     >
@@ -176,12 +180,13 @@ function renderTaskProgress(workItem: WorkItem): string {
 
 const boardCardBaseSx = {
   alignItems: "flex-start",
-  borderRadius: 24,
+  borderRadius: "20px",
   borderStyle: "solid",
   borderWidth: 1,
   cursor: "pointer",
   display: "block",
-  padding: 14,
+  overflow: "hidden",
+  padding: "14px",
   textAlign: "left",
   transition: "transform 120ms ease, border-color 120ms ease, background-color 120ms ease",
   width: "100%"

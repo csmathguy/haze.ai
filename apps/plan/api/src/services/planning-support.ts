@@ -29,6 +29,18 @@ const DEFAULT_PROJECTS = [
     key: "taxes",
     name: "Taxes",
     sortOrder: 2
+  },
+  {
+    description: "Human-centered pull request review, trust-building walkthroughs, and diff understanding.",
+    key: "code-review",
+    name: "Code Review",
+    sortOrder: 3
+  },
+  {
+    description: "Agent knowledge, long-term memory, research capture, and human-alignment surfaces.",
+    key: "knowledge",
+    name: "Knowledge",
+    sortOrder: 4
   }
 ] as const;
 export const PLAN_WORK_ITEM_INCLUDE = {
@@ -255,7 +267,7 @@ export async function readProjectSortOrder(client: PrismaClientLike): Promise<Ma
 function buildAcceptanceCriteriaUpdate(
   existingWorkItem: StoredPlanWorkItem,
   input: UpdateWorkItemInput
-): Pick<Prisma.PlanWorkItemUpdateInput, "acceptanceCriteria"> {
+): Prisma.PlanWorkItemUpdateInput {
   if (input.acceptanceCriteriaAdditions === undefined || input.acceptanceCriteriaAdditions.length === 0) {
     return {};
   }
@@ -274,7 +286,7 @@ function buildAcceptanceCriteriaUpdate(
   };
 }
 
-function buildDependencyUpdate(input: UpdateWorkItemInput): Pick<Prisma.PlanWorkItemUpdateInput, "blockedByDependencies"> {
+function buildDependencyUpdate(input: UpdateWorkItemInput): Prisma.PlanWorkItemUpdateInput {
   if (input.blockedByWorkItemIds === undefined) {
     return {};
   }
@@ -289,7 +301,7 @@ function buildDependencyUpdate(input: UpdateWorkItemInput): Pick<Prisma.PlanWork
   };
 }
 
-function buildPlanRunUpdate(input: UpdateWorkItemInput): Pick<Prisma.PlanWorkItemUpdateInput, "planRuns"> {
+function buildPlanRunUpdate(input: UpdateWorkItemInput): Prisma.PlanWorkItemUpdateInput {
   if (input.plan === undefined) {
     return {};
   }
@@ -301,7 +313,7 @@ function buildPlanRunUpdate(input: UpdateWorkItemInput): Pick<Prisma.PlanWorkIte
   };
 }
 
-function buildProjectUpdate(input: UpdateWorkItemInput): Pick<Prisma.PlanWorkItemUpdateInput, "project"> {
+function buildProjectUpdate(input: UpdateWorkItemInput): Prisma.PlanWorkItemUpdateInput {
   if (input.projectKey === undefined) {
     return {};
   }
@@ -330,7 +342,7 @@ function buildScalarUpdateData(input: UpdateWorkItemInput): Prisma.PlanWorkItemU
 function buildTaskUpdate(
   existingWorkItem: StoredPlanWorkItem,
   input: UpdateWorkItemInput
-): Pick<Prisma.PlanWorkItemUpdateInput, "tasks"> {
+): Prisma.PlanWorkItemUpdateInput {
   if (input.taskAdditions === undefined || input.taskAdditions.length === 0) {
     return {};
   }

@@ -39,7 +39,7 @@ export function WorkItemDetail({
   }
 
   const content = (
-    <Stack spacing={3}>
+    <Stack spacing={2.5}>
       <WorkItemHeader onStatusChange={onStatusChange} workItem={workItem} />
       <Divider />
       <ChecklistSection
@@ -79,7 +79,7 @@ function WorkItemHeader({
   workItem
 }: Pick<WorkItemDetailProps, "onStatusChange"> & { readonly workItem: WorkItem }) {
   return (
-    <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
+    <Stack spacing={1.5}>
       <Stack spacing={1}>
         <Typography variant="h3">{workItem.title}</Typography>
         <Typography color="text.secondary" variant="body2">
@@ -93,7 +93,7 @@ function WorkItemHeader({
           void onStatusChange(event.target.value as WorkItemStatus);
         }}
         select
-        sx={{ minWidth: 220 }}
+        sx={{ maxWidth: 240, width: { sm: 240, xs: "100%" } }}
         value={workItem.status}
       >
         {["backlog", "planning", "ready", "in-progress", "blocked", "done", "archived"].map((status) => (

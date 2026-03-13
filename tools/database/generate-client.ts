@@ -3,10 +3,12 @@ import { spawn } from "node:child_process";
 import * as path from "node:path";
 
 const GENERATED_CLIENT_DIRECTORY = path.resolve("node_modules", ".prisma", "client");
+const GENERATED_CLIENT_LINK_DIRECTORY = path.resolve("node_modules", "@prisma", "client", ".prisma");
 const PRISMA_CLI_ENTRYPOINT = path.resolve("node_modules", "prisma", "build", "index.js");
 
 async function main(): Promise<void> {
   await rm(GENERATED_CLIENT_DIRECTORY, { force: true, recursive: true });
+  await rm(GENERATED_CLIENT_LINK_DIRECTORY, { force: true, recursive: true });
   await runPrismaGenerate();
 }
 

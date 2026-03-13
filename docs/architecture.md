@@ -18,6 +18,28 @@ apps/
         hooks/
         theme/
   plan/
+  knowledge/
+    api/
+      src/
+        routes/
+        services/
+        db/
+    web/
+      src/
+        app/
+        components/
+        theme/
+  code-review/
+    api/
+      src/
+        routes/
+        services/
+        adapters/
+    web/
+      src/
+        app/
+        components/
+        theme/
   audit/
     api/
       src/
@@ -104,6 +126,14 @@ tools/
   - `PATCH /api/planning/work-items/:workItemId` for status and audit-reference updates
 - `apps/plan/web`
   - Vite-based React shell for backlog creation, work-item inspection, status updates, and task or acceptance-criteria progress
+- `apps/knowledge/api`
+  - Fastify API for subjects, knowledge entries, and repository-doc synchronization backed by local SQLite
+- `apps/knowledge/web`
+  - Vite-based React shell for browsing long-term memory, research notes, and aligned human or agent knowledge
+- `apps/code-review/api`
+  - Fastify API for the local review workspace scaffold and future GitHub pull-request ingestion
+- `apps/code-review/web`
+  - Vite-based React shell for sectioned PR review lanes, trust checkpoints, and interactive walkthroughs
 - `apps/audit/api`
   - Fastify API for audit run lists, run detail, and SSE event streaming backed by shared SQLite
 - `apps/audit/web`

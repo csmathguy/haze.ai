@@ -27,6 +27,7 @@ import {
   updateTaskStatus,
   updateWorkItem
 } from "../../apps/plan/api/src/services/planning.js";
+import { CODE_REVIEW_SEED_ITEMS } from "./mvp-seed-data.js";
 
 type CommandHandler = (args: string[]) => Promise<unknown>;
 
@@ -122,6 +123,76 @@ const MVP_SEED_ITEMS: SeedWorkItem[] = [
     summary: "Seed the taxes project with backlog conventions that match the planning and audit projects.",
     tasks: ["Identify the first tax workflow improvements", "Capture acceptance criteria", "Validate cross-project selection rules"],
     title: "Taxes project backlog bootstrap"
+  },
+  ...CODE_REVIEW_SEED_ITEMS,
+  {
+    acceptanceCriteria: [
+      "The repository exposes a first-class knowledge project alongside planning, audit, taxes, and code review.",
+      "A local knowledge API and web shell exist with the same validation guardrails as the other products.",
+      "The MVP can store structured human profiles and typed knowledge entries for agent memory."
+    ],
+    blockedByWorkItemIds: [],
+    kind: "feature",
+    plan: {
+      mode: "parallel-agents",
+      steps: [
+        "Research agent memory and knowledge-system patterns",
+        "Design the initial knowledge schema and shared contracts",
+        "Scaffold the API, web app, and migration path for repository docs",
+        "Validate typecheck, lint, tests, and architecture rules"
+      ],
+      summary: "Stand up the first knowledge product slice for long-term agent memory and shared research."
+    },
+    priority: "critical",
+    projectKey: "knowledge",
+    status: "ready",
+    summary:
+      "Create the first knowledge product slice so agents and humans can store and browse long-term memory, research, and notes in a local database instead of scattered docs.",
+    tasks: [
+      "Add the knowledge project type and shared planning support",
+      "Model subjects and knowledge entries for agent memory",
+      "Build the local API and web workspace",
+      "Seed or migrate repository docs into the knowledge store"
+    ],
+    title: "Knowledge product MVP scaffold"
+  },
+  {
+    acceptanceCriteria: [
+      "Knowledge supports explicit relationships across humans, technologies, workflows, and projects.",
+      "Agents can retrieve scoped memory through purpose-built read and write flows instead of broad scans.",
+      "The product records provenance, review state, and freshness for derived knowledge."
+    ],
+    blockedByWorkItemIds: [],
+    kind: "epic",
+    priority: "high",
+    projectKey: "knowledge",
+    summary:
+      "Expand the MVP into a durable memory system with graph relationships, stronger retrieval affordances, and better provenance modeling.",
+    tasks: [
+      "Add relationships and namespace-aware retrieval",
+      "Improve freshness and review workflows",
+      "Introduce richer agent-memory query surfaces"
+    ],
+    title: "Knowledge graph and retrieval expansion"
+  },
+  {
+    acceptanceCriteria: [
+      "Agents can continuously ingest research outputs into knowledge with minimal manual reshaping.",
+      "Existing repository docs have a managed migration or synchronization workflow into knowledge entries.",
+      "Human-facing views can render structured research reports and notes cleanly."
+    ],
+    blockedByWorkItemIds: [],
+    kind: "feature",
+    priority: "high",
+    projectKey: "knowledge",
+    summary:
+      "Build the durable ingestion path from repository research and documentation into the knowledge store so memory stays current.",
+    tasks: [
+      "Design doc-to-entry migration rules",
+      "Add sync tooling for repository docs and research outputs",
+      "Improve structured report rendering in the web app"
+    ],
+    title: "Knowledge ingestion and doc migration pipeline"
   }
 ];
 

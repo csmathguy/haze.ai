@@ -26,7 +26,7 @@ describe("planning service", () => {
     const snapshot = await getPlanningWorkspace(workspace);
 
     expect(snapshot.localOnly).toBe(true);
-    expect(snapshot.projects.map((project) => project.key)).toEqual(["planning", "audit", "taxes"]);
+    expect(snapshot.projects.map((project) => project.key)).toEqual(["planning", "audit", "taxes", "code-review", "knowledge"]);
     expect(snapshot.summary.totalItems).toBe(0);
     expect(snapshot.workItems).toEqual([]);
   });
