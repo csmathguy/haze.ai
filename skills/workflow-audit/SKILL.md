@@ -15,14 +15,16 @@ This skill standardizes how agents record what they ran and when they ran it. Us
 2. Read `references/audit-steps.md`.
 3. Start the workflow with `npm run workflow:start <name> "<summary>"`.
 4. For long-running skills, tools, hooks, or custom operations, open an execution span with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>`.
-5. Add notes during longer tasks with `npm run workflow:note <name> "<note>"`.
-6. Use audited wrapper scripts such as `npm run quality:logged -- <name>`.
-7. Close execution spans with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
-8. End the workflow with `npm run workflow:end <name> success` or `failed`.
+5. When the work includes meaningful choices, outputs, or classified failures, log them explicitly with `npm run audit:decision`, `npm run audit:artifact`, and `npm run audit:failure`.
+6. Add notes during longer tasks with `npm run workflow:note <name> "<note>"`.
+7. Use audited wrapper scripts such as `npm run quality:logged -- <name>`.
+8. Close execution spans with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
+9. End the workflow with `npm run workflow:end <name> success` or `failed`.
 
 ## Key Rules
 
 - Prefer structured audit events over free-form chat summaries when recording work.
+- Prefer typed decision/artifact/failure records over burying those details in workflow notes.
 - Prefer wrapper scripts for repeated guardrail runs.
 - Keep audit data in ignored artifact paths and the shared local audit database.
 - Prefer execution spans over extra workflow names when the work is nested inside an already active workflow.

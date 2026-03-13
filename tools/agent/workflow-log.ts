@@ -7,9 +7,11 @@ import {
   createRunId,
   createWorkflowSummary,
   ensureAuditPaths,
+  getEventContextFields,
   getActiveRunId,
   readSummary,
   setActiveRun,
+  type AuditRunContextFields,
   writeSummary
 } from "./lib/audit.js";
 import {
@@ -31,7 +33,7 @@ async function main(): Promise<void> {
   const workflow = args.workflow;
 
   if (commandName === "start") {
-    await startWorkflow(workflow, args.task);
+    await startWorkflow(workflow, args.task, resolveContextArgs(args));
     return;
   }
 
@@ -47,15 +49,24 @@ async function main(): Promise<void> {
   await endWorkflow(workflow, args.status, args.message);
 }
 
-async function startWorkflow(workflow: string, task?: string): Promise<void> {
+async function startWorkflow(
+  workflow: string,
+  task: string | undefined,
+  context: AuditRunContextFields
+): Promise<void> {
   const runId = createRunId(workflow);
   const paths = await ensureAuditPaths(runId);
-  const summary = createWorkflowSummary(runId, workflow, task);
+  const summary = createWorkflowSummary(runId, workflow, task, context);
 
   await writeSummary(paths, summary);
   await appendAuditEvent(
     paths,
-    createEvent(runId, workflow, "workflow-start", task === undefined ? { status: "running" } : { status: "running", task })
+    createEvent(
+      runId,
+      workflow,
+      "workflow-start",
+      task === undefined ? { ...getEventContextFields(summary), status: "running" } : { ...getEventContextFields(summary), status: "running", task }
+    )
   );
   await setActiveRun(workflow, runId, task);
 
@@ -65,10 +76,12 @@ async function startWorkflow(workflow: string, task?: string): Promise<void> {
 async function writeWorkflowNote(workflow: string, message: string): Promise<void> {
   const runId = await getExistingRunId(workflow);
   const paths = await ensureAuditPaths(runId);
+  const summary = (await readSummary(paths)) ?? createWorkflowSummary(runId, workflow);
 
   await appendAuditEvent(
     paths,
     createEvent(runId, workflow, "workflow-note", {
+      ...getEventContextFields(summary),
       metadata: {
         message
       },
@@ -95,7 +108,7 @@ async function endWorkflow(workflow: string, status: "failed" | "success", messa
       runId,
       workflow,
       "workflow-end",
-      message === undefined ? { status } : { metadata: { message }, status }
+      message === undefined ? { ...getEventContextFields(summary), status } : { ...getEventContextFields(summary), metadata: { message }, status }
     )
   );
   await clearActiveRun(workflow);
@@ -177,10 +190,14 @@ function isCommandName(value: string | undefined): value is CommandName {
 }
 
 interface ParsedArgs {
+  agentName?: string;
   message?: string;
+  project?: string;
+  sessionId?: string;
   status: "failed" | "success";
   task?: string;
   workflow: string;
+  workItemId?: string;
 }
 
 function parseArgs(commandName: CommandName, rawArgs: string[]): ParsedArgs {
@@ -194,14 +211,7 @@ function parseArgs(commandName: CommandName, rawArgs: string[]): ParsedArgs {
 function parseFlagArgs(rawArgs: string[]): ParsedArgs {
   const parsed: Partial<ParsedArgs> = {};
 
-  for (let index = 0; index < rawArgs.length; index += 2) {
-    const key = rawArgs[index];
-    const value = rawArgs[index + 1];
-
-    if (key === undefined || value === undefined || !key.startsWith("--")) {
-      throw new Error("Arguments must be passed as --name value pairs.");
-    }
-
+  for (const [key, value] of toFlagEntries(rawArgs)) {
     assignFlagArg(parsed, key, value);
   }
 
@@ -210,11 +220,32 @@ function parseFlagArgs(rawArgs: string[]): ParsedArgs {
   }
 
   return {
+    ...(parsed.agentName === undefined ? {} : { agentName: parsed.agentName }),
+    ...(parsed.project === undefined ? {} : { project: parsed.project }),
+    ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
     status: parsed.status ?? "success",
     workflow: parsed.workflow,
     ...(parsed.message === undefined ? {} : { message: parsed.message }),
-    ...(parsed.task === undefined ? {} : { task: parsed.task })
+    ...(parsed.task === undefined ? {} : { task: parsed.task }),
+    ...(parsed.workItemId === undefined ? {} : { workItemId: parsed.workItemId })
   };
+}
+
+function toFlagEntries(rawArgs: string[]): [string, string][] {
+  const entries: [string, string][] = [];
+
+  for (let index = 0; index < rawArgs.length; index += 2) {
+    const key = rawArgs[index];
+    const value = rawArgs[index + 1];
+
+    if (key === undefined || value === undefined || !key.startsWith("--")) {
+      throw new Error("Arguments must be passed as --name value pairs.");
+    }
+
+    entries.push([key, value]);
+  }
+
+  return entries;
 }
 
 function parsePositionalArgs(commandName: CommandName, rawArgs: string[]): ParsedArgs {
@@ -272,12 +303,33 @@ function assignFlagArg(parsed: Partial<ParsedArgs>, key: string, value: string):
     case "--message":
       parsed.message = value;
       break;
+    case "--agent-name":
+      parsed.agentName = value;
+      break;
+    case "--project":
+      parsed.project = value;
+      break;
+    case "--session-id":
+      parsed.sessionId = value;
+      break;
     case "--task":
       parsed.task = value;
+      break;
+    case "--work-item-id":
+      parsed.workItemId = value;
       break;
     default:
       throw new Error(`Unknown argument: ${key}`);
   }
+}
+
+function resolveContextArgs(args: ParsedArgs): AuditRunContextFields {
+  return {
+    ...(args.agentName === undefined ? {} : { agentName: args.agentName }),
+    ...(args.project === undefined ? {} : { project: args.project }),
+    ...(args.sessionId === undefined ? {} : { sessionId: args.sessionId }),
+    ...(args.workItemId === undefined ? {} : { workItemId: args.workItemId })
+  };
 }
 
 void main().catch((error: unknown) => {

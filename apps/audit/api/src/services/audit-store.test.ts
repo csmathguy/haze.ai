@@ -6,6 +6,7 @@ import type { AuditEvent, AuditSummary } from "../../../../../tools/agent/lib/au
 import type { TestAuditContext } from "../test/database.js";
 import { createTestAuditContext } from "../test/database.js";
 import {
+  getAuditAnalytics,
   getAuditRunDetail,
   listAuditEventsSince,
   listAuditRuns,
@@ -44,6 +45,14 @@ describe("audit store", () => {
     }
 
     const detail = AuditRunDetailSchema.parse(detailValue);
+    const analytics = await getAuditAnalytics(
+      {
+        limit: 10
+      },
+      {
+        databaseUrl: context.databaseUrl
+      }
+    );
     const recentEvents = AuditEventRecordSchema.array().parse(
       await listAuditEventsSince("2026-03-12T00:00:00.500Z", {
         databaseUrl: context.databaseUrl,
@@ -51,7 +60,15 @@ describe("audit store", () => {
       })
     );
 
-    assertPersistedRun(runs, detail, recentEvents, seeded);
+    assertPersistedRun(
+      {
+        analytics,
+        detail,
+        recentEvents,
+        runs
+      },
+      seeded
+    );
   });
 });
 
@@ -95,12 +112,81 @@ async function seedAuditRun(databaseUrl: string) {
       executionName: "quality-gates",
       status: "success",
       timestamp: "2026-03-12T00:00:03.000Z"
+    },
+    {
+      ...eventBase,
+      eventId: "event-4",
+      eventType: "decision-recorded",
+      executionId: "exec-1",
+      metadata: {
+        category: "transport",
+        decisionId: "decision-1",
+        rationale: "One-way updates are enough for the monitor",
+        selectedOption: "sse",
+        summary: "Use SSE for audit streaming"
+      },
+      status: "running",
+      timestamp: "2026-03-12T00:00:04.000Z"
+    },
+    {
+      ...eventBase,
+      eventId: "event-5",
+      eventType: "artifact-recorded",
+      executionId: "exec-1",
+      metadata: {
+        artifactId: "artifact-1",
+        artifactType: "report",
+        label: "audit roadmap",
+        path: "docs/agent-observability.md",
+        status: "updated"
+      },
+      status: "running",
+      timestamp: "2026-03-12T00:00:05.000Z"
+    },
+    {
+      ...eventBase,
+      eventId: "event-6",
+      eventType: "failure-recorded",
+      executionId: "exec-1",
+      metadata: {
+        category: "environment",
+        detail: "Audit API was started from the wrong working directory",
+        failureId: "failure-1",
+        retryable: true,
+        severity: "medium",
+        status: "open",
+        summary: "Migration directory resolution failed"
+      },
+      status: "running",
+      timestamp: "2026-03-12T00:00:06.000Z"
     }
   ];
   const summary: AuditSummary = {
     actor: "codex",
+    artifacts: [
+      {
+        artifactId: "artifact-1",
+        artifactType: "report",
+        executionId: "exec-1",
+        label: "audit roadmap",
+        path: "docs/agent-observability.md",
+        status: "updated",
+        timestamp: "2026-03-12T00:00:05.000Z"
+      }
+    ],
     completedAt: endedAt,
     cwd,
+    decisions: [
+      {
+        category: "transport",
+        decisionId: "decision-1",
+        executionId: "exec-1",
+        rationale: "One-way updates are enough for the monitor",
+        selectedOption: "sse",
+        summary: "Use SSE for audit streaming",
+        timestamp: "2026-03-12T00:00:04.000Z"
+      }
+    ],
     durationMs: 10000,
     executions: [
       {
@@ -126,6 +212,19 @@ async function seedAuditRun(databaseUrl: string) {
     },
     status: "success",
     steps: [],
+    failures: [
+      {
+        category: "environment",
+        detail: "Audit API was started from the wrong working directory",
+        executionId: "exec-1",
+        failureId: "failure-1",
+        retryable: true,
+        severity: "medium",
+        status: "open",
+        summary: "Migration directory resolution failed",
+        timestamp: "2026-03-12T00:00:06.000Z"
+      }
+    ],
     task: "monitor audit work",
     workflow: "implementation"
   };
@@ -148,24 +247,38 @@ async function seedAuditRun(databaseUrl: string) {
 }
 
 function assertPersistedRun(
-  runs: AuditRunOverview[],
-  detail: AuditRunDetail,
-  recentEvents: AuditEventRecord[],
+  persisted: {
+    analytics: Awaited<ReturnType<typeof getAuditAnalytics>>;
+    detail: AuditRunDetail;
+    recentEvents: AuditEventRecord[];
+    runs: AuditRunOverview[];
+  },
   seeded: Awaited<ReturnType<typeof seedAuditRun>>
 ): void {
-  assertRunOverview(runs, seeded);
-  assertRunDetail(detail, seeded);
-  expect(recentEvents.map((event) => event.eventId)).toEqual(["event-2", "event-3"]);
+  assertRunOverview(persisted.runs, seeded);
+  assertRunDetail(persisted.detail, seeded);
+  expect(persisted.analytics.totals.decisionCount).toBe(1);
+  expect(persisted.analytics.totals.artifactCount).toBe(1);
+  expect(persisted.analytics.totals.failureCount).toBe(1);
+  expect(persisted.analytics.failureCategories[0]?.key).toBe("environment");
+  expect(persisted.recentEvents.map((event) => event.eventId)).toEqual(["event-2", "event-3", "event-4", "event-5", "event-6"]);
 }
 
 function assertRunOverview(runs: AuditRunOverview[], seeded: Awaited<ReturnType<typeof seedAuditRun>>): void {
-  expect(runs[0]?.completedAt).toBe(seeded.endedAt);
-  expect(runs[0]?.executionCount).toBe(1);
-  expect(runs[0]?.failedExecutionCount).toBe(0);
-  expect(runs[0]?.runId).toBe(seeded.runId);
-  expect(runs[0]?.status).toBe("success");
-  expect(runs[0]?.task).toBe("monitor audit work");
-  expect(runs[0]?.workflow).toBe("implementation");
+  expect(runs[0]).toEqual(
+    expect.objectContaining({
+      artifactCount: 1,
+      completedAt: seeded.endedAt,
+      decisionCount: 1,
+      executionCount: 1,
+      failedExecutionCount: 0,
+      failureCount: 1,
+      runId: seeded.runId,
+      status: "success",
+      task: "monitor audit work",
+      workflow: "implementation"
+    })
+  );
   expect(runs[0]?.worktreePath).toBeTruthy();
   expect(runs[0]?.repoPath).toBeTruthy();
 }
@@ -173,9 +286,12 @@ function assertRunOverview(runs: AuditRunOverview[], seeded: Awaited<ReturnType<
 function assertRunDetail(detail: AuditRunDetail, seeded: Awaited<ReturnType<typeof seedAuditRun>>): void {
   expect(detail.events.map((event) => event.eventId)).toContain("event-1");
   expect(detail.events.find((event) => event.eventId === "event-3")?.executionId).toBe("exec-1");
+  expect(detail.decisions[0]?.decisionId).toBe("decision-1");
+  expect(detail.artifacts[0]?.artifactId).toBe("artifact-1");
   expect(detail.executions[0]?.executionId).toBe("exec-1");
   expect(detail.executions[0]?.kind).toBe("validation");
   expect(detail.executions[0]?.status).toBe("success");
+  expect(detail.failures[0]?.failureId).toBe("failure-1");
   expect(detail.run.runId).toBe(seeded.runId);
   expect(detail.run.status).toBe("success");
 }

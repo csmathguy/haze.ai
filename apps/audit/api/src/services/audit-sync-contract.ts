@@ -1,4 +1,6 @@
 export type AuditExecutionKind = "command" | "hook" | "operation" | "skill" | "tool" | "validation";
+export type AuditFailureSeverity = "critical" | "high" | "low" | "medium";
+export type AuditFailureStatus = "open" | "resolved";
 export type AuditWorkflowStatus = "failed" | "running" | "skipped" | "success";
 export type AuditMetadataValue =
   | AuditMetadata
@@ -12,15 +14,31 @@ export interface AuditMetadata {
   [key: string]: AuditMetadataValue;
 }
 
+export interface AuditRunContextFields {
+  agentName?: string;
+  project?: string;
+  sessionId?: string;
+  workItemId?: string;
+}
+
 export interface AuditSyncEvent {
   actor: string;
+  agentName?: string;
   command?: string[];
   cwd: string;
   durationMs?: number;
   errorMessage?: string;
   errorName?: string;
   eventId: string;
-  eventType: "execution-end" | "execution-start" | "workflow-end" | "workflow-note" | "workflow-start";
+  eventType:
+    | "artifact-recorded"
+    | "decision-recorded"
+    | "execution-end"
+    | "execution-start"
+    | "failure-recorded"
+    | "workflow-end"
+    | "workflow-note"
+    | "workflow-start";
   executionId?: string;
   executionKind?: AuditExecutionKind;
   executionName?: string;
@@ -28,12 +46,15 @@ export interface AuditSyncEvent {
   logFile?: string;
   metadata?: AuditMetadata;
   parentExecutionId?: string;
+  project?: string;
   runId: string;
+  sessionId?: string;
   status?: AuditWorkflowStatus;
   step?: string;
   task?: string;
   timestamp: string;
   workflow: string;
+  workItemId?: string;
 }
 
 export interface AuditSyncExecutionSummary {
@@ -53,13 +74,56 @@ export interface AuditSyncExecutionSummary {
   step?: string;
 }
 
+export interface AuditSyncDecisionSummary {
+  category: string;
+  decisionId: string;
+  executionId?: string;
+  metadata?: AuditMetadata;
+  options?: string[];
+  rationale?: string;
+  selectedOption?: string;
+  summary: string;
+  timestamp: string;
+}
+
+export interface AuditSyncArtifactSummary {
+  artifactId: string;
+  artifactType: string;
+  executionId?: string;
+  label: string;
+  metadata?: AuditMetadata;
+  path?: string;
+  status: string;
+  timestamp: string;
+  uri?: string;
+}
+
+export interface AuditSyncFailureSummary {
+  category: string;
+  detail?: string;
+  executionId?: string;
+  failureId: string;
+  metadata?: AuditMetadata;
+  retryable: boolean;
+  severity: AuditFailureSeverity;
+  status: AuditFailureStatus;
+  summary: string;
+  timestamp: string;
+}
+
 export interface AuditSyncSummary {
   actor: string;
+  agentName?: string;
+  artifacts: AuditSyncArtifactSummary[];
   completedAt?: string;
   cwd: string;
+  decisions: AuditSyncDecisionSummary[];
   durationMs?: number;
   executions: AuditSyncExecutionSummary[];
+  failures: AuditSyncFailureSummary[];
+  project?: string;
   runId: string;
+  sessionId?: string;
   startedAt: string;
   stats: {
     byKind: Partial<Record<AuditExecutionKind, number>>;
@@ -70,4 +134,5 @@ export interface AuditSyncSummary {
   status: AuditWorkflowStatus;
   task?: string;
   workflow: string;
+  workItemId?: string;
 }

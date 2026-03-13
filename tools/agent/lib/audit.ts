@@ -2,34 +2,40 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { syncAuditEventSafely, syncAuditSummarySafely } from "./audit-db-sync.js";
+import {
+  appendArtifactSummary as appendArtifactRecord,
+  appendDecisionSummary as appendDecisionRecord,
+  appendFailureSummary as appendFailureRecord,
+  type AuditArtifactSummary,
+  type AuditDecisionSummary,
+  type AuditFailureSummary
+} from "./audit-records.js";
+import { createRunId, getAuditDateSegment } from "./audit-run-id.js";
 
-import { syncAuditEvent, syncAuditSummary } from "../../../apps/audit/api/src/services/audit-store.js";
-
+export { createRunId, getAuditDateSegment, slugify } from "./audit-run-id.js";
 export const AUDIT_ROOT = path.resolve("artifacts", "audit");
-
 export type AuditExecutionKind = "command" | "hook" | "operation" | "skill" | "tool" | "validation";
 export type WorkflowStatus = "failed" | "running" | "skipped" | "success";
-export type AuditMetadataValue =
-  | AuditMetadata
-  | AuditMetadataValue[]
-  | boolean
-  | null
-  | number
-  | string;
-
+export type AuditMetadataValue = AuditMetadata | AuditMetadataValue[] | boolean | null | number | string;
 export interface AuditMetadata {
   [key: string]: AuditMetadataValue;
 }
-
+export interface AuditRunContextFields {
+  agentName?: string;
+  project?: string;
+  sessionId?: string;
+  workItemId?: string;
+}
 export interface AuditPaths {
   eventsPath: string;
   logsDir: string;
   runDir: string;
   summaryPath: string;
 }
-
 export interface AuditEvent {
   actor: string;
+  agentName?: string;
   command?: string[];
   cwd: string;
   durationMs?: number;
@@ -37,8 +43,11 @@ export interface AuditEvent {
   errorName?: string;
   eventId: string;
   eventType:
+    | "artifact-recorded"
+    | "decision-recorded"
     | "execution-end"
     | "execution-start"
+    | "failure-recorded"
     | "workflow-end"
     | "workflow-note"
     | "workflow-start";
@@ -49,29 +58,37 @@ export interface AuditEvent {
   logFile?: string;
   metadata?: AuditMetadata;
   parentExecutionId?: string;
+  project?: string;
   runId: string;
+  sessionId?: string;
   status?: WorkflowStatus;
   step?: string;
   task?: string;
   timestamp: string;
   workflow: string;
+  workItemId?: string;
 }
-
 export interface AuditSummary {
   actor: string;
+  agentName?: string;
+  artifacts: AuditArtifactSummary[];
   completedAt?: string;
   cwd: string;
+  decisions: AuditDecisionSummary[];
   durationMs?: number;
   executions: AuditExecutionSummary[];
+  failures: AuditFailureSummary[];
   runId: string;
+  project?: string;
+  sessionId?: string;
   startedAt: string;
   stats: AuditSummaryStats;
   status: WorkflowStatus;
   steps: AuditStepSummary[];
   task?: string;
   workflow: string;
+  workItemId?: string;
 }
-
 export interface AuditExecutionSummary {
   command?: string[];
   durationMs: number;
@@ -88,7 +105,6 @@ export interface AuditExecutionSummary {
   status: WorkflowStatus;
   step?: string;
 }
-
 export interface AuditStepSummary {
   command: string[];
   durationMs: number;
@@ -98,35 +114,37 @@ export interface AuditStepSummary {
   status: WorkflowStatus;
   step: string;
 }
-
 export interface AuditSummaryStats {
   byKind: Partial<Record<AuditExecutionKind, number>>;
   byStatus: Partial<Record<WorkflowStatus, number>>;
   executionCount: number;
   failedExecutionCount: number;
 }
+export function createWorkflowSummary(
+  runId: string,
+  workflow: string,
+  task?: string,
+  contextOverride: AuditRunContextFields = {}
+): AuditSummary {
+  const context = {
+    ...resolveAuditRunContextFields(),
+    ...toContextRecord(contextOverride)
+  };
 
-export function createRunId(workflow: string, now: Date = new Date()): string {
-  const stamp = formatLocalRunTimestamp(now);
-  return `${stamp}-${slugify(workflow)}-${randomUUID().slice(0, 8)}`;
-}
-
-export function getAuditDateSegment(runId: string): string {
-  const matchedDate = /^\d{4}-\d{2}-\d{2}/u.exec(runId)?.[0];
-  return matchedDate ?? formatLocalDate(new Date());
-}
-
-export function createWorkflowSummary(runId: string, workflow: string, task?: string): AuditSummary {
   return {
     actor: detectActor(),
+    artifacts: [],
     cwd: process.cwd(),
+    decisions: [],
     executions: [],
+    failures: [],
     runId,
     startedAt: new Date().toISOString(),
     stats: createEmptySummaryStats(),
     status: "running",
     steps: [],
     workflow,
+    ...context,
     ...(task === undefined ? {} : { task })
   };
 }
@@ -149,31 +167,6 @@ export {
   setActiveExecution,
   setActiveRun
 } from "./audit-active-runs.js";
-
-export function slugify(value: string): string {
-  const characters = value.trim().toLowerCase().split("");
-  let compact = "";
-  let previousWasDash = false;
-
-  for (const character of characters) {
-    const isLetter = character >= "a" && character <= "z";
-    const isDigit = character >= "0" && character <= "9";
-
-    if (isLetter || isDigit) {
-      compact += character;
-      previousWasDash = false;
-      continue;
-    }
-
-    if (!previousWasDash && compact.length > 0) {
-      compact += "-";
-      previousWasDash = true;
-    }
-  }
-
-  const normalized = compact.endsWith("-") ? compact.slice(0, -1) : compact;
-  return normalized.slice(0, 40) || "workflow";
-}
 
 export async function ensureAuditPaths(runId: string): Promise<AuditPaths> {
   const dateDir = path.join(AUDIT_ROOT, getAuditDateSegment(runId));
@@ -238,19 +231,22 @@ export function appendExecutionSummary(summary: AuditSummary, execution: AuditEx
   }
 }
 
-function normalizeSummary(summary: Partial<AuditSummary>): AuditSummary {
-  const executions = summary.executions ?? [];
+export function appendDecisionSummary(summary: AuditSummary, decision: AuditDecisionSummary): void {
+  summary.decisions = appendDecisionRecord(summary.decisions, decision);
+}
 
+export function appendArtifactSummary(summary: AuditSummary, artifact: AuditArtifactSummary): void {
+  summary.artifacts = appendArtifactRecord(summary.artifacts, artifact);
+}
+
+export function appendFailureSummary(summary: AuditSummary, failure: AuditFailureSummary): void {
+  summary.failures = appendFailureRecord(summary.failures, failure);
+}
+
+function normalizeSummary(summary: Partial<AuditSummary>): AuditSummary {
   return {
-    actor: summary.actor ?? detectActor(),
-    cwd: summary.cwd ?? process.cwd(),
-    executions,
-    runId: summary.runId ?? createRunId("workflow"),
-    startedAt: summary.startedAt ?? new Date().toISOString(),
-    stats: summarizeExecutions(executions),
-    status: summary.status ?? "running",
-    steps: summary.steps ?? [],
-    workflow: summary.workflow ?? "workflow",
+    ...getNormalizedCollections(summary),
+    ...getNormalizedSummaryBase(summary),
     ...getOptionalSummaryFields(summary)
   };
 }
@@ -273,28 +269,30 @@ export function createEvent(
   };
 }
 
+export function getEventContextFields(summary: AuditSummary): AuditRunContextFields {
+  return compactContextFields({
+    agentName: summary.agentName,
+    project: summary.project,
+    sessionId: summary.sessionId,
+    workItemId: summary.workItemId
+  });
+}
+
 function detectActor(): string {
   return process.env.CODEX_AGENT_NAME ?? process.env.USERNAME ?? process.env.USER ?? os.userInfo().username;
 }
 
+function resolveAuditRunContextFields(): AuditRunContextFields {
+  return compactContextFields({
+    agentName: process.env.AUDIT_AGENT_NAME ?? process.env.CODEX_AGENT_NAME,
+    project: process.env.AUDIT_PROJECT,
+    sessionId: process.env.AUDIT_SESSION_ID,
+    workItemId: process.env.AUDIT_WORK_ITEM_ID
+  });
+}
+
 function isMissingFile(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-function formatLocalRunTimestamp(value: Date): string {
-  return `${formatLocalDate(value)}T${pad(value.getHours())}${pad(value.getMinutes())}${pad(value.getSeconds())}-${padMilliseconds(value.getMilliseconds())}`;
-}
-
-function formatLocalDate(value: Date): string {
-  return `${value.getFullYear().toString()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-}
-
-function pad(value: number): string {
-  return value.toString().padStart(2, "0");
-}
-
-function padMilliseconds(value: number): string {
-  return value.toString().padStart(3, "0");
 }
 
 function isCommandExecutionSummary(execution: AuditExecutionSummary): execution is AuditExecutionSummary &
@@ -326,44 +324,50 @@ function summarizeExecutions(executions: AuditExecutionSummary[]): AuditSummaryS
 
 function getOptionalSummaryFields(summary: Partial<AuditSummary>): Partial<AuditSummary> {
   return {
+    ...toContextRecord(summary),
     ...(summary.completedAt === undefined ? {} : { completedAt: summary.completedAt }),
     ...(summary.durationMs === undefined ? {} : { durationMs: summary.durationMs }),
     ...(summary.task === undefined ? {} : { task: summary.task })
   };
 }
 
-const reportedSyncFailures = new Set<string>();
-
-async function syncAuditEventSafely(event: AuditEvent): Promise<void> {
-  try {
-    await syncAuditEvent(
-      event,
-      process.env.AUDIT_DATABASE_URL === undefined ? {} : { databaseUrl: process.env.AUDIT_DATABASE_URL }
-    );
-  } catch (error) {
-    reportAuditSyncFailure("event", error);
-  }
+function compactContextFields(value: Record<string, string | undefined>): Partial<AuditRunContextFields> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
-async function syncAuditSummarySafely(summary: AuditSummary): Promise<void> {
-  try {
-    await syncAuditSummary(
-      summary,
-      process.env.AUDIT_DATABASE_URL === undefined ? {} : { databaseUrl: process.env.AUDIT_DATABASE_URL }
-    );
-  } catch (error) {
-    reportAuditSyncFailure("summary", error);
-  }
+function toContextRecord(value: Partial<AuditRunContextFields>): Partial<AuditRunContextFields> {
+  return compactContextFields({
+    agentName: value.agentName,
+    project: value.project,
+    sessionId: value.sessionId,
+    workItemId: value.workItemId
+  });
 }
 
-function reportAuditSyncFailure(kind: "event" | "summary", error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
-  const cacheKey = `${kind}:${message}`;
+function getNormalizedCollections(summary: Partial<AuditSummary>) {
+  return {
+    artifacts: summary.artifacts ?? [],
+    decisions: summary.decisions ?? [],
+    executions: summary.executions ?? [],
+    failures: summary.failures ?? []
+  };
+}
 
-  if (reportedSyncFailures.has(cacheKey)) {
-    return;
-  }
+function getNormalizedSummaryBase(summary: Partial<AuditSummary>): Omit<
+  AuditSummary,
+  "agentName" | "artifacts" | "completedAt" | "decisions" | "durationMs" | "failures" | "project" | "sessionId" | "task" | "workItemId"
+> {
+  const executions = summary.executions ?? [];
 
-  reportedSyncFailures.add(cacheKey);
-  process.stderr.write(`Audit ${kind} DB sync failed; file artifacts were still written. ${message}\n`);
+  return {
+    actor: summary.actor ?? detectActor(),
+    cwd: summary.cwd ?? process.cwd(),
+    executions,
+    runId: summary.runId ?? createRunId("workflow"),
+    startedAt: summary.startedAt ?? new Date().toISOString(),
+    stats: summarizeExecutions(executions),
+    status: summary.status ?? "running",
+    steps: summary.steps ?? [],
+    workflow: summary.workflow ?? "workflow"
+  };
 }

@@ -61,6 +61,12 @@ Researched on March 12, 2026.
 - OWASP File Upload Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
 - OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
 
+## Observability And Trace Correlation
+
+- OpenTelemetry docs, traces concept: https://opentelemetry.io/docs/concepts/signals/traces/
+- OpenTelemetry docs, context propagation: https://opentelemetry.io/docs/concepts/context-propagation/
+- W3C Trace Context recommendation: https://www.w3.org/TR/trace-context/
+
 ## Agent Files And Skills
 
 - Agents.md project: https://agents.md/
