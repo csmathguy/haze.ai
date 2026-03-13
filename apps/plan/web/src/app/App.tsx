@@ -2,9 +2,7 @@ import { startTransition, useEffect, useState } from "react";
 import {
   Alert,
   Box,
-  CircularProgress,
   Container,
-  Grid,
   MenuItem,
   Stack,
   TextField,
@@ -20,10 +18,7 @@ import {
   updatePlanningTaskStatus,
   updatePlanningWorkItem
 } from "./api.js";
-import { CreateWorkItemForm } from "./components/CreateWorkItemForm.js";
-import { WorkItemDetail } from "./components/WorkItemDetail.js";
-import { WorkItemList } from "./components/WorkItemList.js";
-import { WorkspaceSummary } from "./components/WorkspaceSummary.js";
+import { PlanningWorkspaceState } from "./components/PlanningWorkspaceState.js";
 
 export function App() {
   const {
@@ -309,40 +304,25 @@ function PlanningPageLayout({
           </Stack>
           {successMessage !== null ? <Alert severity="success">{successMessage}</Alert> : null}
           {errorMessage !== null ? <Alert severity="error">{errorMessage}</Alert> : null}
-          {isBusy || workspace === null ? (
-            <Stack alignItems="center" minHeight={320} justifyContent="center">
-              <CircularProgress />
-            </Stack>
-          ) : (
-            <>
-              <WorkspaceSummary workspace={workspace} />
+          <PlanningWorkspaceState
+            handleCreateWorkItem={handleCreateWorkItem}
+            handleCriterionToggle={handleCriterionToggle}
+            handleStatusChange={handleStatusChange}
+            handleTaskToggle={handleTaskToggle}
+            isBusy={isBusy}
+            projectScopeBar={
               <ProjectScopeBar
-                projects={workspace.projects}
+                projects={workspace?.projects ?? []}
                 selectedProjectKey={selectedProjectKey}
                 setSelectedProjectKey={setSelectedProjectKey}
               />
-              <Grid container spacing={2}>
-                <Grid size={{ lg: 5, xs: 12 }}>
-                  <CreateWorkItemForm disabled={false} onSubmit={handleCreateWorkItem} projects={workspace.projects} />
-                </Grid>
-                <Grid size={{ lg: 7, xs: 12 }}>
-                  <WorkItemDetail
-                    onCriterionToggle={handleCriterionToggle}
-                    onStatusChange={handleStatusChange}
-                    onTaskToggle={handleTaskToggle}
-                    workItem={selectedWorkItem}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <WorkItemList
-                    onSelect={setSelectedWorkItemId}
-                    selectedWorkItemId={selectedWorkItemId}
-                    workItems={visibleWorkItems}
-                  />
-                </Grid>
-              </Grid>
-            </>
-          )}
+            }
+            selectedWorkItem={selectedWorkItem}
+            selectedWorkItemId={selectedWorkItemId}
+            setSelectedWorkItemId={setSelectedWorkItemId}
+            visibleWorkItems={visibleWorkItems}
+            workspace={workspace}
+          />
         </Stack>
       </Container>
     </Box>

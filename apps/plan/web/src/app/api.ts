@@ -5,6 +5,7 @@ import type {
   UpdateWorkItemPatchInput,
   UpdateWorkItemTaskStatusPatchInput
 } from "@taxes/shared";
+import { PlanningWorkspaceSchema } from "@taxes/shared";
 
 interface PlanningWorkspaceResponse {
   workspace: PlanningWorkspace;
@@ -18,7 +19,12 @@ export async function fetchPlanningWorkspace(): Promise<PlanningWorkspace> {
   }
 
   const payload = (await response.json()) as PlanningWorkspaceResponse;
-  return payload.workspace;
+
+  try {
+    return PlanningWorkspaceSchema.parse(payload.workspace);
+  } catch {
+    throw new Error("Planning workspace response was invalid.");
+  }
 }
 
 export async function createPlanningWorkItem(input: CreateWorkItemDraftInput): Promise<void> {
