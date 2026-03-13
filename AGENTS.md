@@ -13,6 +13,7 @@
 - Use `skills/parallel-work-orchestrator` when work should be split into multiple agents or worktrees.
 - Use `skills/parallel-work-implementer` when an agent is executing one bounded slice inside its own worktree.
 - Use `skills/research-agent` when a task needs external research, source comparison, documentation best-practice review, or tax-law research planning with dated citations.
+- Use `skills/knowledge-agent` when an agent needs to read, write, or synchronize the local knowledge and long-term memory store.
 
 ## Required Workflow
 1. Read the relevant docs in `docs/` before making non-trivial changes.
@@ -31,8 +32,9 @@
    - Full tests with `npm test` or architecture-only tests with `npm run test:arch`
    - Use `npm run quality:logged -- implementation` when you want a single audited full guardrail run
 9. When the task produces branch-ready changes, make atomic commits, push the branch, and create or update the pull request before claiming the work is done. Use `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed`.
-10. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
-11. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
+10. Agents must not merge pull requests. PR merge is a human-controlled action that happens after review, and this repository will later route that decision through the `code-review` project workflow.
+11. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
+12. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
 ## Architecture Rules
 - Keep a strict separation between app surfaces under `apps/*/web`, `apps/*/api`, and `packages/shared`.

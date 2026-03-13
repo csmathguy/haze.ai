@@ -68,3 +68,4 @@ Regardless of GitHub plan, treat secret scanning as a backstop, not the primary 
 - Use `docs/pull-request-standards.md` as the repository standard for PR summaries, review order, risks, and validation notes.
 - Use `node tools/runtime/run-npm.cjs run pr:draft -- --base origin/main` to generate a first-pass PR body from the changed files in a branch.
 - Use `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed` to push the branch and create or update the PR as the final publication step for branch-ready work.
+- Keep PR merge as a human-only action after review. Agents publish the branch and PR, then stop short of merge.

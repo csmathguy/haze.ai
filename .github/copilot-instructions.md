@@ -1,6 +1,7 @@
 # Pull Request Authoring
 
 - When drafting a pull request description, optimize for reviewer comprehension, not for a changelog.
+- Agents may create or update a pull request, but they must not merge it.
 - Start with what changed and why it matters in one or two sentences.
 - Group the body by repository boundary such as database, shared contracts, API, web, tooling, and docs.
 - Give reviewers an explicit review order that starts with contracts, schema, or invariants before downstream consumers.
@@ -21,3 +22,4 @@
 - Never include raw tax document contents or personally identifying tax data in a PR body.
 - Prefer precise claims tied to the diff over generic filler.
 - Do not list every file unless the diff is small; summarize by area and point to the best entry points.
+- Treat merge approval as a human-only step, to be completed after review rather than during authoring.

@@ -37,6 +37,7 @@ Implementation work is not done just because the code passes locally. For branch
 - the worktree is clean because the finished change was committed in atomic commits
 - the branch is pushed
 - the branch has an open pull request that follows `docs/pull-request-standards.md`
+- the change is waiting for human review rather than being agent-merged directly
 
 Use this command for the publication step:
 
@@ -45,6 +46,8 @@ node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value
 ```
 
 `npm run workflow:end implementation success` now treats a clean worktree and an open PR as completion requirements when the branch has commits ahead of `main`.
+
+Creating or updating the PR is the last publication step for an agent. The later merge decision is a human-controlled workflow step.
 
 ## Enforced Budgets
 

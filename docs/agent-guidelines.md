@@ -7,6 +7,7 @@ Use `AGENTS.md` for always-on rules that every coding agent should follow in thi
 - local-only privacy constraints
 - architecture boundaries
 - required validation workflow
+- PR publication without agent-driven merge
 - workflow audit expectations
 - documentation update expectations
 
@@ -27,7 +28,7 @@ This follows the pattern described by `agents.md`: the nearest applicable file s
 
 ## Project Skills
 
-This repository defines eight local skills:
+This repository defines nine local skills:
 
 - `implementation-workflow`
   - use for implementation, refactor, testing, and architecture changes
@@ -43,6 +44,8 @@ This repository defines eight local skills:
   - use for carrying one bounded slice through implementation and handoff
 - `research-agent`
   - use for external research, source comparison, documentation drafting input, and tax-law research planning
+- `knowledge-agent`
+  - use for reading, writing, and synchronizing the local knowledge and long-term memory store
 - `workflow-retrospective`
   - use for audit-backed retrospectives, workflow debriefs, and follow-up action capture under `artifacts/retrospectives`
 
@@ -66,3 +69,4 @@ The current curated catalog includes `figma` and `figma-implement-design`. Those
 - wrap repeatable command sequences in scripts instead of relying on the model to reproduce them from memory
 - prefer structured logs over free-form notes when you want auditability
 - use a dedicated research skill when guidance must be dated, source-ranked, or converted into repeatable repo standards
+- keep merge authority with humans even when agents prepare the branch, commits, and pull request

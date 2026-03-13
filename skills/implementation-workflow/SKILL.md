@@ -21,7 +21,8 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 8. Refactor only after behavior is green.
 9. Run the strongest available validation for the touched scope.
 10. Commit the finished work in atomic commits, then run `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed` to push the branch and create or update the PR.
-11. Close the workflow with `npm run workflow:end implementation success` or `failed`.
+11. Stop at PR publication. Do not merge the pull request from the implementation workflow.
+12. Close the workflow with `npm run workflow:end implementation success` or `failed`.
 
 ## Key Rules
 
@@ -31,6 +32,7 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 - Prefer `npm run quality:logged -- implementation` over hand-running the whole guardrail stack.
 - Use `npm run typecheck`, `npm run lint`, and targeted tests as the minimum completion bar when those commands exist.
 - Treat an open PR as part of definition of done for branch-ready work, not as optional follow-up.
+- Treat merge approval as human-only and outside the implementation agent's authority.
 - If the repo lacks a needed script or guardrail, document the gap and move the scaffold toward that standard.
 
 ## When To Pull More Context

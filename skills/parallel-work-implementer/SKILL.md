@@ -27,4 +27,4 @@ This skill keeps an implementation agent inside its assigned slice so parallel w
 
 ## When To Pull More Context
 
-- Read `references/handoff-checklist.md` when preparing a slice for merge.
+- Read `references/handoff-checklist.md` when preparing a slice for PR handoff and human review.

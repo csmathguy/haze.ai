@@ -11,6 +11,8 @@ Pull requests in this repository should let a reviewer answer four questions qui
 
 That matters more here because a growing share of changes will be produced by agents. The PR body is the human checkpoint.
 
+PR creation is an agent responsibility for branch-ready work. PR merge is not. Merge remains a human-controlled decision after review, and this repository intends to route that step through the `code-review` project workflow.
+
 Non-draft pull requests targeting `main` are also checked by `.github/workflows/pr-hygiene.yml`, which verifies that the required sections below are still present before review proceeds.
 
 ## Required Sections
@@ -116,6 +118,8 @@ node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value
 ```
 
 That command pushes the current branch and creates or updates the PR using the generated review sections plus the validation commands recorded in the current or latest workflow audit summary.
+4. Stop at PR publication. Do not merge the PR from an agent workflow.
+5. Hand the PR to a human reviewer. The later merge decision belongs to the human review path, not the authoring path.
 
 ## GitHub Review Automation
 
