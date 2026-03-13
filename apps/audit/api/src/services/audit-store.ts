@@ -1,12 +1,20 @@
-import type { AuditEventRecord, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
-import { AuditRunDetailSchema } from "@taxes/shared";
+import type { AuditAnalyticsSnapshot, AuditEventRecord, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import { AuditAnalyticsSnapshotSchema, AuditRunDetailSchema } from "@taxes/shared";
 
 import { AUDIT_DATABASE_URL } from "../config.js";
 import { getAuditPrismaClient } from "../db/client.js";
 import { ensureAuditDatabaseReady } from "../db/migrations.js";
 import type { AuditSyncEvent, AuditSyncSummary } from "./audit-sync-contract.js";
 import type { AuditPersistenceOptions } from "./context.js";
-import { mapEventRecord, mapExecutionRecord, mapRunOverview } from "./audit-serialization.js";
+import {
+  mapAnalyticsBreakdownEntry,
+  mapArtifactRecord,
+  mapDecisionRecord,
+  mapEventRecord,
+  mapExecutionRecord,
+  mapFailureRecord,
+  mapRunOverview
+} from "./audit-serialization.js";
 import {
   buildEventCreateInput,
   buildEventUpdateInput,
@@ -18,11 +26,23 @@ import {
   buildRunUpdateInputFromSummary,
   syncExecutionFromEvent
 } from "./audit-write-model.js";
+import {
+  buildArtifactCreateInput,
+  buildArtifactUpdateInput,
+  buildDecisionCreateInput,
+  buildDecisionUpdateInput,
+  buildFailureCreateInput,
+  buildFailureUpdateInput,
+  syncTypedRecordFromEvent
+} from "./audit-typed-record-model.js";
 
 interface ListAuditRunsOptions {
+  agentName?: string;
   limit: number;
+  project?: string;
   status?: string;
   workflow?: string;
+  workItemId?: string;
   worktreePath?: string;
 }
 
@@ -46,6 +66,7 @@ export async function syncAuditEvent(
       }
     });
     await syncExecutionFromEvent(transaction, event);
+    await syncTypedRecordFromEvent(transaction, event);
     await transaction.auditEventRecord.upsert({
       create: buildEventCreateInput(event),
       update: buildEventUpdateInput(event),
@@ -80,6 +101,36 @@ export async function syncAuditSummary(
         }
       });
     }
+
+    for (const decision of summary.decisions) {
+      await transaction.auditDecisionRecord.upsert({
+        create: buildDecisionCreateInput(summary.runId, decision),
+        update: buildDecisionUpdateInput(decision),
+        where: {
+          id: decision.decisionId
+        }
+      });
+    }
+
+    for (const artifact of summary.artifacts) {
+      await transaction.auditArtifactRecord.upsert({
+        create: buildArtifactCreateInput(summary.runId, artifact),
+        update: buildArtifactUpdateInput(artifact),
+        where: {
+          id: artifact.artifactId
+        }
+      });
+    }
+
+    for (const failure of summary.failures) {
+      await transaction.auditFailureRecord.upsert({
+        create: buildFailureCreateInput(summary.runId, failure),
+        update: buildFailureUpdateInput(failure),
+        where: {
+          id: failure.failureId
+        }
+      });
+    }
   });
 }
 
@@ -91,11 +142,7 @@ export async function listAuditRuns(
   const runs = await prisma.auditRun.findMany({
     orderBy: [{ latestEventAt: "desc" }, { startedAt: "desc" }],
     take: input.limit,
-      where: {
-        ...(input.status === undefined ? {} : { status: input.status }),
-        ...(input.workflow === undefined ? {} : { workflow: input.workflow }),
-        ...(input.worktreePath === undefined ? {} : { worktreePath: input.worktreePath })
-      }
+    where: buildRunWhereInput(input)
   });
 
   return runs.map(mapRunOverview);
@@ -108,6 +155,16 @@ export async function getAuditRunDetail(
   const prisma = await getReadyAuditClient(options.databaseUrl);
   const run = await prisma.auditRun.findUnique({
     include: {
+      artifacts: {
+        orderBy: {
+          timestamp: "asc"
+        }
+      },
+      decisions: {
+        orderBy: {
+          timestamp: "asc"
+        }
+      },
       events: {
         orderBy: {
           timestamp: "asc"
@@ -116,6 +173,11 @@ export async function getAuditRunDetail(
       executions: {
         orderBy: {
           startedAt: "asc"
+        }
+      },
+      failures: {
+        orderBy: {
+          timestamp: "asc"
         }
       }
     },
@@ -129,8 +191,11 @@ export async function getAuditRunDetail(
   }
 
   return AuditRunDetailSchema.parse({
+    artifacts: run.artifacts.map(mapArtifactRecord),
+    decisions: run.decisions.map(mapDecisionRecord),
     events: run.events.map(mapEventRecord),
     executions: run.executions.map(mapExecutionRecord),
+    failures: run.failures.map(mapFailureRecord),
     run: mapRunOverview(run)
   });
 }
@@ -167,8 +232,80 @@ export async function listAuditEventsSince(
   return events.map(mapEventRecord);
 }
 
+export async function getAuditAnalytics(
+  input: ListAuditRunsOptions,
+  options: AuditPersistenceOptions = {}
+): Promise<AuditAnalyticsSnapshot> {
+  const prisma = await getReadyAuditClient(options.databaseUrl);
+  const where = buildRunWhereInput(input);
+  const runs = await prisma.auditRun.findMany({
+    select: {
+      agentName: true,
+      artifactCount: true,
+      decisionCount: true,
+      executionCount: true,
+      failureCount: true,
+      id: true,
+      project: true,
+      status: true,
+      workflow: true
+    },
+    where
+  });
+  const runIds = runs.map((run) => run.id);
+  const failureRows =
+    runIds.length === 0
+      ? []
+      : await prisma.auditFailureRecord.groupBy({
+          _count: {
+            category: true
+          },
+          by: ["category"],
+          where: {
+            runId: {
+              in: runIds
+            }
+          }
+        });
+
+  return AuditAnalyticsSnapshotSchema.parse({
+    byAgent: summarizeBreakdown(runs.map((run) => run.agentName ?? "unassigned")),
+    byProject: summarizeBreakdown(runs.map((run) => run.project ?? "unassigned")),
+    byWorkflow: summarizeBreakdown(runs.map((run) => run.workflow)),
+    failureCategories: failureRows
+      .map((row) => mapAnalyticsBreakdownEntry(row.category, row._count.category))
+      .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key)),
+    totals: {
+      artifactCount: runs.reduce((sum, run) => sum + run.artifactCount, 0),
+      decisionCount: runs.reduce((sum, run) => sum + run.decisionCount, 0),
+      executionCount: runs.reduce((sum, run) => sum + run.executionCount, 0),
+      failureCount: runs.reduce((sum, run) => sum + run.failureCount, 0),
+      failedRuns: runs.filter((run) => run.status === "failed").length,
+      runningRuns: runs.filter((run) => run.status === "running").length,
+      totalRuns: runs.length
+    }
+  });
+}
+
 async function getReadyAuditClient(databaseUrl: string | undefined) {
   const resolvedDatabaseUrl = databaseUrl ?? AUDIT_DATABASE_URL;
   await ensureAuditDatabaseReady(resolvedDatabaseUrl);
   return getAuditPrismaClient(resolvedDatabaseUrl);
+}
+
+function buildRunWhereInput(input: ListAuditRunsOptions) {
+  return {
+    ...(input.agentName === undefined ? {} : { agentName: input.agentName }),
+    ...(input.project === undefined ? {} : { project: input.project }),
+    ...(input.status === undefined ? {} : { status: input.status }),
+    ...(input.workflow === undefined ? {} : { workflow: input.workflow }),
+    ...(input.workItemId === undefined ? {} : { workItemId: input.workItemId }),
+    ...(input.worktreePath === undefined ? {} : { worktreePath: input.worktreePath })
+  };
+}
+
+function summarizeBreakdown(values: string[]) {
+  return Array.from(values.reduce((counts, value) => counts.set(value, (counts.get(value) ?? 0) + 1), new Map<string, number>()).entries())
+    .map(([key, count]) => mapAnalyticsBreakdownEntry(key, count))
+    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }

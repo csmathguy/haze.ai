@@ -1,9 +1,16 @@
-import type { AuditEventRecord, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import type { AuditAnalyticsSnapshot, AuditEventRecord, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
 
 export interface AuditRunFilters {
+  agentName: string;
+  project: string;
   status: string;
   workflow: string;
+  workItemId: string;
   worktreePath: string;
+}
+
+interface AnalyticsResponse {
+  analytics: AuditAnalyticsSnapshot;
 }
 
 interface RunsResponse {
@@ -22,9 +29,41 @@ interface StreamSubscriptionOptions {
 }
 
 export async function fetchAuditRuns(filters: AuditRunFilters): Promise<AuditRunOverview[]> {
+  const searchParams = buildRunSearchParams(filters);
+  const response = await fetch(`/api/audit/runs?${searchParams.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load audit runs.");
+  }
+
+  const payload = (await response.json()) as RunsResponse;
+  return payload.runs;
+}
+
+export async function fetchAuditAnalytics(filters: AuditRunFilters): Promise<AuditAnalyticsSnapshot> {
+  const searchParams = buildRunSearchParams(filters);
+  const response = await fetch(`/api/audit/analytics?${searchParams.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load audit analytics.");
+  }
+
+  const payload = (await response.json()) as AnalyticsResponse;
+  return payload.analytics;
+}
+
+function buildRunSearchParams(filters: AuditRunFilters): URLSearchParams {
   const searchParams = new URLSearchParams({
     limit: "80"
   });
+
+  if (filters.agentName.length > 0) {
+    searchParams.set("agentName", filters.agentName);
+  }
+
+  if (filters.project.length > 0) {
+    searchParams.set("project", filters.project);
+  }
 
   if (filters.status.length > 0) {
     searchParams.set("status", filters.status);
@@ -34,18 +73,15 @@ export async function fetchAuditRuns(filters: AuditRunFilters): Promise<AuditRun
     searchParams.set("workflow", filters.workflow);
   }
 
+  if (filters.workItemId.length > 0) {
+    searchParams.set("workItemId", filters.workItemId);
+  }
+
   if (filters.worktreePath.length > 0) {
     searchParams.set("worktreePath", filters.worktreePath);
   }
 
-  const response = await fetch(`/api/audit/runs?${searchParams.toString()}`);
-
-  if (!response.ok) {
-    throw new Error("Failed to load audit runs.");
-  }
-
-  const payload = (await response.json()) as RunsResponse;
-  return payload.runs;
+  return searchParams;
 }
 
 export async function fetchAuditRunDetail(runId: string): Promise<AuditRunDetail> {

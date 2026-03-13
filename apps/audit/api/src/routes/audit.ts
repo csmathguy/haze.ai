@@ -3,12 +3,15 @@ import { z } from "zod";
 
 import { AUDIT_STREAM_POLL_INTERVAL_MS } from "../config.js";
 import type { AuditPersistenceOptions } from "../services/context.js";
-import { getAuditRunDetail, listAuditEventsSince, listAuditRuns } from "../services/audit-store.js";
+import { getAuditAnalytics, getAuditRunDetail, listAuditEventsSince, listAuditRuns } from "../services/audit-store.js";
 
 const ListRunsQuerySchema = z.object({
+  agentName: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
+  project: z.string().optional(),
   status: z.string().optional(),
   workflow: z.string().optional(),
+  workItemId: z.string().optional(),
   worktreePath: z.string().optional()
 });
 const ListEventsQuerySchema = z.object({
@@ -18,18 +21,17 @@ const ListEventsQuerySchema = z.object({
 
 export function registerAuditRoutes(app: FastifyInstance, options: AuditPersistenceOptions = {}): void {
   app.get("/api/audit/runs", async (request) => {
-    const query = ListRunsQuerySchema.parse(request.query);
+    const query = parseListRunsQuery(request.query);
+    return {
+      runs: await listAuditRuns(buildRunListInput(query, query.limit ?? 50), options)
+    };
+  });
+
+  app.get("/api/audit/analytics", async (request) => {
+    const query = parseListRunsQuery(request.query);
 
     return {
-      runs: await listAuditRuns(
-        {
-          limit: query.limit ?? 50,
-          ...(query.status === undefined ? {} : { status: query.status }),
-          ...(query.workflow === undefined ? {} : { workflow: query.workflow }),
-          ...(query.worktreePath === undefined ? {} : { worktreePath: query.worktreePath })
-        },
-        options
-      )
+      analytics: await getAuditAnalytics(buildRunListInput(query, query.limit ?? 200), options)
     };
   });
 
@@ -91,6 +93,25 @@ export function registerAuditRoutes(app: FastifyInstance, options: AuditPersiste
       await wait(AUDIT_STREAM_POLL_INTERVAL_MS);
     }
   });
+}
+
+function buildRunListInput(
+  query: z.infer<typeof ListRunsQuerySchema>,
+  limit: number
+) {
+  return {
+    ...(query.agentName === undefined ? {} : { agentName: query.agentName }),
+    limit,
+    ...(query.project === undefined ? {} : { project: query.project }),
+    ...(query.status === undefined ? {} : { status: query.status }),
+    ...(query.workflow === undefined ? {} : { workflow: query.workflow }),
+    ...(query.workItemId === undefined ? {} : { workItemId: query.workItemId }),
+    ...(query.worktreePath === undefined ? {} : { worktreePath: query.worktreePath })
+  };
+}
+
+function parseListRunsQuery(query: unknown) {
+  return ListRunsQuerySchema.parse(query);
 }
 
 function wait(durationMs: number): Promise<void> {

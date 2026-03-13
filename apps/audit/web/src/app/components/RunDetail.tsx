@@ -43,13 +43,12 @@ export function RunDetail({ detail, isLoading }: RunDetailProps) {
     <Stack spacing={2}>
       <RunOverviewPanel detail={detail} />
       <ExecutionsPanel detail={detail} />
+      <DecisionsPanel detail={detail} />
+      <ArtifactsPanel detail={detail} />
+      <FailuresPanel detail={detail} />
       <EventTimelinePanel detail={detail} />
     </Stack>
   );
-}
-
-interface DetailGridProps {
-  readonly items: { label: string; value: string }[];
 }
 
 function RunOverviewPanel({ detail }: { readonly detail: AuditRunDetail }) {
@@ -74,6 +73,10 @@ function RunOverviewPanel({ detail }: { readonly detail: AuditRunDetail }) {
           items={[
             { label: "Workflow", value: detail.run.workflow },
             { label: "Actor", value: detail.run.actor },
+            { label: "Agent", value: detail.run.agentName ?? "Unassigned" },
+            { label: "Project", value: detail.run.project ?? "Unassigned" },
+            { label: "Work item", value: detail.run.workItemId ?? "Unassigned" },
+            { label: "Session", value: detail.run.sessionId ?? "Unassigned" },
             { label: "Worktree", value: detail.run.worktreePath },
             { label: "Started", value: formatDateTime(detail.run.startedAt) },
             { label: "Completed", value: formatDateTime(detail.run.completedAt) },
@@ -134,6 +137,118 @@ function ExecutionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
   );
 }
 
+function DecisionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
+  return (
+    <Panel elevation={0}>
+      <Stack spacing={1.5}>
+        <Typography variant="h3">Decisions</Typography>
+        {detail.decisions.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No explicit decisions were recorded for this run.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {detail.decisions.map((decision) => (
+              <Stack key={decision.decisionId} spacing={0.5}>
+                <Typography fontWeight={700} variant="body2">
+                  {decision.summary}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  {decision.category} | {decision.selectedOption ?? "No selected option"} | {formatDateTime(decision.timestamp)}
+                </Typography>
+                {decision.rationale === undefined ? null : (
+                  <Typography color="text.secondary" variant="body2">
+                    {decision.rationale}
+                  </Typography>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Panel>
+  );
+}
+
+function ArtifactsPanel({ detail }: { readonly detail: AuditRunDetail }) {
+  return (
+    <Panel elevation={0}>
+      <Stack spacing={1.5}>
+        <Typography variant="h3">Artifacts</Typography>
+        {detail.artifacts.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No artifacts were recorded for this run.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {detail.artifacts.map((artifact) => (
+              <Stack key={artifact.artifactId} spacing={0.5}>
+                <Typography fontWeight={700} variant="body2">
+                  {artifact.label}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  {artifact.artifactType} | {artifact.status} | {formatDateTime(artifact.timestamp)}
+                </Typography>
+                {artifact.path === undefined ? null : (
+                  <Typography color="text.secondary" sx={{ wordBreak: "break-word" }} variant="caption">
+                    {artifact.path}
+                  </Typography>
+                )}
+                {artifact.uri === undefined ? null : (
+                  <Typography color="text.secondary" sx={{ wordBreak: "break-word" }} variant="caption">
+                    {artifact.uri}
+                  </Typography>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Panel>
+  );
+}
+
+function FailuresPanel({ detail }: { readonly detail: AuditRunDetail }) {
+  return (
+    <Panel elevation={0}>
+      <Stack spacing={1.5}>
+        <Typography variant="h3">Failures</Typography>
+        {detail.failures.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No classified failures were recorded for this run.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {detail.failures.map((failure) => (
+              <Stack key={failure.failureId} spacing={0.5}>
+                <Stack
+                  alignItems={{ sm: "center", xs: "flex-start" }}
+                  direction={{ sm: "row", xs: "column" }}
+                  justifyContent="space-between"
+                  spacing={1}
+                >
+                  <Typography fontWeight={700} variant="body2">
+                    {failure.summary}
+                  </Typography>
+                  <Chip color="error" label={`${failure.severity} ${failure.status}`} size="small" />
+                </Stack>
+                <Typography color="text.secondary" variant="body2">
+                  {failure.category} | retryable {failure.retryable ? "yes" : "no"} | {formatDateTime(failure.timestamp)}
+                </Typography>
+                {failure.detail === undefined ? null : (
+                  <Typography color="text.secondary" variant="body2">
+                    {failure.detail}
+                  </Typography>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Panel>
+  );
+}
+
 function EventTimelinePanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
     <Panel elevation={0}>
@@ -177,7 +292,7 @@ function EventTimelinePanel({ detail }: { readonly detail: AuditRunDetail }) {
   );
 }
 
-function DetailGrid({ items }: DetailGridProps) {
+function DetailGrid({ items }: { readonly items: { label: string; value: string }[] }) {
   return (
     <Stack direction={{ md: "row", xs: "column" }} flexWrap="wrap" spacing={1.5} useFlexGap>
       {items.map((item) => (

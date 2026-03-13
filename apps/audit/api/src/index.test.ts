@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { AuditRunDetailSchema, AuditRunOverviewSchema } from "@taxes/shared";
+import { AuditAnalyticsSnapshotSchema, AuditRunDetailSchema, AuditRunOverviewSchema } from "@taxes/shared";
 import type { AuditEvent, AuditSummary } from "../../../../tools/agent/lib/audit.js";
 import { buildApp } from "./app.js";
 import type { TestAuditContext } from "./test/database.js";
@@ -23,10 +23,13 @@ describe("audit app", () => {
     const cwd = "C:\\Users\\csmat\\source\\repos\\Taxes-audit-platform";
     const summary: AuditSummary = {
       actor: "codex",
+      artifacts: [],
       completedAt: "2026-03-12T00:00:05.000Z",
       cwd,
+      decisions: [],
       durationMs: 5000,
       executions: [],
+      failures: [],
       runId,
       startedAt: "2026-03-12T00:00:00.000Z",
       stats: {
@@ -66,18 +69,25 @@ describe("audit app", () => {
       method: "GET",
       url: "/api/audit/runs"
     });
+    const analyticsResponse = await app.inject({
+      method: "GET",
+      url: "/api/audit/analytics"
+    });
     const detailResponse = await app.inject({
       method: "GET",
       url: `/api/audit/runs/${runId}`
     });
 
     const runsPayload = z.object({ runs: z.array(AuditRunOverviewSchema) }).parse(runsResponse.json());
+    const analyticsPayload = z.object({ analytics: AuditAnalyticsSnapshotSchema }).parse(analyticsResponse.json());
     const detailPayload = z.object({ detail: AuditRunDetailSchema }).parse(detailResponse.json());
 
     expect(runsResponse.statusCode).toBe(200);
     expect(runsPayload.runs[0]?.runId).toBe(runId);
     expect(runsPayload.runs[0]?.status).toBe("success");
     expect(runsPayload.runs[0]?.workflow).toBe("implementation");
+    expect(analyticsResponse.statusCode).toBe(200);
+    expect(analyticsPayload.analytics.totals.totalRuns).toBe(1);
     expect(detailResponse.statusCode).toBe(200);
     expect(detailPayload.detail.run.runId).toBe(runId);
     expect(detailPayload.detail.events[0]?.eventId).toBe("event-1");

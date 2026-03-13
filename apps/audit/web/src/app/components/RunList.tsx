@@ -25,7 +25,7 @@ export function RunList({ onSelect, runs, selectedRunId }: RunListProps) {
           <div>
             <Typography variant="h3">Recent runs</Typography>
             <Typography color="text.secondary" variant="body2">
-              Click a run to inspect executions and events.
+              Click a run to inspect executions, decisions, artifacts, and failures.
             </Typography>
           </div>
           <Chip label={`${runs.length.toString()} loaded`} variant="outlined" />
@@ -68,10 +68,13 @@ export function RunList({ onSelect, runs, selectedRunId }: RunListProps) {
                     <Chip color={toChipColor(run.status)} label={run.status} size="small" />
                   </Stack>
                   <Typography color="text.secondary" variant="body2">
-                    {run.workflow} · {formatRelativePath(run.worktreePath)}
+                    {run.workflow} | {formatRelativePath(run.worktreePath)}
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    {formatDateTime(run.startedAt)} · {formatDuration(run.durationMs)}
+                    {formatDateTime(run.startedAt)} | {formatDuration(run.durationMs)}
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    {(run.project ?? "no project")} | {(run.agentName ?? "no agent")} | decisions {run.decisionCount} | failures {run.failureCount}
                   </Typography>
                 </Stack>
               </ListItemButton>

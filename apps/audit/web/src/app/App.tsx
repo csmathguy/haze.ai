@@ -13,6 +13,8 @@ import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import CableOutlinedIcon from "@mui/icons-material/CableOutlined";
 import PlayCircleOutlineOutlinedIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
 import ChecklistRtlOutlinedIcon from "@mui/icons-material/ChecklistRtlOutlined";
+import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
+import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 
 import type { AuditRunDetail, AuditRunOverview } from "@taxes/shared";
 
@@ -46,13 +48,17 @@ const Shell = styled(Container)(({ theme }) => ({
 
 export function App() {
   const {
+    agentNames,
+    analyticsError,
     connectionState,
     detail,
     detailError,
     filters,
+    isLoadingAnalytics,
     isLoadingDetail,
     isLoadingRuns,
     lastEventAt,
+    projects,
     runError,
     runStats,
     runs,
@@ -60,63 +66,79 @@ export function App() {
     setFilters,
     setSelectedRunId,
     workflows,
+    workItemIds,
     worktreePaths
   } = useAuditMonitor();
 
   return (
     <AuditMonitorLayout
+      agentNames={agentNames}
+      analyticsError={analyticsError}
       connectionState={connectionState}
       deferredRuns={runs}
       detail={detail}
       detailError={detailError}
       filters={filters}
+      isLoadingAnalytics={isLoadingAnalytics}
       isLoadingDetail={isLoadingDetail}
       isLoadingRuns={isLoadingRuns}
       lastEventAt={lastEventAt}
       onFilterChange={setFilters}
       onSelectRun={setSelectedRunId}
+      projects={projects}
       runError={runError}
       runStats={runStats}
       selectedRunId={selectedRunId}
       workflows={workflows}
+      workItemIds={workItemIds}
       worktreePaths={worktreePaths}
     />
   );
 }
 
 interface AuditMonitorLayoutProps {
+  readonly agentNames: string[];
+  readonly analyticsError: string | null;
   readonly connectionState: ConnectionState;
   readonly deferredRuns: AuditRunOverview[];
   readonly detail: AuditRunDetail | null;
   readonly detailError: string | null;
   readonly filters: AuditRunFilters;
+  readonly isLoadingAnalytics: boolean;
   readonly isLoadingDetail: boolean;
   readonly isLoadingRuns: boolean;
   readonly lastEventAt: string | null;
   readonly onFilterChange: (filters: AuditRunFilters) => void;
   readonly onSelectRun: (runId: string | null) => void;
+  readonly projects: string[];
   readonly runError: string | null;
   readonly runStats: RunStats;
   readonly selectedRunId: string | null;
   readonly workflows: string[];
+  readonly workItemIds: string[];
   readonly worktreePaths: string[];
 }
 
 function AuditMonitorLayout({
+  agentNames,
+  analyticsError,
   connectionState,
   deferredRuns,
   detail,
   detailError,
   filters,
+  isLoadingAnalytics,
   isLoadingDetail,
   isLoadingRuns,
   lastEventAt,
   onFilterChange,
   onSelectRun,
+  projects,
   runError,
   runStats,
   selectedRunId,
   workflows,
+  workItemIds,
   worktreePaths
 }: AuditMonitorLayoutProps) {
   return (
@@ -128,12 +150,16 @@ function AuditMonitorLayout({
             filters={filters}
             lastEventAt={lastEventAt}
             onFilterChange={onFilterChange}
+            agentNames={agentNames}
+            projects={projects}
             workflows={workflows}
+            workItemIds={workItemIds}
             worktreePaths={worktreePaths}
           />
           {runError !== null ? <Alert severity="error">{runError}</Alert> : null}
+          {analyticsError !== null ? <Alert severity="warning">{analyticsError}</Alert> : null}
           {detailError !== null ? <Alert severity="warning">{detailError}</Alert> : null}
-          <MetricGrid runStats={runStats} />
+          <MetricGrid isLoadingAnalytics={isLoadingAnalytics} runStats={runStats} />
           <ContentGrid
             detail={detail}
             isLoadingDetail={isLoadingDetail}
@@ -149,15 +175,26 @@ function AuditMonitorLayout({
 }
 
 function MonitorHeader({
+  agentNames,
   connectionState,
   filters,
   lastEventAt,
   onFilterChange,
+  projects,
   workflows,
+  workItemIds,
   worktreePaths
 }: Pick<
   AuditMonitorLayoutProps,
-  "connectionState" | "filters" | "lastEventAt" | "onFilterChange" | "workflows" | "worktreePaths"
+  | "agentNames"
+  | "connectionState"
+  | "filters"
+  | "lastEventAt"
+  | "onFilterChange"
+  | "projects"
+  | "workflows"
+  | "workItemIds"
+  | "worktreePaths"
 >) {
   return (
     <Stack spacing={1.5}>
@@ -180,12 +217,26 @@ function MonitorHeader({
           variant="filled"
         />
       </Stack>
-      <FiltersBar filters={filters} onChange={onFilterChange} workflows={workflows} worktreePaths={worktreePaths} />
+      <FiltersBar
+        agentNames={agentNames}
+        filters={filters}
+        onChange={onFilterChange}
+        projects={projects}
+        workflows={workflows}
+        workItemIds={workItemIds}
+        worktreePaths={worktreePaths}
+      />
     </Stack>
   );
 }
 
-function MetricGrid({ runStats }: { readonly runStats: RunStats }) {
+function MetricGrid({
+  isLoadingAnalytics,
+  runStats
+}: {
+  readonly isLoadingAnalytics: boolean;
+  readonly runStats: RunStats;
+}) {
   return (
     <Grid container spacing={2}>
       <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
@@ -218,6 +269,22 @@ function MetricGrid({ runStats }: { readonly runStats: RunStats }) {
           icon={<QueryStatsOutlinedIcon />}
           label="Executions"
           value={runStats.executionCount.toString()}
+        />
+      </Grid>
+      <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
+        <MetricCard
+          caption="Logged decisions across the visible run set."
+          icon={<RouteOutlinedIcon />}
+          label="Decisions"
+          value={runStats.decisionCount.toString()}
+        />
+      </Grid>
+      <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
+        <MetricCard
+          caption={isLoadingAnalytics ? "Refreshing analytics…" : "Captured artifacts across the visible run set."}
+          icon={<FolderOpenOutlinedIcon />}
+          label="Artifacts"
+          value={runStats.artifactCount.toString()}
         />
       </Grid>
     </Grid>

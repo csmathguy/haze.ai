@@ -1,27 +1,35 @@
 import { startTransition, useDeferredValue, useEffect, useEffectEvent, useState } from "react";
 
-import type { AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import type { AuditAnalyticsSnapshot, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
 
 import type { AuditRunFilters } from "./api.js";
-import { fetchAuditRunDetail, fetchAuditRuns, subscribeToAuditStream } from "./api.js";
+import { fetchAuditAnalytics, fetchAuditRunDetail, fetchAuditRuns, subscribeToAuditStream } from "./api.js";
 
 export type ConnectionState = "connecting" | "live" | "offline";
 
 export interface RunStats {
+  artifactCount: number;
+  decisionCount: number;
   executionCount: number;
+  failureCount: number;
   failedRuns: number;
   runningRuns: number;
   totalRuns: number;
 }
 
 export interface UseAuditMonitorResult {
+  agentNames: string[];
+  analytics: AuditAnalyticsSnapshot | null;
+  analyticsError: string | null;
   connectionState: ConnectionState;
   detail: AuditRunDetail | null;
   detailError: string | null;
   filters: AuditRunFilters;
   isLoadingDetail: boolean;
+  isLoadingAnalytics: boolean;
   isLoadingRuns: boolean;
   lastEventAt: string | null;
+  projects: string[];
   runError: string | null;
   runStats: RunStats;
   runs: AuditRunOverview[];
@@ -29,12 +37,16 @@ export interface UseAuditMonitorResult {
   setFilters: (filters: AuditRunFilters) => void;
   setSelectedRunId: (runId: string | null) => void;
   workflows: string[];
+  workItemIds: string[];
   worktreePaths: string[];
 }
 
 const initialFilters: AuditRunFilters = {
+  agentName: "",
+  project: "",
   status: "",
   workflow: "",
+  workItemId: "",
   worktreePath: ""
 };
 
@@ -45,6 +57,7 @@ export function useAuditMonitor(): UseAuditMonitorResult {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const runsState = useRunData(filters, setLastEventAt, setSelectedRunId);
+  const analyticsState = useAnalyticsData(filters);
   const deferredRuns = useDeferredValue(runsState.runs);
   const detailState = useDetailData(selectedRunId);
 
@@ -52,26 +65,33 @@ export function useAuditMonitor(): UseAuditMonitorResult {
     filters,
     onConnectionStateChange: setConnectionState,
     onEventTimestamp: setLastEventAt,
+    onRefreshAnalytics: analyticsState.refreshAnalytics,
     onRefreshDetail: detailState.refreshDetail,
     onRefreshRuns: runsState.refreshRuns,
     selectedRunId
   });
 
   return {
+    agentNames: deriveAgentNames(runsState.runs),
+    analytics: analyticsState.analytics,
+    analyticsError: analyticsState.analyticsError,
     connectionState,
     detail: detailState.detail,
     detailError: detailState.detailError,
     filters,
+    isLoadingAnalytics: analyticsState.isLoadingAnalytics,
     isLoadingDetail: detailState.isLoadingDetail,
     isLoadingRuns: runsState.isLoadingRuns,
     lastEventAt,
+    projects: deriveProjects(runsState.runs),
     runError: runsState.runError,
-    runStats: summarizeRuns(deferredRuns),
+    runStats: summarizeRuns(deferredRuns, analyticsState.analytics),
     runs: deferredRuns,
     selectedRunId,
     setFilters,
     setSelectedRunId,
     workflows: deriveWorkflows(runsState.runs),
+    workItemIds: deriveWorkItemIds(runsState.runs),
     worktreePaths: deriveWorktreePaths(runsState.runs)
   };
 }
@@ -151,10 +171,41 @@ function useDetailData(selectedRunId: string | null) {
   };
 }
 
+function useAnalyticsData(filters: AuditRunFilters) {
+  const [analytics, setAnalytics] = useState<AuditAnalyticsSnapshot | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+
+  const refreshAnalytics = useEffectEvent(async (nextFilters: AuditRunFilters) => {
+    setIsLoadingAnalytics(true);
+    setAnalyticsError(null);
+
+    try {
+      setAnalytics(await fetchAuditAnalytics(nextFilters));
+    } catch (error) {
+      setAnalyticsError(error instanceof Error ? error.message : "Failed to load audit analytics.");
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  });
+
+  useEffect(() => {
+    void refreshAnalytics(filters);
+  }, [filters, refreshAnalytics]);
+
+  return {
+    analytics,
+    analyticsError,
+    isLoadingAnalytics,
+    refreshAnalytics
+  };
+}
+
 function useAuditStream(input: {
   filters: AuditRunFilters;
   onConnectionStateChange: (state: ConnectionState) => void;
   onEventTimestamp: (timestamp: string) => void;
+  onRefreshAnalytics: (filters: AuditRunFilters) => Promise<void>;
   onRefreshDetail: (runId: string | null) => Promise<void>;
   onRefreshRuns: (filters: AuditRunFilters) => Promise<void>;
   selectedRunId: string | null;
@@ -163,6 +214,7 @@ function useAuditStream(input: {
     input.onConnectionStateChange("live");
     input.onEventTimestamp(eventTimestamp);
     startTransition(() => {
+      void input.onRefreshAnalytics(input.filters);
       void input.onRefreshRuns(input.filters);
       if (input.selectedRunId === runId) {
         void input.onRefreshDetail(runId);
@@ -192,6 +244,24 @@ function deriveWorkflows(runs: AuditRunOverview[]): string[] {
   return Array.from(new Set(runs.map((run) => run.workflow))).sort((left, right) => left.localeCompare(right));
 }
 
+function deriveAgentNames(runs: AuditRunOverview[]): string[] {
+  return Array.from(new Set(runs.map((run) => run.agentName).filter((value): value is string => value !== undefined))).sort(
+    (left, right) => left.localeCompare(right)
+  );
+}
+
+function deriveProjects(runs: AuditRunOverview[]): string[] {
+  return Array.from(new Set(runs.map((run) => run.project).filter((value): value is string => value !== undefined))).sort(
+    (left, right) => left.localeCompare(right)
+  );
+}
+
+function deriveWorkItemIds(runs: AuditRunOverview[]): string[] {
+  return Array.from(
+    new Set(runs.map((run) => run.workItemId).filter((value): value is string => value !== undefined))
+  ).sort((left, right) => left.localeCompare(right));
+}
+
 function deriveWorktreePaths(runs: AuditRunOverview[]): string[] {
   return Array.from(new Set(runs.map((run) => run.worktreePath))).sort((left, right) => left.localeCompare(right));
 }
@@ -204,16 +274,26 @@ function selectRunId(currentSelectedRunId: string | null, runs: AuditRunOverview
   return runs[0]?.runId ?? null;
 }
 
-function summarizeRuns(runs: AuditRunOverview[]): RunStats {
+function summarizeRuns(runs: AuditRunOverview[], analytics: AuditAnalyticsSnapshot | null): RunStats {
+  if (analytics !== null) {
+    return analytics.totals;
+  }
+
   return runs.reduce(
     (summary, run) => ({
+      artifactCount: summary.artifactCount + run.artifactCount,
+      decisionCount: summary.decisionCount + run.decisionCount,
       executionCount: summary.executionCount + run.executionCount,
+      failureCount: summary.failureCount + run.failureCount,
       failedRuns: summary.failedRuns + (run.status === "failed" ? 1 : 0),
       runningRuns: summary.runningRuns + (run.status === "running" ? 1 : 0),
       totalRuns: summary.totalRuns + 1
     }),
     {
+      artifactCount: 0,
+      decisionCount: 0,
       executionCount: 0,
+      failureCount: 0,
       failedRuns: 0,
       runningRuns: 0,
       totalRuns: 0

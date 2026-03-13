@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir } from "node:fs/promises";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import Database from "better-sqlite3";
 
 import { resolveAuditDatabaseFilePath } from "./client.js";
 
-const MIGRATIONS_DIRECTORY = path.resolve("prisma", "migrations");
+const MIGRATIONS_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../prisma/migrations");
 const MIGRATIONS_TABLE_NAME = "_taxes_migrations";
 const preparedDatabases = new Set<string>();
 

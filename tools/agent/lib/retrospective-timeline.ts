@@ -76,13 +76,29 @@ function createWorkflowEndEntry(event: AuditEvent): TimelineEntry {
 }
 
 const TIMELINE_ENTRY_BUILDERS: Record<AuditEvent["eventType"], TimelineEntryBuilder> = {
+  "artifact-recorded": (event) => createTypedRecordEntry(event, "Artifact"),
+  "decision-recorded": (event) => createTypedRecordEntry(event, "Decision"),
   "execution-end": (event, failedAttemptsByLabel, runDir) =>
     createFailedExecutionEntry(event, failedAttemptsByLabel, runDir),
   "execution-start": () => null,
+  "failure-recorded": (event) => createTypedRecordEntry(event, "Failure"),
   "workflow-end": (event) => createWorkflowEndEntry(event),
   "workflow-note": (event) => createWorkflowNoteEntry(event),
   "workflow-start": (event) => createWorkflowStartEntry(event)
 };
+
+function createTypedRecordEntry(event: AuditEvent, label: string): TimelineEntry | null {
+  const summary = event.metadata?.summary;
+
+  if (typeof summary !== "string") {
+    return null;
+  }
+
+  return {
+    message: `${label} logged: ${summary}.`,
+    timestamp: event.timestamp
+  };
+}
 
 function getFailedAttemptNumber(
   event: AuditEvent,

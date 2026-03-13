@@ -2,13 +2,24 @@ import { z } from "zod";
 
 export const AuditWorkflowStatusSchema = z.enum(["failed", "running", "skipped", "success"]);
 export const AuditExecutionKindSchema = z.enum(["command", "hook", "operation", "skill", "tool", "validation"]);
+export const AuditFailureSeveritySchema = z.enum(["low", "medium", "high", "critical"]);
+export const AuditFailureStatusSchema = z.enum(["open", "resolved"]);
 export const AuditEventTypeSchema = z.enum([
+  "artifact-recorded",
+  "decision-recorded",
   "execution-end",
   "execution-start",
+  "failure-recorded",
   "workflow-end",
   "workflow-note",
   "workflow-start"
 ]);
+export const AuditContextSchema = z.object({
+  agentName: z.string().optional(),
+  project: z.string().optional(),
+  sessionId: z.string().optional(),
+  workItemId: z.string().optional()
+});
 
 export const AuditStatsSnapshotSchema = z.object({
   byKind: z.record(z.string(), z.number().int().nonnegative()),
@@ -17,12 +28,15 @@ export const AuditStatsSnapshotSchema = z.object({
   failedExecutionCount: z.number().int().nonnegative()
 });
 
-export const AuditRunOverviewSchema = z.object({
+export const AuditRunOverviewSchema = AuditContextSchema.extend({
   actor: z.string(),
+  artifactCount: z.number().int().nonnegative(),
   completedAt: z.iso.datetime().optional(),
+  decisionCount: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().optional(),
   executionCount: z.number().int().nonnegative(),
   failedExecutionCount: z.number().int().nonnegative(),
+  failureCount: z.number().int().nonnegative(),
   latestEventAt: z.iso.datetime().optional(),
   repoPath: z.string().optional(),
   runId: z.string(),
@@ -52,7 +66,7 @@ export const AuditExecutionRecordSchema = z.object({
   step: z.string().optional()
 });
 
-export const AuditEventRecordSchema = z.object({
+export const AuditEventRecordSchema = AuditContextSchema.extend({
   actor: z.string(),
   command: z.array(z.string()).optional(),
   cwd: z.string(),
@@ -76,16 +90,88 @@ export const AuditEventRecordSchema = z.object({
   workflow: z.string()
 });
 
+export const AuditDecisionRecordSchema = z.object({
+  category: z.string(),
+  decisionId: z.string(),
+  executionId: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  options: z.array(z.string()).optional(),
+  rationale: z.string().optional(),
+  runId: z.string(),
+  selectedOption: z.string().optional(),
+  summary: z.string(),
+  timestamp: z.iso.datetime()
+});
+
+export const AuditArtifactRecordSchema = z.object({
+  artifactId: z.string(),
+  artifactType: z.string(),
+  executionId: z.string().optional(),
+  label: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  path: z.string().optional(),
+  runId: z.string(),
+  status: z.string(),
+  timestamp: z.iso.datetime(),
+  uri: z.string().optional()
+});
+
+export const AuditFailureRecordSchema = z.object({
+  category: z.string(),
+  detail: z.string().optional(),
+  executionId: z.string().optional(),
+  failureId: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  retryable: z.boolean(),
+  runId: z.string(),
+  severity: AuditFailureSeveritySchema,
+  status: AuditFailureStatusSchema,
+  summary: z.string(),
+  timestamp: z.iso.datetime()
+});
+
 export const AuditRunDetailSchema = z.object({
+  artifacts: z.array(AuditArtifactRecordSchema),
+  decisions: z.array(AuditDecisionRecordSchema),
   events: z.array(AuditEventRecordSchema),
   executions: z.array(AuditExecutionRecordSchema),
+  failures: z.array(AuditFailureRecordSchema),
   run: AuditRunOverviewSchema
 });
 
+export const AuditAnalyticsBreakdownEntrySchema = z.object({
+  count: z.number().int().nonnegative(),
+  key: z.string()
+});
+
+export const AuditAnalyticsSnapshotSchema = z.object({
+  byAgent: z.array(AuditAnalyticsBreakdownEntrySchema),
+  byProject: z.array(AuditAnalyticsBreakdownEntrySchema),
+  byWorkflow: z.array(AuditAnalyticsBreakdownEntrySchema),
+  failureCategories: z.array(AuditAnalyticsBreakdownEntrySchema),
+  totals: z.object({
+    artifactCount: z.number().int().nonnegative(),
+    decisionCount: z.number().int().nonnegative(),
+    executionCount: z.number().int().nonnegative(),
+    failureCount: z.number().int().nonnegative(),
+    failedRuns: z.number().int().nonnegative(),
+    runningRuns: z.number().int().nonnegative(),
+    totalRuns: z.number().int().nonnegative()
+  })
+});
+
 export type AuditEventRecord = z.infer<typeof AuditEventRecordSchema>;
+export type AuditAnalyticsBreakdownEntry = z.infer<typeof AuditAnalyticsBreakdownEntrySchema>;
+export type AuditAnalyticsSnapshot = z.infer<typeof AuditAnalyticsSnapshotSchema>;
+export type AuditArtifactRecord = z.infer<typeof AuditArtifactRecordSchema>;
+export type AuditContext = z.infer<typeof AuditContextSchema>;
+export type AuditDecisionRecord = z.infer<typeof AuditDecisionRecordSchema>;
 export type AuditExecutionKind = z.infer<typeof AuditExecutionKindSchema>;
 export type AuditExecutionRecord = z.infer<typeof AuditExecutionRecordSchema>;
 export type AuditEventType = z.infer<typeof AuditEventTypeSchema>;
+export type AuditFailureRecord = z.infer<typeof AuditFailureRecordSchema>;
+export type AuditFailureSeverity = z.infer<typeof AuditFailureSeveritySchema>;
+export type AuditFailureStatus = z.infer<typeof AuditFailureStatusSchema>;
 export type AuditRunDetail = z.infer<typeof AuditRunDetailSchema>;
 export type AuditRunOverview = z.infer<typeof AuditRunOverviewSchema>;
 export type AuditStatsSnapshot = z.infer<typeof AuditStatsSnapshotSchema>;

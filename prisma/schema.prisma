@@ -243,6 +243,10 @@ model AuditRun {
   workflow             String
   task                 String?
   actor                String
+  agentName            String?
+  project              String?
+  sessionId            String?
+  workItemId           String?
   status               String
   repoPath             String?
   worktreePath         String
@@ -251,17 +255,85 @@ model AuditRun {
   durationMs           Int?
   executionCount       Int                    @default(0)
   failedExecutionCount Int                    @default(0)
+  decisionCount        Int                    @default(0)
+  artifactCount        Int                    @default(0)
+  failureCount         Int                    @default(0)
   latestEventAt        DateTime?
   statsByKindJson      String?
   statsByStatusJson    String?
   summaryJson          String?
+  decisions            AuditDecisionRecord[]
+  artifacts            AuditArtifactRecord[]
+  failures             AuditFailureRecord[]
   events               AuditEventRecord[]
   executions           AuditExecutionRecord[]
 
   @@index([workflow, startedAt])
   @@index([status, startedAt])
+  @@index([project, startedAt])
+  @@index([agentName, startedAt])
+  @@index([workItemId, startedAt])
   @@index([worktreePath, startedAt])
   @@index([latestEventAt])
+}
+
+model AuditDecisionRecord {
+  id           String                @id
+  runId        String
+  executionId  String?
+  category     String
+  summary      String
+  rationale    String?
+  selectedOption String?
+  optionsJson  String?
+  metadataJson String?
+  timestamp    DateTime
+  run          AuditRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  execution    AuditExecutionRecord? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([runId, timestamp])
+  @@index([category, timestamp])
+  @@index([executionId, timestamp])
+}
+
+model AuditArtifactRecord {
+  id           String                @id
+  runId        String
+  executionId  String?
+  artifactType String
+  label        String
+  status       String
+  path         String?
+  uri          String?
+  metadataJson String?
+  timestamp    DateTime
+  run          AuditRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  execution    AuditExecutionRecord? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([runId, timestamp])
+  @@index([artifactType, timestamp])
+  @@index([executionId, timestamp])
+}
+
+model AuditFailureRecord {
+  id           String                @id
+  runId        String
+  executionId  String?
+  category     String
+  severity     String
+  status       String
+  summary      String
+  detail       String?
+  retryable    Boolean               @default(false)
+  metadataJson String?
+  timestamp    DateTime
+  run          AuditRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  execution    AuditExecutionRecord? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([runId, timestamp])
+  @@index([category, timestamp])
+  @@index([severity, timestamp])
+  @@index([executionId, timestamp])
 }
 
 model AuditExecutionRecord {
@@ -284,6 +356,9 @@ model AuditExecutionRecord {
   run               AuditRun               @relation(fields: [runId], references: [id], onDelete: Cascade)
   parent            AuditExecutionRecord?  @relation("AuditExecutionHierarchy", fields: [parentExecutionId], references: [id], onDelete: SetNull)
   children          AuditExecutionRecord[] @relation("AuditExecutionHierarchy")
+  decisions         AuditDecisionRecord[]
+  artifacts         AuditArtifactRecord[]
+  failures          AuditFailureRecord[]
   events            AuditEventRecord[]
 
   @@index([runId, startedAt])
@@ -298,6 +373,7 @@ model AuditEventRecord {
   executionId       String?
   eventType         String
   actor             String
+  agentName         String?
   cwd               String
   status            String?
   step              String?
@@ -313,7 +389,10 @@ model AuditEventRecord {
   executionKind     String?
   executionName     String?
   parentExecutionId String?
+  project           String?
+  sessionId         String?
   workflow          String
+  workItemId        String?
   run               AuditRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
   execution         AuditExecutionRecord? @relation(fields: [executionId], references: [id], onDelete: SetNull)
 
