@@ -15,18 +15,23 @@ This skill keeps planning data explicit, reviewable, and durable across worktree
 2. If the request needs external guidance, use `skills/research-agent` first and record dated findings.
 3. Inspect the current queue with `npm run plan:cli -- workspace get` or `npm run plan:cli -- work-item next --project-key <key>`.
 4. Create or update a planning work item before substantial implementation when the work spans multiple steps or agent handoffs.
-4. Capture, at minimum:
+5. Capture, at minimum:
    - title and summary
    - project key
    - work item kind and priority
    - acceptance criteria
    - implementation tasks
    - plan steps, especially when research, design, implementation, and validation are separate phases
-5. When an audited implementation workflow exists, store its workflow run ID on the work item or plan run as an external reference.
-6. Move work item status through `backlog`, `planning`, `ready`, `in-progress`, `blocked`, and `done` instead of leaving progress implicit.
-7. Prefer one backlog item per independently shippable change. Split oversized work before implementation.
-8. Keep dependencies explicit so future agents can safely pull the next ready item.
-9. During execution, append newly discovered tasks or criteria instead of leaving scope changes in chat-only notes.
+6. Before code work begins, make the execution lifecycle explicit:
+   - item exists in planning
+   - item is truthfully `planning` or `ready`
+   - dedicated worktree will be created for the owned slice
+   - active workflow run ID and owner will be written back when execution starts
+7. When an audited implementation workflow exists, store its workflow run ID on the work item or plan run as an external reference.
+8. Move work item status through `backlog`, `planning`, `ready`, `in-progress`, `blocked`, and `done` instead of leaving progress implicit.
+9. Prefer one backlog item per independently shippable change. Split oversized work before implementation.
+10. Keep dependencies explicit so future agents can safely pull the next ready item.
+11. During execution, append newly discovered tasks or criteria instead of leaving scope changes in chat-only notes.
 
 ## Key Rules
 
