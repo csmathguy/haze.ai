@@ -1,18 +1,43 @@
-import type { Prisma } from "@prisma/client";
-
 import { stringifyJson } from "./audit-serialization.js";
 import type {
   AuditMetadata,
   AuditSyncArtifactSummary,
   AuditSyncDecisionSummary,
   AuditSyncEvent,
-  AuditSyncFailureSummary
+  AuditSyncFailureSummary,
+  AuditSyncHandoffSummary
 } from "./audit-sync-contract.js";
 
-export async function syncTypedRecordFromEvent(
-  transaction: Prisma.TransactionClient,
-  event: AuditSyncEvent
-): Promise<void> {
+export async function syncTypedRecordFromEvent(transaction: {
+  auditArtifactRecord: {
+    upsert: (args: {
+      create: ReturnType<typeof buildArtifactCreateInput>;
+      update: ReturnType<typeof buildArtifactUpdateInput>;
+      where: { id: string };
+    }) => Promise<unknown>;
+  };
+  auditDecisionRecord: {
+    upsert: (args: {
+      create: ReturnType<typeof buildDecisionCreateInput>;
+      update: ReturnType<typeof buildDecisionUpdateInput>;
+      where: { id: string };
+    }) => Promise<unknown>;
+  };
+  auditFailureRecord: {
+    upsert: (args: {
+      create: ReturnType<typeof buildFailureCreateInput>;
+      update: ReturnType<typeof buildFailureUpdateInput>;
+      where: { id: string };
+    }) => Promise<unknown>;
+  };
+  auditHandoffRecord: {
+    upsert: (args: {
+      create: ReturnType<typeof buildHandoffCreateInput>;
+      update: ReturnType<typeof buildHandoffUpdateInput>;
+      where: { id: string };
+    }) => Promise<unknown>;
+  };
+}, event: AuditSyncEvent): Promise<void> {
   if (event.metadata === undefined) {
     return;
   }
@@ -52,12 +77,21 @@ export async function syncTypedRecordFromEvent(
       }
     });
   }
+
+  if (event.eventType === "handoff-recorded") {
+    const handoff = toHandoffSummary(event);
+
+    await transaction.auditHandoffRecord.upsert({
+      create: buildHandoffCreateInput(event.runId, handoff),
+      update: buildHandoffUpdateInput(handoff),
+      where: {
+        id: handoff.handoffId
+      }
+    });
+  }
 }
 
-export function buildDecisionCreateInput(
-  runId: string,
-  decision: AuditSyncDecisionSummary
-): Prisma.AuditDecisionRecordUncheckedCreateInput {
+export function buildDecisionCreateInput(runId: string, decision: AuditSyncDecisionSummary) {
   return {
     category: decision.category,
     executionId: decision.executionId ?? null,
@@ -72,9 +106,7 @@ export function buildDecisionCreateInput(
   };
 }
 
-export function buildDecisionUpdateInput(
-  decision: AuditSyncDecisionSummary
-): Prisma.AuditDecisionRecordUncheckedUpdateInput {
+export function buildDecisionUpdateInput(decision: AuditSyncDecisionSummary) {
   return compactUpdate({
     category: decision.category,
     executionId: decision.executionId,
@@ -84,13 +116,10 @@ export function buildDecisionUpdateInput(
     selectedOption: decision.selectedOption,
     summary: decision.summary,
     timestamp: new Date(decision.timestamp)
-  }) as Prisma.AuditDecisionRecordUncheckedUpdateInput;
+  });
 }
 
-export function buildArtifactCreateInput(
-  runId: string,
-  artifact: AuditSyncArtifactSummary
-): Prisma.AuditArtifactRecordUncheckedCreateInput {
+export function buildArtifactCreateInput(runId: string, artifact: AuditSyncArtifactSummary) {
   return {
     artifactType: artifact.artifactType,
     executionId: artifact.executionId ?? null,
@@ -105,9 +134,7 @@ export function buildArtifactCreateInput(
   };
 }
 
-export function buildArtifactUpdateInput(
-  artifact: AuditSyncArtifactSummary
-): Prisma.AuditArtifactRecordUncheckedUpdateInput {
+export function buildArtifactUpdateInput(artifact: AuditSyncArtifactSummary) {
   return compactUpdate({
     artifactType: artifact.artifactType,
     executionId: artifact.executionId,
@@ -117,13 +144,10 @@ export function buildArtifactUpdateInput(
     status: artifact.status,
     timestamp: new Date(artifact.timestamp),
     uri: artifact.uri
-  }) as Prisma.AuditArtifactRecordUncheckedUpdateInput;
+  });
 }
 
-export function buildFailureCreateInput(
-  runId: string,
-  failure: AuditSyncFailureSummary
-): Prisma.AuditFailureRecordUncheckedCreateInput {
+export function buildFailureCreateInput(runId: string, failure: AuditSyncFailureSummary) {
   return {
     category: failure.category,
     detail: failure.detail ?? null,
@@ -139,9 +163,7 @@ export function buildFailureCreateInput(
   };
 }
 
-export function buildFailureUpdateInput(
-  failure: AuditSyncFailureSummary
-): Prisma.AuditFailureRecordUncheckedUpdateInput {
+export function buildFailureUpdateInput(failure: AuditSyncFailureSummary) {
   return compactUpdate({
     category: failure.category,
     detail: failure.detail,
@@ -152,7 +174,43 @@ export function buildFailureUpdateInput(
     status: failure.status,
     summary: failure.summary,
     timestamp: new Date(failure.timestamp)
-  }) as Prisma.AuditFailureRecordUncheckedUpdateInput;
+  });
+}
+
+export function buildHandoffCreateInput(runId: string, handoff: AuditSyncHandoffSummary) {
+  return {
+    artifactIdsJson: stringifyJson(handoff.artifactIds),
+    detail: handoff.detail ?? null,
+    executionId: handoff.executionId ?? null,
+    id: handoff.handoffId,
+    metadataJson: stringifyJson(handoff.metadata),
+    planRunId: handoff.planRunId ?? null,
+    planStepId: handoff.planStepId ?? null,
+    runId,
+    sourceAgent: handoff.sourceAgent,
+    status: handoff.status,
+    summary: handoff.summary,
+    targetAgent: handoff.targetAgent,
+    timestamp: new Date(handoff.timestamp),
+    workItemId: handoff.workItemId ?? null
+  };
+}
+
+export function buildHandoffUpdateInput(handoff: AuditSyncHandoffSummary) {
+  return compactUpdate({
+    artifactIdsJson: optionalJson(handoff.artifactIds),
+    detail: handoff.detail,
+    executionId: handoff.executionId,
+    metadataJson: optionalJson(handoff.metadata),
+    planRunId: handoff.planRunId,
+    planStepId: handoff.planStepId,
+    sourceAgent: handoff.sourceAgent,
+    status: handoff.status,
+    summary: handoff.summary,
+    targetAgent: handoff.targetAgent,
+    timestamp: new Date(handoff.timestamp),
+    workItemId: handoff.workItemId
+  });
 }
 
 function toDecisionSummary(event: AuditSyncEvent): AuditSyncDecisionSummary {
@@ -210,6 +268,39 @@ function toFailureSummary(event: AuditSyncEvent): AuditSyncFailureSummary {
   };
 }
 
+function toHandoffSummary(event: AuditSyncEvent): AuditSyncHandoffSummary {
+  const artifactIds = getStringArrayMetadata(event, "artifactIds");
+  const detail = getStringMetadata(event, "detail");
+  const metadata = getNestedAuditMetadata(event);
+  const planRunId = resolveHandoffContextValue(event, "planRunId", event.planRunId);
+  const planStepId = resolveHandoffContextValue(event, "planStepId", event.planStepId);
+  const workItemId = resolveHandoffContextValue(event, "workItemId", event.workItemId);
+
+  return {
+    handoffId: readStringMetadata(event, "handoffId"),
+    sourceAgent: readStringMetadata(event, "sourceAgent"),
+    status: readHandoffStatusMetadata(event),
+    summary: readStringMetadata(event, "summary"),
+    targetAgent: readStringMetadata(event, "targetAgent"),
+    timestamp: event.timestamp,
+    ...(artifactIds === undefined ? {} : { artifactIds }),
+    ...(detail === undefined ? {} : { detail }),
+    ...(event.executionId === undefined ? {} : { executionId: event.executionId }),
+    ...(metadata === undefined ? {} : { metadata }),
+    ...(planRunId === undefined ? {} : { planRunId }),
+    ...(planStepId === undefined ? {} : { planStepId }),
+    ...(workItemId === undefined ? {} : { workItemId })
+  };
+}
+
+function resolveHandoffContextValue(
+  event: AuditSyncEvent,
+  metadataKey: "planRunId" | "planStepId" | "workItemId",
+  fallback: string | undefined
+): string | undefined {
+  return getStringMetadata(event, metadataKey) ?? fallback;
+}
+
 function compactUpdate(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
@@ -246,6 +337,16 @@ function readFailureStatusMetadata(event: AuditSyncEvent): AuditSyncFailureSumma
   }
 
   throw new Error(`Unknown failure status: ${value}`);
+}
+
+function readHandoffStatusMetadata(event: AuditSyncEvent): AuditSyncHandoffSummary["status"] {
+  const value = readStringMetadata(event, "status");
+
+  if (value === "accepted" || value === "blocked" || value === "cancelled" || value === "completed" || value === "pending") {
+    return value;
+  }
+
+  throw new Error(`Unknown handoff status: ${value}`);
 }
 
 function getStringMetadata(event: AuditSyncEvent, key: string): string | undefined {

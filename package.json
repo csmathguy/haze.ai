@@ -84,6 +84,7 @@
     "audit:artifact": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts artifact",
     "audit:decision": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts decision",
     "audit:failure": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts failure",
+    "audit:handoff": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts handoff",
     "workflow:retro": "node ./node_modules/tsx/dist/cli.mjs tools/agent/retrospective.ts",
     "execution:start": "node ./node_modules/tsx/dist/cli.mjs tools/agent/execution-log.ts start",
     "execution:end": "node ./node_modules/tsx/dist/cli.mjs tools/agent/execution-log.ts end",

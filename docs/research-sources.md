@@ -1,6 +1,6 @@
 # Research Sources
 
-Researched on March 12, 2026.
+Researched on March 13, 2026.
 
 ## React
 
@@ -41,6 +41,8 @@ Researched on March 12, 2026.
 ## Material UI
 
 - MUI TypeScript guide: https://mui.com/material-ui/guides/typescript/
+- MUI Card docs: https://mui.com/material-ui/react-card/
+- MUI Chip docs: https://mui.com/material-ui/react-chip/
 - MUI customization docs: https://mui.com/material-ui/customization/how-to-customize/
 - MUI palette docs: https://mui.com/material-ui/customization/palette/
 - MUI dark mode docs: https://mui.com/material-ui/customization/dark-mode/
@@ -75,6 +77,11 @@ Researched on March 12, 2026.
 - OpenTelemetry docs, traces concept: https://opentelemetry.io/docs/concepts/signals/traces/
 - OpenTelemetry docs, context propagation: https://opentelemetry.io/docs/concepts/context-propagation/
 - W3C Trace Context recommendation: https://www.w3.org/TR/trace-context/
+- Grafana docs, "Grafana Logs Drilldown": https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/logs/
+- Grafana docs, "Get started with Grafana Logs Drilldown": https://grafana.com/docs/grafana/latest/explore/simplified-exploration/logs/get-started/
+- Grafana docs, "Labels and Fields": https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/logs/labels-and-fields/
+- Sentry docs, "Seer": https://docs.sentry.io/product/issues/issue-details/sentry-ai/
+- Sentry docs, developer quick reference guide: https://docs.sentry.io/pdfs/developer-quick-reference-guide.pdf
 
 ## Agent Files And Skills
 

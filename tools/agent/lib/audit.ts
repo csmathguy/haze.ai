@@ -3,13 +3,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { syncAuditEventSafely, syncAuditSummarySafely } from "./audit-db-sync.js";
+import { compactAuditContextFields } from "./audit-context.js";
 import {
   appendArtifactSummary as appendArtifactRecord,
   appendDecisionSummary as appendDecisionRecord,
   appendFailureSummary as appendFailureRecord,
+  appendHandoffSummary as appendHandoffRecord,
   type AuditArtifactSummary,
   type AuditDecisionSummary,
-  type AuditFailureSummary
+  type AuditFailureSummary,
+  type AuditHandoffSummary
 } from "./audit-records.js";
 import { createRunId, getAuditDateSegment } from "./audit-run-id.js";
 
@@ -23,16 +26,13 @@ export interface AuditMetadata {
 }
 export interface AuditRunContextFields {
   agentName?: string;
+  planRunId?: string;
+  planStepId?: string;
   project?: string;
   sessionId?: string;
   workItemId?: string;
 }
-export interface AuditPaths {
-  eventsPath: string;
-  logsDir: string;
-  runDir: string;
-  summaryPath: string;
-}
+export interface AuditPaths { eventsPath: string; logsDir: string; runDir: string; summaryPath: string; }
 export interface AuditEvent {
   actor: string;
   agentName?: string;
@@ -48,6 +48,7 @@ export interface AuditEvent {
     | "execution-end"
     | "execution-start"
     | "failure-recorded"
+    | "handoff-recorded"
     | "workflow-end"
     | "workflow-note"
     | "workflow-start";
@@ -57,6 +58,8 @@ export interface AuditEvent {
   exitCode?: number;
   logFile?: string;
   metadata?: AuditMetadata;
+  planRunId?: string;
+  planStepId?: string;
   parentExecutionId?: string;
   project?: string;
   runId: string;
@@ -78,7 +81,10 @@ export interface AuditSummary {
   durationMs?: number;
   executions: AuditExecutionSummary[];
   failures: AuditFailureSummary[];
+  handoffs: AuditHandoffSummary[];
   runId: string;
+  planRunId?: string;
+  planStepId?: string;
   project?: string;
   sessionId?: string;
   startedAt: string;
@@ -115,10 +121,8 @@ export interface AuditStepSummary {
   step: string;
 }
 export interface AuditSummaryStats {
-  byKind: Partial<Record<AuditExecutionKind, number>>;
-  byStatus: Partial<Record<WorkflowStatus, number>>;
-  executionCount: number;
-  failedExecutionCount: number;
+  byKind: Partial<Record<AuditExecutionKind, number>>; byStatus: Partial<Record<WorkflowStatus, number>>;
+  executionCount: number; failedExecutionCount: number;
 }
 export function createWorkflowSummary(
   runId: string,
@@ -138,6 +142,7 @@ export function createWorkflowSummary(
     decisions: [],
     executions: [],
     failures: [],
+    handoffs: [],
     runId,
     startedAt: new Date().toISOString(),
     stats: createEmptySummaryStats(),
@@ -243,6 +248,10 @@ export function appendFailureSummary(summary: AuditSummary, failure: AuditFailur
   summary.failures = appendFailureRecord(summary.failures, failure);
 }
 
+export function appendHandoffSummary(summary: AuditSummary, handoff: AuditHandoffSummary): void {
+  summary.handoffs = appendHandoffRecord(summary.handoffs, handoff);
+}
+
 function normalizeSummary(summary: Partial<AuditSummary>): AuditSummary {
   return {
     ...getNormalizedCollections(summary),
@@ -270,8 +279,10 @@ export function createEvent(
 }
 
 export function getEventContextFields(summary: AuditSummary): AuditRunContextFields {
-  return compactContextFields({
+  return compactAuditContextFields({
     agentName: summary.agentName,
+    planRunId: summary.planRunId,
+    planStepId: summary.planStepId,
     project: summary.project,
     sessionId: summary.sessionId,
     workItemId: summary.workItemId
@@ -283,8 +294,10 @@ function detectActor(): string {
 }
 
 function resolveAuditRunContextFields(): AuditRunContextFields {
-  return compactContextFields({
+  return compactAuditContextFields({
     agentName: process.env.AUDIT_AGENT_NAME ?? process.env.CODEX_AGENT_NAME,
+    planRunId: process.env.AUDIT_PLAN_RUN_ID,
+    planStepId: process.env.AUDIT_PLAN_STEP_ID,
     project: process.env.AUDIT_PROJECT,
     sessionId: process.env.AUDIT_SESSION_ID,
     workItemId: process.env.AUDIT_WORK_ITEM_ID
@@ -331,13 +344,11 @@ function getOptionalSummaryFields(summary: Partial<AuditSummary>): Partial<Audit
   };
 }
 
-function compactContextFields(value: Record<string, string | undefined>): Partial<AuditRunContextFields> {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
-}
-
 function toContextRecord(value: Partial<AuditRunContextFields>): Partial<AuditRunContextFields> {
-  return compactContextFields({
+  return compactAuditContextFields({
     agentName: value.agentName,
+    planRunId: value.planRunId,
+    planStepId: value.planStepId,
     project: value.project,
     sessionId: value.sessionId,
     workItemId: value.workItemId
@@ -345,17 +356,24 @@ function toContextRecord(value: Partial<AuditRunContextFields>): Partial<AuditRu
 }
 
 function getNormalizedCollections(summary: Partial<AuditSummary>) {
-  return {
-    artifacts: summary.artifacts ?? [],
-    decisions: summary.decisions ?? [],
-    executions: summary.executions ?? [],
-    failures: summary.failures ?? []
-  };
+  return { artifacts: summary.artifacts ?? [], decisions: summary.decisions ?? [], executions: summary.executions ?? [], failures: summary.failures ?? [], handoffs: summary.handoffs ?? [] };
 }
 
 function getNormalizedSummaryBase(summary: Partial<AuditSummary>): Omit<
   AuditSummary,
-  "agentName" | "artifacts" | "completedAt" | "decisions" | "durationMs" | "failures" | "project" | "sessionId" | "task" | "workItemId"
+  | "agentName"
+  | "artifacts"
+  | "completedAt"
+  | "decisions"
+  | "durationMs"
+  | "failures"
+  | "handoffs"
+  | "planRunId"
+  | "planStepId"
+  | "project"
+  | "sessionId"
+  | "task"
+  | "workItemId"
 > {
   const executions = summary.executions ?? [];
 

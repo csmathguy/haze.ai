@@ -11,7 +11,7 @@ export async function buildApp() {
   });
 
   await app.register(cors, {
-    origin: [`http://${CODE_REVIEW_API_HOST}:5173`, "http://localhost:5173"]
+    origin: [`http://${CODE_REVIEW_API_HOST}:5178`, "http://localhost:5178"]
   });
 
   registerHealthRoutes(app);

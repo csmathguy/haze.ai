@@ -309,6 +309,8 @@ model AuditRun {
   task                 String?
   actor                String
   agentName            String?
+  planRunId            String?
+  planStepId           String?
   project              String?
   sessionId            String?
   workItemId           String?
@@ -323,6 +325,7 @@ model AuditRun {
   decisionCount        Int                    @default(0)
   artifactCount        Int                    @default(0)
   failureCount         Int                    @default(0)
+  handoffCount         Int                    @default(0)
   latestEventAt        DateTime?
   statsByKindJson      String?
   statsByStatusJson    String?
@@ -330,6 +333,7 @@ model AuditRun {
   decisions            AuditDecisionRecord[]
   artifacts            AuditArtifactRecord[]
   failures             AuditFailureRecord[]
+  handoffs             AuditHandoffRecord[]
   events               AuditEventRecord[]
   executions           AuditExecutionRecord[]
 
@@ -338,6 +342,8 @@ model AuditRun {
   @@index([project, startedAt])
   @@index([agentName, startedAt])
   @@index([workItemId, startedAt])
+  @@index([planRunId, startedAt])
+  @@index([planStepId, startedAt])
   @@index([worktreePath, startedAt])
   @@index([latestEventAt])
 }
@@ -401,6 +407,34 @@ model AuditFailureRecord {
   @@index([executionId, timestamp])
 }
 
+model AuditHandoffRecord {
+  id             String                @id
+  runId          String
+  executionId    String?
+  workItemId     String?
+  planRunId      String?
+  planStepId     String?
+  sourceAgent    String
+  targetAgent    String
+  status         String
+  summary        String
+  detail         String?
+  artifactIdsJson String?
+  metadataJson   String?
+  timestamp      DateTime
+  run            AuditRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  execution      AuditExecutionRecord? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([runId, timestamp])
+  @@index([workItemId, timestamp])
+  @@index([planRunId, timestamp])
+  @@index([planStepId, timestamp])
+  @@index([sourceAgent, timestamp])
+  @@index([targetAgent, timestamp])
+  @@index([status, timestamp])
+  @@index([executionId, timestamp])
+}
+
 model AuditExecutionRecord {
   id                String                 @id
   runId             String
@@ -424,6 +458,7 @@ model AuditExecutionRecord {
   decisions         AuditDecisionRecord[]
   artifacts         AuditArtifactRecord[]
   failures          AuditFailureRecord[]
+  handoffs          AuditHandoffRecord[]
   events            AuditEventRecord[]
 
   @@index([runId, startedAt])
@@ -453,6 +488,8 @@ model AuditEventRecord {
   metadataJson      String?
   executionKind     String?
   executionName     String?
+  planRunId         String?
+  planStepId        String?
   parentExecutionId String?
   project           String?
   sessionId         String?
@@ -465,4 +502,7 @@ model AuditEventRecord {
   @@index([executionId, timestamp])
   @@index([timestamp])
   @@index([workflow, timestamp])
+  @@index([workItemId, timestamp])
+  @@index([planRunId, timestamp])
+  @@index([planStepId, timestamp])
 }

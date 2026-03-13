@@ -14,14 +14,16 @@ Let multiple coding agents work on this repository at the same time without turn
 
 ## Repo Operating Model
 
-1. Create or refine the planning work item before code work starts.
-2. Create one orchestration slice for planning and contract decisions.
-3. Split implementation into small branches with one owned boundary each.
-4. Give each slice its own worktree under `.worktrees/<task-id>`.
-5. Put a local brief in `.codex-local/parallel-task.md` inside that worktree.
-6. As the slice starts, update the planning item with owner, workflow ID, and `in-progress` status.
-7. Merge contract-first slices before downstream API or web slices.
-8. Re-run validation in each worktree before handoff.
+1. Ensure the work belongs to a planning project. Create the project first when no suitable project exists yet.
+2. Create or refine the planning work item before code work starts.
+3. Create one orchestration slice for planning and contract decisions.
+4. Split implementation into small branches with one owned boundary each.
+5. Give each slice its own worktree under `.worktrees/<task-id>`.
+6. Put a local brief in `.codex-local/parallel-task.md` inside that worktree.
+7. Do the implementation inside that dedicated worktree, not in the shared checkout.
+8. As the slice starts, update the planning item with owner, workflow ID, and `in-progress` status.
+9. Merge contract-first slices before downstream API or web slices.
+10. Re-run validation in each worktree before handoff.
 
 The helper command for step 3 is:
 

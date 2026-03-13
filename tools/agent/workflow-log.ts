@@ -192,6 +192,8 @@ function isCommandName(value: string | undefined): value is CommandName {
 interface ParsedArgs {
   agentName?: string;
   message?: string;
+  planRunId?: string;
+  planStepId?: string;
   project?: string;
   sessionId?: string;
   status: "failed" | "success";
@@ -219,16 +221,7 @@ function parseFlagArgs(rawArgs: string[]): ParsedArgs {
     throw new Error("Missing required argument --workflow");
   }
 
-  return {
-    ...(parsed.agentName === undefined ? {} : { agentName: parsed.agentName }),
-    ...(parsed.project === undefined ? {} : { project: parsed.project }),
-    ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
-    status: parsed.status ?? "success",
-    workflow: parsed.workflow,
-    ...(parsed.message === undefined ? {} : { message: parsed.message }),
-    ...(parsed.task === undefined ? {} : { task: parsed.task }),
-    ...(parsed.workItemId === undefined ? {} : { workItemId: parsed.workItemId })
-  };
+  return finalizeParsedFlagArgs(parsed, parsed.workflow);
 }
 
 function toFlagEntries(rawArgs: string[]): [string, string][] {
@@ -309,6 +302,12 @@ function assignFlagArg(parsed: Partial<ParsedArgs>, key: string, value: string):
     case "--project":
       parsed.project = value;
       break;
+    case "--plan-run-id":
+      parsed.planRunId = value;
+      break;
+    case "--plan-step-id":
+      parsed.planStepId = value;
+      break;
     case "--session-id":
       parsed.sessionId = value;
       break;
@@ -326,9 +325,26 @@ function assignFlagArg(parsed: Partial<ParsedArgs>, key: string, value: string):
 function resolveContextArgs(args: ParsedArgs): AuditRunContextFields {
   return {
     ...(args.agentName === undefined ? {} : { agentName: args.agentName }),
+    ...(args.planRunId === undefined ? {} : { planRunId: args.planRunId }),
+    ...(args.planStepId === undefined ? {} : { planStepId: args.planStepId }),
     ...(args.project === undefined ? {} : { project: args.project }),
     ...(args.sessionId === undefined ? {} : { sessionId: args.sessionId }),
     ...(args.workItemId === undefined ? {} : { workItemId: args.workItemId })
+  };
+}
+
+function finalizeParsedFlagArgs(parsed: Partial<ParsedArgs>, workflow: string): ParsedArgs {
+  return {
+    ...(parsed.agentName === undefined ? {} : { agentName: parsed.agentName }),
+    ...(parsed.message === undefined ? {} : { message: parsed.message }),
+    ...(parsed.planRunId === undefined ? {} : { planRunId: parsed.planRunId }),
+    ...(parsed.planStepId === undefined ? {} : { planStepId: parsed.planStepId }),
+    ...(parsed.project === undefined ? {} : { project: parsed.project }),
+    ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
+    status: parsed.status ?? "success",
+    ...(parsed.task === undefined ? {} : { task: parsed.task }),
+    workflow,
+    ...(parsed.workItemId === undefined ? {} : { workItemId: parsed.workItemId })
   };
 }
 

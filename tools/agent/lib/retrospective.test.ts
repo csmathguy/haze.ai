@@ -97,6 +97,7 @@ function createSummary(): AuditSummary {
     durationMs: 6386464,
     executions,
     failures: [],
+    handoffs: [],
     runId: "2026-03-11T180205-485-implementation-5cc22a65",
     startedAt: "2026-03-11T22:02:05.489Z",
     stats: {

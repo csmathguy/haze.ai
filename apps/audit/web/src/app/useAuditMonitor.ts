@@ -1,9 +1,9 @@
 import { startTransition, useDeferredValue, useEffect, useEffectEvent, useState } from "react";
 
-import type { AuditAnalyticsSnapshot, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import type { AuditAnalyticsSnapshot, AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
 import type { AuditRunFilters } from "./api.js";
-import { fetchAuditAnalytics, fetchAuditRunDetail, fetchAuditRuns, subscribeToAuditStream } from "./api.js";
+import { fetchAuditAnalytics, fetchAuditRunDetail, fetchAuditRuns, fetchAuditWorkItemTimeline, subscribeToAuditStream } from "./api.js";
 
 export type ConnectionState = "connecting" | "live" | "offline";
 
@@ -13,6 +13,7 @@ export interface RunStats {
   executionCount: number;
   failureCount: number;
   failedRuns: number;
+  handoffCount: number;
   runningRuns: number;
   totalRuns: number;
 }
@@ -34,6 +35,9 @@ export interface UseAuditMonitorResult {
   runStats: RunStats;
   runs: AuditRunOverview[];
   selectedRunId: string | null;
+  timeline: AuditWorkItemTimeline | null;
+  timelineError: string | null;
+  isLoadingTimeline: boolean;
   setFilters: (filters: AuditRunFilters) => void;
   setSelectedRunId: (runId: string | null) => void;
   workflows: string[];
@@ -60,6 +64,7 @@ export function useAuditMonitor(): UseAuditMonitorResult {
   const analyticsState = useAnalyticsData(filters);
   const deferredRuns = useDeferredValue(runsState.runs);
   const detailState = useDetailData(selectedRunId);
+  const timelineState = useTimelineData(detailState.detail?.run.workItemId ?? (filters.workItemId.length > 0 ? filters.workItemId : null));
 
   useAuditStream({
     filters,
@@ -88,6 +93,9 @@ export function useAuditMonitor(): UseAuditMonitorResult {
     runStats: summarizeRuns(deferredRuns, analyticsState.analytics),
     runs: deferredRuns,
     selectedRunId,
+    timeline: timelineState.timeline,
+    timelineError: timelineState.timelineError,
+    isLoadingTimeline: timelineState.isLoadingTimeline,
     setFilters,
     setSelectedRunId,
     workflows: deriveWorkflows(runsState.runs),
@@ -201,6 +209,42 @@ function useAnalyticsData(filters: AuditRunFilters) {
   };
 }
 
+function useTimelineData(workItemId: string | null) {
+  const [timeline, setTimeline] = useState<AuditWorkItemTimeline | null>(null);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
+
+  const refreshTimeline = useEffectEvent(async (nextWorkItemId: string | null) => {
+    if (nextWorkItemId === null) {
+      setTimeline(null);
+      setTimelineError(null);
+      setIsLoadingTimeline(false);
+      return;
+    }
+
+    setIsLoadingTimeline(true);
+    setTimelineError(null);
+
+    try {
+      setTimeline(await fetchAuditWorkItemTimeline(nextWorkItemId));
+    } catch (error) {
+      setTimelineError(error instanceof Error ? error.message : "Failed to load work item timeline.");
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  });
+
+  useEffect(() => {
+    void refreshTimeline(workItemId);
+  }, [refreshTimeline, workItemId]);
+
+  return {
+    isLoadingTimeline,
+    timeline,
+    timelineError
+  };
+}
+
 function useAuditStream(input: {
   filters: AuditRunFilters;
   onConnectionStateChange: (state: ConnectionState) => void;
@@ -286,6 +330,7 @@ function summarizeRuns(runs: AuditRunOverview[], analytics: AuditAnalyticsSnapsh
       executionCount: summary.executionCount + run.executionCount,
       failureCount: summary.failureCount + run.failureCount,
       failedRuns: summary.failedRuns + (run.status === "failed" ? 1 : 0),
+      handoffCount: summary.handoffCount + run.handoffCount,
       runningRuns: summary.runningRuns + (run.status === "running" ? 1 : 0),
       totalRuns: summary.totalRuns + 1
     }),
@@ -295,6 +340,7 @@ function summarizeRuns(runs: AuditRunOverview[], analytics: AuditAnalyticsSnapsh
       executionCount: 0,
       failureCount: 0,
       failedRuns: 0,
+      handoffCount: 0,
       runningRuns: 0,
       totalRuns: 0
     }

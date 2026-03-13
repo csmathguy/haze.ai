@@ -1,10 +1,8 @@
-import type { Prisma } from "@prisma/client";
-
 import { calculateCompletedAt, stringifyJson } from "./audit-serialization.js";
 import type { AuditSyncEvent, AuditSyncExecutionSummary, AuditSyncSummary } from "./audit-sync-contract.js";
 import { resolveAuditWorkspacePaths } from "./workspace-paths.js";
 
-export function buildRunCreateInputFromEvent(event: AuditSyncEvent): Prisma.AuditRunCreateInput {
+export function buildRunCreateInputFromEvent(event: AuditSyncEvent) {
   const workspace = resolveAuditWorkspacePaths(event.cwd);
 
   return {
@@ -13,8 +11,11 @@ export function buildRunCreateInputFromEvent(event: AuditSyncEvent): Prisma.Audi
     artifactCount: 0,
     decisionCount: 0,
     failureCount: 0,
+    handoffCount: 0,
     id: event.runId,
     latestEventAt: new Date(event.timestamp),
+    planRunId: event.planRunId ?? null,
+    planStepId: event.planStepId ?? null,
     project: event.project ?? null,
     repoPath: workspace.repoPath ?? null,
     sessionId: event.sessionId ?? null,
@@ -27,13 +28,15 @@ export function buildRunCreateInputFromEvent(event: AuditSyncEvent): Prisma.Audi
   };
 }
 
-export function buildRunUpdateInputFromEvent(event: AuditSyncEvent): Prisma.AuditRunUpdateInput {
+export function buildRunUpdateInputFromEvent(event: AuditSyncEvent) {
   const workspace = resolveAuditWorkspacePaths(event.cwd);
 
   return compactUpdate({
     actor: event.actor,
     agentName: event.agentName,
     latestEventAt: new Date(event.timestamp),
+    planRunId: event.planRunId,
+    planStepId: event.planStepId,
     project: event.project,
     repoPath: workspace.repoPath,
     sessionId: event.sessionId,
@@ -42,28 +45,35 @@ export function buildRunUpdateInputFromEvent(event: AuditSyncEvent): Prisma.Audi
     workflow: event.workflow,
     workItemId: event.workItemId,
     worktreePath: workspace.worktreePath
-  }) as Prisma.AuditRunUpdateInput;
+  });
 }
 
-export function buildRunCreateInputFromSummary(summary: AuditSyncSummary): Prisma.AuditRunCreateInput {
+export function buildRunCreateInputFromSummary(summary: AuditSyncSummary) {
   const workspace = resolveAuditWorkspacePaths(summary.cwd);
 
   return {
-    actor: summary.actor,
-    agentName: summary.agentName ?? null,
-    artifactCount: summary.artifacts.length,
-    completedAt: toNullableDate(summary.completedAt),
-    decisionCount: summary.decisions.length,
-    durationMs: summary.durationMs ?? null,
-    executionCount: summary.stats.executionCount,
-    failedExecutionCount: summary.stats.failedExecutionCount,
-    failureCount: summary.failures.length,
+    ...buildSummaryRunFields(summary, workspace),
     id: summary.runId,
+    startedAt: new Date(summary.startedAt)
+  };
+}
+
+export function buildRunUpdateInputFromSummary(summary: AuditSyncSummary) {
+  const workspace = resolveAuditWorkspacePaths(summary.cwd);
+
+  return buildSummaryRunFields(summary, workspace);
+}
+
+function buildSummaryRunFields(
+  summary: AuditSyncSummary,
+  workspace: ReturnType<typeof resolveAuditWorkspacePaths>
+) {
+  return {
+    ...buildSummaryRunCounts(summary),
+    completedAt: toNullableDate(summary.completedAt),
+    durationMs: summary.durationMs ?? null,
     latestEventAt: new Date(summary.completedAt ?? summary.startedAt),
-    project: summary.project ?? null,
-    repoPath: workspace.repoPath ?? null,
-    sessionId: summary.sessionId ?? null,
-    startedAt: new Date(summary.startedAt),
+    ...buildSummaryRunContext(summary, workspace),
     statsByKindJson: JSON.stringify(summary.stats.byKind),
     statsByStatusJson: JSON.stringify(summary.stats.byStatus),
     status: summary.status,
@@ -75,38 +85,39 @@ export function buildRunCreateInputFromSummary(summary: AuditSyncSummary): Prism
   };
 }
 
-export function buildRunUpdateInputFromSummary(summary: AuditSyncSummary): Prisma.AuditRunUpdateInput {
-  const workspace = resolveAuditWorkspacePaths(summary.cwd);
-
+function buildSummaryRunCounts(summary: AuditSyncSummary) {
   return {
     actor: summary.actor,
     agentName: summary.agentName ?? null,
     artifactCount: summary.artifacts.length,
-    completedAt: toNullableDate(summary.completedAt),
     decisionCount: summary.decisions.length,
-    durationMs: summary.durationMs ?? null,
     executionCount: summary.stats.executionCount,
     failedExecutionCount: summary.stats.failedExecutionCount,
     failureCount: summary.failures.length,
-    latestEventAt: new Date(summary.completedAt ?? summary.startedAt),
-    project: summary.project ?? null,
-    repoPath: workspace.repoPath ?? null,
-    sessionId: summary.sessionId ?? null,
-    statsByKindJson: JSON.stringify(summary.stats.byKind),
-    statsByStatusJson: JSON.stringify(summary.stats.byStatus),
-    status: summary.status,
-    summaryJson: JSON.stringify(summary),
-    task: summary.task ?? null,
-    workflow: summary.workflow,
-    workItemId: summary.workItemId ?? null,
-    worktreePath: workspace.worktreePath
+    handoffCount: summary.handoffs.length
   };
 }
 
-export async function syncExecutionFromEvent(
-  transaction: Prisma.TransactionClient,
-  event: AuditSyncEvent
-): Promise<void> {
+function buildSummaryRunContext(summary: AuditSyncSummary, workspace: ReturnType<typeof resolveAuditWorkspacePaths>) {
+  return {
+    planRunId: summary.planRunId ?? null,
+    planStepId: summary.planStepId ?? null,
+    project: summary.project ?? null,
+    repoPath: workspace.repoPath ?? null,
+    sessionId: summary.sessionId ?? null
+  };
+}
+
+export async function syncExecutionFromEvent(transaction: {
+  auditExecutionRecord: {
+    findUnique: (args: { where: { id: string } }) => Promise<{ completedAt: Date | null; startedAt: Date; status: string } | null>;
+    upsert: (args: {
+      create: ReturnType<typeof buildExecutionCreateInputFromEvent>;
+      update: ReturnType<typeof buildExecutionUpdateInputFromEvent>;
+      where: { id: string };
+    }) => Promise<unknown>;
+  };
+}, event: AuditSyncEvent): Promise<void> {
   if (event.executionId === undefined) {
     return;
   }
@@ -135,7 +146,7 @@ export async function syncExecutionFromEvent(
   });
 }
 
-export function buildEventCreateInput(event: AuditSyncEvent): Prisma.AuditEventRecordUncheckedCreateInput {
+export function buildEventCreateInput(event: AuditSyncEvent) {
   return {
     actor: event.actor,
     agentName: toNullable(event.agentName),
@@ -153,6 +164,8 @@ export function buildEventCreateInput(event: AuditSyncEvent): Prisma.AuditEventR
     logFile: toNullable(event.logFile),
     metadataJson: stringifyJson(event.metadata),
     parentExecutionId: toNullable(event.parentExecutionId),
+    planRunId: toNullable(event.planRunId),
+    planStepId: toNullable(event.planStepId),
     project: toNullable(event.project),
     runId: event.runId,
     sessionId: toNullable(event.sessionId),
@@ -160,13 +173,12 @@ export function buildEventCreateInput(event: AuditSyncEvent): Prisma.AuditEventR
     step: toNullable(event.step),
     task: toNullable(event.task),
     timestamp: new Date(event.timestamp),
-    workflow: event.workflow
-    ,
+    workflow: event.workflow,
     workItemId: toNullable(event.workItemId)
   };
 }
 
-export function buildEventUpdateInput(event: AuditSyncEvent): Prisma.AuditEventRecordUncheckedUpdateInput {
+export function buildEventUpdateInput(event: AuditSyncEvent) {
   return compactUpdate({
     actor: event.actor,
     agentName: event.agentName,
@@ -183,6 +195,8 @@ export function buildEventUpdateInput(event: AuditSyncEvent): Prisma.AuditEventR
     logFile: event.logFile,
     metadataJson: optionalJson(event.metadata),
     parentExecutionId: event.parentExecutionId,
+    planRunId: event.planRunId,
+    planStepId: event.planStepId,
     project: event.project,
     sessionId: event.sessionId,
     status: event.status,
@@ -191,13 +205,10 @@ export function buildEventUpdateInput(event: AuditSyncEvent): Prisma.AuditEventR
     timestamp: new Date(event.timestamp),
     workflow: event.workflow,
     workItemId: event.workItemId
-  }) as Prisma.AuditEventRecordUncheckedUpdateInput;
+  });
 }
 
-export function buildExecutionCreateInput(
-  runId: string,
-  execution: AuditSyncExecutionSummary
-): Prisma.AuditExecutionRecordUncheckedCreateInput {
+export function buildExecutionCreateInput(runId: string, execution: AuditSyncExecutionSummary) {
   return {
     commandJson: stringifyJson(execution.command),
     completedAt: calculateCompletedAt(execution.startedAt, execution.durationMs, execution.status),
@@ -218,9 +229,7 @@ export function buildExecutionCreateInput(
   };
 }
 
-export function buildExecutionUpdateInput(
-  execution: AuditSyncExecutionSummary
-): Prisma.AuditExecutionRecordUncheckedUpdateInput {
+export function buildExecutionUpdateInput(execution: AuditSyncExecutionSummary) {
   return compactUpdate({
     commandJson: optionalJson(execution.command),
     completedAt: calculateCompletedAt(execution.startedAt, execution.durationMs, execution.status),
@@ -236,18 +245,16 @@ export function buildExecutionUpdateInput(
     startedAt: new Date(execution.startedAt),
     status: execution.status,
     step: execution.step
-  }) as Prisma.AuditExecutionRecordUncheckedUpdateInput;
+  });
 }
 
-function buildExecutionCreateInputFromEvent(
-  input: {
-    completedAt: Date | null;
-    event: AuditSyncEvent;
-    executionId: string;
-    startedAt: Date;
-    status: string;
-  }
-): Prisma.AuditExecutionRecordUncheckedCreateInput {
+function buildExecutionCreateInputFromEvent(input: {
+  completedAt: Date | null;
+  event: AuditSyncEvent;
+  executionId: string;
+  startedAt: Date;
+  status: string;
+}) {
   const { completedAt, event, executionId, startedAt, status } = input;
 
   return {
@@ -270,11 +277,7 @@ function buildExecutionCreateInputFromEvent(
   };
 }
 
-function buildExecutionUpdateInputFromEvent(
-  event: AuditSyncEvent,
-  completedAt: Date | null,
-  status: string
-): Prisma.AuditExecutionRecordUncheckedUpdateInput {
+function buildExecutionUpdateInputFromEvent(event: AuditSyncEvent, completedAt: Date | null, status: string) {
   return compactUpdate({
     commandJson: optionalJson(event.command),
     completedAt,
@@ -289,7 +292,7 @@ function buildExecutionUpdateInputFromEvent(
     parentExecutionId: event.parentExecutionId,
     status,
     step: event.step
-  }) as Prisma.AuditExecutionRecordUncheckedUpdateInput;
+  });
 }
 
 function compactUpdate(value: Record<string, unknown>): Record<string, unknown> {

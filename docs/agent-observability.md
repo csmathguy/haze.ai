@@ -14,8 +14,8 @@ The audit model is span-based:
 - nested executions record skills, tools, hooks, validations, operations, and commands
 - each execution writes paired `execution-start` and `execution-end` events with IDs and optional parent linkage
 - run summaries keep both legacy `steps` for command output and richer `executions` plus aggregated `stats`
-- runs now carry optional audit context for `project`, `workItemId`, `agentName`, and `sessionId`
-- first-class typed records capture `decision`, `artifact`, and `failure` data instead of forcing those details into free-form notes
+- runs now carry optional audit context for `project`, `workItemId`, `planRunId`, `planStepId`, `agentName`, and `sessionId`
+- first-class typed records capture `decision`, `artifact`, `failure`, and `handoff` data instead of forcing those details into free-form notes
 
 That shape is intentionally compatible with Semantic Kernel's filter model: before/after interception, exception capture, result override decisions, retries, and early termination all map naturally onto execution spans and metadata.
 
@@ -23,8 +23,8 @@ The current design direction is also aligned with OpenTelemetry and W3C Trace Co
 
 - workflow runs behave like trace roots
 - executions behave like spans
-- typed decision/artifact/failure records behave like domain events attached to a run or span
-- `project`, `workItemId`, `agentName`, and `sessionId` provide correlation fields for parallel agent work across worktrees
+- typed decision/artifact/failure/handoff records behave like domain events attached to a run or span
+- `project`, `workItemId`, `planRunId`, `planStepId`, `agentName`, and `sessionId` provide correlation fields for parallel agent work across worktrees
 
 ## Audit Commands
 
@@ -36,9 +36,14 @@ The current design direction is also aligned with OpenTelemetry and W3C Trace Co
 - `npm run audit:decision -- --workflow implementation --category tool-selection --summary "Use SSE for live audit streaming" --rationale "Server-to-client stream only" --selected-option sse`
 - `npm run audit:artifact -- --workflow implementation --type pr --label "PR #11" --uri https://github.com/...`
 - `npm run audit:failure -- --workflow implementation --category merge-conflict --summary "Conflict in AGENTS.md" --severity medium --retryable true`
+- `npm run audit:handoff -- --workflow implementation --source-agent planner --target-agent implementer --summary "Implement PLAN-42 validation slice" --status pending`
 - `npm run quality:changed -- <files...>`
 - `npm run quality:logged -- implementation`
 - `npm run workflow:end implementation success`
+
+You can attach plan lineage directly at workflow start:
+
+- `npm run workflow:start implementation -- --workflow implementation --task "Implement PLAN-42" --project audit --work-item-id PLAN-42 --plan-run-id <plan-run-id> --plan-step-id <plan-step-id>`
 
 ## Git Hook Integration
 
@@ -80,6 +85,7 @@ The current design direction is also aligned with OpenTelemetry and W3C Trace Co
 - `execution-start`
 - `execution-end`
 - `failure-recorded`
+- `handoff-recorded`
 - `workflow-end`
 
 ## Execution Kinds
@@ -99,7 +105,22 @@ The current design direction is also aligned with OpenTelemetry and W3C Trace Co
 - `decisions` stores branch, tool, retry, and workaround choices with rationale
 - `artifacts` stores outputs such as PRs, screenshots, reports, migrations, and docs
 - `failures` stores classified problems such as merge conflicts, validation failures, timeouts, or dependency issues
-- run context fields make it possible to group and filter by project, work item, agent, and session
+- `handoffs` stores agent-to-agent transitions with source, target, status, and optional artifact linkage
+- `failureInsights` enriches run detail with operator-facing failure analysis, including matched execution or event errors plus local log excerpts when they exist
+- run context fields make it possible to group and filter by project, work item, plan run, plan step, agent, and session
+
+## Work Item Timeline
+
+- `GET /api/audit/work-items/:workItemId/timeline` returns the cross-run lineage for one work item
+- the response groups runs, events, decisions, artifacts, failures, and handoffs for that work item
+- the audit monitor now shows that lineage alongside selected run detail so multi-agent work is reviewable as one thread instead of disconnected runs
+
+## Failure Investigation
+
+- `GET /api/audit/runs/:runId` now returns `failureInsights` alongside the raw executions, events, and typed failures
+- each insight is synthesized from the nearest `failure`, failed `execution`, and failed `event` records for the selected run
+- when a failed execution points at a local `logs/*.log` artifact, the API includes a tail excerpt so operators can see the error cause without leaving the monitor
+- the monitor uses that richer payload to answer "why did this fail?" before dropping users into the lower-level tables and event timeline
 
 ## Why This Shape
 

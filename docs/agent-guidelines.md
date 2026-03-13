@@ -75,10 +75,11 @@ The current curated catalog includes `figma` and `figma-implement-design`. Those
 
 The repository workflow should stay explicit in this order:
 
-1. Create or refine the planning item.
-2. Create a dedicated worktree for the owned slice.
-3. Start the audited implementation workflow inside that worktree.
-4. Update the planning item to `in-progress` with the current owner and workflow run ID.
-5. Keep tasks, criteria, and status current while work is active.
-6. Publish the branch and PR before calling implementation complete.
-7. End in a truthful state such as `done`, `blocked`, or back to `planning`.
+1. Ensure the work belongs to a planning project. Create the project first when no suitable project exists yet.
+2. Create or refine the planning work item inside that project.
+3. Create a dedicated worktree for the owned slice and do the implementation there, not in the shared checkout.
+4. Start the audited implementation workflow inside that worktree.
+5. Update the planning item to `in-progress` with the current owner and workflow run ID.
+6. Keep tasks, criteria, and status current while work is active.
+7. Publish the branch and PR before calling implementation complete.
+8. End in a truthful state such as `done`, `blocked`, or back to `planning`.
