@@ -10,23 +10,11 @@ const webFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**/web/src/
 
 describe("architecture rules", { timeout: 60_000 }, () => {
   it("prevents frontend code from importing backend implementation details", async () => {
-    await expect(
-      allFiles
-        .inFolder("apps/**/web/src/**")
-        .shouldNot()
-        .dependOnFiles()
-        .inFolder("apps/**/api/src/**")
-    ).toPassAsync();
+    await expect(webFiles.shouldNot().dependOnFiles().inFolder("apps/**/api/src/**")).toPassAsync();
   });
 
   it("prevents backend code from importing frontend implementation details", async () => {
-    await expect(
-      allFiles
-        .inFolder("apps/**/api/src/**")
-        .shouldNot()
-        .dependOnFiles()
-        .inFolder("apps/**/web/src/**")
-    ).toPassAsync();
+    await expect(apiFiles.shouldNot().dependOnFiles().inFolder("apps/**/web/src/**")).toPassAsync();
   });
 
   it("prevents shared code from depending on app layers", async () => {

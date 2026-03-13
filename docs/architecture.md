@@ -18,6 +18,7 @@ apps/
         hooks/
         theme/
   plan/
+  audit/
     api/
       src/
         routes/
@@ -28,7 +29,6 @@ apps/
         app/
         components/
         theme/
-  audit/
 packages/
   shared/
     src/
@@ -61,6 +61,12 @@ tools/
   - owns file intake, extraction orchestration, storage, validation, and output generation
   - persists structured metadata in SQLite through Prisma-backed services
   - should expose application services, not raw library details
+- `apps/audit/api`
+  - owns the shared audit database, query endpoints, and live audit event streaming
+  - may be imported by local tooling for direct audit persistence because scripts and hooks run on the same machine
+- `apps/audit/web`
+  - renders the shared monitoring console for audit runs across worktrees
+  - consumes the audit API over localhost and must not read the SQLite file directly
 - `packages/shared`
   - contains domain vocabulary, schemas, typed contracts, and pure helpers
   - must not depend on React, browser APIs, Express-style request objects, or storage adapters
@@ -81,6 +87,7 @@ tools/
 - Structured metadata, household state, review queues, and lot records belong in SQLite.
 - `prisma/schema.prisma` is the persistence contract for backend metadata.
 - Migrations must be checked into `prisma/migrations/` and applied before local runtime or integration tests.
+- The shared audit database lives outside the repository under the user's profile so every worktree can publish to one store.
 
 ## Current Scaffold
 
@@ -97,8 +104,10 @@ tools/
   - `PATCH /api/planning/work-items/:workItemId` for status and audit-reference updates
 - `apps/plan/web`
   - Vite-based React shell for backlog creation, work-item inspection, status updates, and task or acceptance-criteria progress
-- `apps/audit/`
-  - reserved for audit-specific apps in the new grouped layout
+- `apps/audit/api`
+  - Fastify API for audit run lists, run detail, and SSE event streaming backed by shared SQLite
+- `apps/audit/web`
+  - Vite-based React monitor for live audit activity across worktrees
 - `packages/shared`
   - tax-domain schemas for documents, extractions, gaps, questionnaire prompts, lots, review tasks, scenarios, and return drafts
 

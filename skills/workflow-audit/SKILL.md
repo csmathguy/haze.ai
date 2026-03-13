@@ -1,6 +1,6 @@
 ---
 name: workflow-audit
-description: Use this skill when work in this repository needs explicit audit logging, workflow start/end markers, or deterministic wrapper scripts for validation commands. Apply it for substantial implementation tasks, risky refactors, or whenever command traces should be stored under date-grouped folders in artifacts/audit.
+description: Use this skill when work in this repository needs explicit audit logging, workflow start/end markers, deterministic wrapper scripts for validation commands, or live visibility in the shared audit monitor. Apply it for substantial implementation tasks, risky refactors, or whenever command traces should be stored in the shared audit database and mirrored artifact folders.
 ---
 
 # Workflow Audit
@@ -24,7 +24,7 @@ This skill standardizes how agents record what they ran and when they ran it. Us
 
 - Prefer structured audit events over free-form chat summaries when recording work.
 - Prefer wrapper scripts for repeated guardrail runs.
-- Keep audit data in ignored artifact paths.
+- Keep audit data in ignored artifact paths and the shared local audit database.
 - Prefer execution spans over extra workflow names when the work is nested inside an already active workflow.
 - Use this skill to supplement implementation skills, not replace them.
 

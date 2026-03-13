@@ -1,11 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import type { TestAuditContext } from "../../../apps/audit/api/src/test/database.js";
+import { createTestAuditContext } from "../../../apps/audit/api/src/test/database.js";
+import { getAuditRunDetail } from "../../../apps/audit/api/src/services/audit-store.js";
 import {
+  appendAuditEvent,
   appendExecutionSummary,
   createRunId,
+  createEvent,
   createWorkflowSummary,
+  ensureAuditPaths,
   getAuditDateSegment,
-  slugify
+  slugify,
+  writeSummary
 } from "./audit.js";
 
 describe("slugify", () => {
@@ -73,5 +80,50 @@ describe("appendExecutionSummary", () => {
     expect(summary.stats.failedExecutionCount).toBe(1);
     expect(summary.stats.byKind.tool).toBe(1);
     expect(summary.stats.byStatus.failed).toBe(1);
+  });
+});
+
+describe("database sync", () => {
+  const contexts: TestAuditContext[] = [];
+
+  afterEach(async () => {
+    delete process.env.AUDIT_DATABASE_URL;
+    await Promise.all(contexts.splice(0, contexts.length).map(async (context) => context.cleanup()));
+  });
+
+  it("dual-writes file audit events and summaries into the shared audit database", async () => {
+    const context = await createTestAuditContext("tool-audit");
+    contexts.push(context);
+    process.env.AUDIT_DATABASE_URL = context.databaseUrl;
+
+    const runId = "2026-03-12T010000-000-implementation-facefeed";
+    const paths = await ensureAuditPaths(runId);
+    const summary = createWorkflowSummary(runId, "implementation", "sync db");
+    const event = createEvent(runId, "implementation", "workflow-start", {
+      status: "running",
+      task: "sync db"
+    });
+
+    await appendAuditEvent(paths, event);
+    await writeSummary(paths, summary);
+
+    const detail = await getAuditRunDetail(runId, {
+      databaseUrl: context.databaseUrl
+    });
+
+    expect(detail).not.toBeNull();
+    expect(detail?.events).toEqual([
+      expect.objectContaining({
+        eventId: event.eventId,
+        eventType: "workflow-start"
+      })
+    ]);
+    expect(detail?.run).toEqual(
+      expect.objectContaining({
+        runId,
+        status: "running",
+        workflow: "implementation"
+      })
+    );
   });
 });
