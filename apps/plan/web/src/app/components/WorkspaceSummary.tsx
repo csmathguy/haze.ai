@@ -17,8 +17,8 @@ export function WorkspaceSummary({ workspace }: WorkspaceSummaryProps) {
     <Grid container spacing={2}>
       {cards.map(([label, value]) => (
         <Grid key={label} size={{ md: 3, xs: 6 }}>
-          <Paper sx={{ p: 2.5 }}>
-            <Stack spacing={1}>
+          <Paper sx={{ p: 2 }}>
+            <Stack spacing={0.5}>
               <Typography color="text.secondary" variant="body2">
                 {label}
               </Typography>

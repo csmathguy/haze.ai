@@ -81,7 +81,7 @@ export function CreateWorkItemForm({
 
   const content = (
     <Stack spacing={2.5}>
-      {showTitle ? <Typography variant="h2">Create a planning work item</Typography> : null}
+      {showTitle ? <Typography variant="h3">Create a planning work item</Typography> : null}
       <BasicFieldsSection formState={formState} onFieldChange={handleFieldChange} />
       <MetadataFieldsSection formState={formState} onFieldChange={handleFieldChange} projects={projects} />
       <TaskFieldsSection formState={formState} onFieldChange={handleFieldChange} />

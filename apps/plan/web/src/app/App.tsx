@@ -291,14 +291,14 @@ function PlanningPageLayout({
       sx={(theme) => ({
         background: `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.12)}, transparent 30%), linear-gradient(130deg, ${alpha(theme.palette.primary.main, 0.08)}, transparent 60%)`,
         minHeight: "100vh",
-        py: 5
+        py: 3.5
       })}
     >
       <Container maxWidth="xl">
-        <Stack spacing={3}>
-          <Stack spacing={1}>
+        <Stack spacing={2.5}>
+          <Stack spacing={0.75}>
             <Typography variant="h1">Planning Desk</Typography>
-            <Typography maxWidth={780} variant="body1">
+            <Typography maxWidth={760} variant="body2">
               Keep the autonomous workflow grounded in explicit backlog items, acceptance criteria, plan steps, and audit references that survive across worktrees.
             </Typography>
           </Stack>

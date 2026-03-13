@@ -5,7 +5,7 @@ import {
   Stack,
   Typography
 } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import type { WorkItem, WorkItemStatus } from "@taxes/shared";
 
 const BOARD_COLUMNS: readonly {
@@ -32,16 +32,18 @@ export function WorkItemBoard({ onSelect, selectedWorkItemId, workItems }: WorkI
   const theme = useTheme();
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       <Stack spacing={0.5}>
         <Typography variant="h2">Kanban board</Typography>
-        <Typography color="text.secondary">
+        <Typography color="text.secondary" variant="body2">
           Click any card to open the full brief in a drawer while keeping the board visible underneath.
         </Typography>
       </Stack>
       {workItems.length === 0 ? (
         <Paper sx={{ p: 3 }}>
-          <Typography color="text.secondary">No work items match the current project scope.</Typography>
+          <Typography color="text.secondary" variant="body2">
+            No work items match the current project scope.
+          </Typography>
         </Paper>
       ) : (
         <Box
@@ -59,15 +61,15 @@ export function WorkItemBoard({ onSelect, selectedWorkItemId, workItems }: WorkI
                   key={column.status}
                   sx={{
                     backgroundColor: alpha(theme.palette.background.paper, 0.84),
-                    minHeight: 440,
-                    p: 2,
-                    width: 312
+                    minHeight: 360,
+                    p: 1.5,
+                    width: 280
                   }}
                 >
-                  <Stack spacing={2}>
+                  <Stack spacing={1.5}>
                     <Stack direction="row" justifyContent="space-between" spacing={1}>
                       <Stack spacing={0.5}>
-                        <Typography variant="h3">{column.title}</Typography>
+                        <Typography variant="h4">{column.title}</Typography>
                         <Typography color="text.secondary" variant="body2">
                           {column.description}
                         </Typography>
@@ -111,13 +113,19 @@ function WorkItemBoardCard({
   const theme = useTheme();
 
   return (
-    <BoardCard
+    <Paper
+      component="button"
       onClick={() => {
         onSelect(workItem.id);
       }}
-      role="button"
-      selected={selected ? 1 : 0}
       sx={{
+        ...boardCardBaseSx,
+        backgroundColor: selected
+          ? alpha(theme.palette.primary.main, 0.12)
+          : theme.palette.background.paper,
+        borderColor: selected
+          ? theme.palette.primary.main
+          : alpha(theme.palette.text.primary, 0.08),
         "&:hover": {
           borderColor: alpha(theme.palette.primary.main, 0.4),
           transform: "translateY(-1px)"
@@ -126,11 +134,13 @@ function WorkItemBoardCard({
     >
       <Stack spacing={1.25}>
         <Stack direction="row" justifyContent="space-between" spacing={1}>
-          <Typography variant="body2">{workItem.id}</Typography>
+          <Typography variant="caption">{workItem.id}</Typography>
           <Chip label={renderTaskProgress(workItem)} size="small" />
         </Stack>
-        <Typography variant="h3">{workItem.title}</Typography>
-        <Typography color="text.secondary" variant="body2">
+        <Typography sx={cardTitleSx} variant="h3">
+          {workItem.title}
+        </Typography>
+        <Typography color="text.secondary" sx={cardSummarySx} variant="body2">
           {workItem.summary}
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -139,7 +149,7 @@ function WorkItemBoardCard({
           <Chip label={workItem.priority} size="small" />
         </Stack>
       </Stack>
-    </BoardCard>
+    </Paper>
   );
 }
 
@@ -163,15 +173,25 @@ function renderTaskProgress(workItem: WorkItem): string {
   return `${String(completedTasks)}/${String(workItem.tasks.length)} tasks`;
 }
 
-const BoardCard = styled(Paper, {
-  shouldForwardProp: (prop) => prop !== "selected"
-})<{ readonly selected: 0 | 1 }>(({ selected, theme }) => ({
-  backgroundColor: selected ? alpha(theme.palette.primary.main, 0.12) : theme.palette.background.paper,
-  borderColor: selected ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.08),
-  borderRadius: 32,
+const boardCardBaseSx = {
+  borderRadius: 24,
   cursor: "pointer",
-  padding: 16,
+  padding: 14,
   textAlign: "left",
   transition: "transform 120ms ease, border-color 120ms ease, background-color 120ms ease",
   width: "100%"
-}));
+} as const;
+
+const cardTitleSx = {
+  display: "-webkit-box",
+  overflow: "hidden",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 3
+} as const;
+
+const cardSummarySx = {
+  display: "-webkit-box",
+  overflow: "hidden",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 3
+} as const;

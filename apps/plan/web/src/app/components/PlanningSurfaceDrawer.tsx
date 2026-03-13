@@ -8,8 +8,8 @@ import {
   Typography,
   useMediaQuery
 } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
-import type { ReactNode } from "react";
+import { alpha, useTheme } from "@mui/material/styles";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
 const DESKTOP_DEFAULT_WIDTH = 640;
 const DESKTOP_MIN_WIDTH = 440;
@@ -56,30 +56,31 @@ export function PlanningSurfaceDrawer({
         }
       }}
     >
-      <DrawerFrame>
+      <Stack sx={drawerFrameSx}>
         <DrawerResizeHandle
           desktopWidth={desktopWidth}
           isMobile={isMobile}
           mobileHeight={mobileHeight}
           setDragStart={setDragStart}
         />
-        <DrawerHeader
+        <Stack
           direction="row"
-          ismobile={isMobile ? 1 : 0}
           justifyContent="space-between"
           spacing={2}
-          sx={{ borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.08)}` }}
+          sx={getDrawerHeaderSx(isMobile, theme.palette.text.primary)}
         >
           <Stack spacing={0.5}>
-            <Typography variant="h2">{title}</Typography>
-            <Typography color="text.secondary">{description}</Typography>
+            <Typography variant="h3">{title}</Typography>
+            <Typography color="text.secondary" variant="body2">
+              {description}
+            </Typography>
           </Stack>
           <IconButton aria-label={`Close ${title.toLowerCase()}`} onClick={onClose}>
             <CloseRoundedIcon />
           </IconButton>
-        </DrawerHeader>
-        <DrawerBody ismobile={isMobile ? 1 : 0}>{children}</DrawerBody>
-      </DrawerFrame>
+        </Stack>
+        <Box sx={getDrawerBodySx(isMobile)}>{children}</Box>
+      </Stack>
     </Drawer>
   );
 }
@@ -166,34 +167,36 @@ function DrawerResizeHandle({
 
   if (isMobile) {
     return (
-      <MobileResizeHandle
+      <Box
         aria-label="Resize drawer"
-        onPointerDown={(event) => {
+        onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
           setDragStart({
             pointer: event.clientY,
             size: mobileHeight
           });
         }}
         role="presentation"
+        sx={mobileResizeHandleSx}
       >
-        <MobileResizePill sx={{ backgroundColor: alpha(theme.palette.text.primary, 0.18) }} />
-      </MobileResizeHandle>
+        <Box sx={getMobileResizePillSx(theme.palette.text.primary)} />
+      </Box>
     );
   }
 
   return (
-    <DesktopResizeHandle
+    <Box
       aria-label="Resize drawer"
-      onPointerDown={(event) => {
+      onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
         setDragStart({
           pointer: event.clientX,
           size: desktopWidth
         });
       }}
       role="presentation"
+      sx={desktopResizeHandleSx}
     >
-      <DesktopResizeRail sx={{ backgroundColor: alpha(theme.palette.text.primary, 0.12) }} />
-    </DesktopResizeHandle>
+      <Box sx={getDesktopResizeRailSx(theme.palette.text.primary)} />
+    </Box>
   );
 }
 
@@ -201,61 +204,68 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-const DrawerFrame = styled(Stack)({
+const drawerFrameSx = {
   height: "100%"
-});
+} as const;
 
-const MobileResizeHandle = styled(Box)({
+const mobileResizeHandleSx = {
   alignItems: "center",
   cursor: "ns-resize",
   display: "flex",
   justifyContent: "center",
   paddingBottom: 10,
   paddingTop: 12
-});
+} as const;
 
-const MobileResizePill = styled(Box)({
-  borderRadius: 999,
-  height: 6,
-  width: 64
-});
-
-const DesktopResizeHandle = styled(Box)({
+const desktopResizeHandleSx = {
   bottom: 0,
   cursor: "ew-resize",
   left: 0,
   position: "absolute",
   top: 0,
   width: 16
-});
+} as const;
 
-const DesktopResizeRail = styled(Box)({
-  borderRadius: 999,
-  height: 88,
-  left: 6,
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  width: 4
-});
+function getMobileResizePillSx(textPrimary: string) {
+  return {
+    backgroundColor: alpha(textPrimary, 0.18),
+    borderRadius: 999,
+    height: 6,
+    width: 64
+  } as const;
+}
 
-const DrawerHeader = styled(Stack, {
-  shouldForwardProp: (prop) => prop !== "ismobile"
-})<{ readonly ismobile: 0 | 1 }>(({ ismobile }) => ({
-  alignItems: "start",
-  paddingBottom: 16,
-  paddingLeft: ismobile ? 24 : 32,
-  paddingRight: 16,
-  paddingTop: ismobile ? 0 : 24
-}));
+function getDesktopResizeRailSx(textPrimary: string) {
+  return {
+    backgroundColor: alpha(textPrimary, 0.12),
+    borderRadius: 999,
+    height: 88,
+    left: 6,
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: 4
+  } as const;
+}
 
-const DrawerBody = styled(Box, {
-  shouldForwardProp: (prop) => prop !== "ismobile"
-})<{ readonly ismobile: 0 | 1 }>(({ ismobile }) => ({
-  flex: 1,
-  overflowY: "auto",
-  paddingBottom: 24,
-  paddingLeft: ismobile ? 24 : 32,
-  paddingRight: 24,
-  paddingTop: 24
-}));
+function getDrawerHeaderSx(isMobile: boolean, textPrimary: string) {
+  return {
+    alignItems: "start",
+    borderBottom: `1px solid ${alpha(textPrimary, 0.08)}`,
+    paddingBottom: 16,
+    paddingLeft: isMobile ? 24 : 32,
+    paddingRight: 16,
+    paddingTop: isMobile ? 0 : 24
+  } as const;
+}
+
+function getDrawerBodySx(isMobile: boolean) {
+  return {
+    flex: 1,
+    overflowY: "auto",
+    paddingBottom: 24,
+    paddingLeft: isMobile ? 24 : 32,
+    paddingRight: 24,
+    paddingTop: 24
+  } as const;
+}
