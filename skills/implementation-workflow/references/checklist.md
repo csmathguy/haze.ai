@@ -3,9 +3,12 @@
 ## Before Editing
 
 - Read `docs/architecture.md` and the closest stack-specific guide.
+- Confirm the work already has a planning item, or create or refine one before implementation.
+- If the work is agent-owned or parallelized, use a dedicated worktree for that item or slice.
 - Confirm which boundary is affected: `apps/*/web`, `apps/*/api`, or `packages/shared`.
 - Decide the test seam before changing behavior.
 - For substantial work, start an audit run with `npm run workflow:start implementation "<summary>"`.
+- After the workflow starts, write the active owner, workflow run ID, and `in-progress` status back to the planning item.
 
 ## During The Change
 

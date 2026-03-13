@@ -14,12 +14,14 @@ Let multiple coding agents work on this repository at the same time without turn
 
 ## Repo Operating Model
 
-1. Create one orchestration slice for planning and contract decisions.
-2. Split implementation into small branches with one owned boundary each.
-3. Give each slice its own worktree under `.worktrees/<task-id>`.
-4. Put a local brief in `.codex-local/parallel-task.md` inside that worktree.
-5. Merge contract-first slices before downstream API or web slices.
-6. Re-run validation in each worktree before handoff.
+1. Create or refine the planning work item before code work starts.
+2. Create one orchestration slice for planning and contract decisions.
+3. Split implementation into small branches with one owned boundary each.
+4. Give each slice its own worktree under `.worktrees/<task-id>`.
+5. Put a local brief in `.codex-local/parallel-task.md` inside that worktree.
+6. As the slice starts, update the planning item with owner, workflow ID, and `in-progress` status.
+7. Merge contract-first slices before downstream API or web slices.
+8. Re-run validation in each worktree before handoff.
 
 The helper command for step 3 is:
 
@@ -60,8 +62,10 @@ npm run agent:worktree:create -- --task review-web-threading --summary "Thread r
 
 ## Recommended Sequence
 
-1. Use `$parallel-work-orchestrator`.
-2. Create the contract-first slices first.
-3. Start one worktree per implementation slice.
-4. Use `$parallel-work-implementer` inside each worktree.
-5. Run `npm run quality:changed -- <files...>` during iteration or `npm run quality:logged -- implementation` before integration.
+1. Use `$planning-workflow` to create or refine the work item first.
+2. Use `$parallel-work-orchestrator`.
+3. Create the contract-first slices first.
+4. Start one worktree per implementation slice.
+5. Use `$planning-execution` and `$parallel-work-implementer` inside each worktree.
+6. Update status as work starts, blocks, or finishes instead of leaving progress in chat only.
+7. Run `npm run quality:changed -- <files...>` during iteration or `npm run quality:logged -- implementation` before integration.

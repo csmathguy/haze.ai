@@ -70,3 +70,15 @@ The current curated catalog includes `figma` and `figma-implement-design`. Those
 - prefer structured logs over free-form notes when you want auditability
 - use a dedicated research skill when guidance must be dated, source-ranked, or converted into repeatable repo standards
 - keep merge authority with humans even when agents prepare the branch, commits, and pull request
+
+## Execution Lifecycle
+
+The repository workflow should stay explicit in this order:
+
+1. Create or refine the planning item.
+2. Create a dedicated worktree for the owned slice.
+3. Start the audited implementation workflow inside that worktree.
+4. Update the planning item to `in-progress` with the current owner and workflow run ID.
+5. Keep tasks, criteria, and status current while work is active.
+6. Publish the branch and PR before calling implementation complete.
+7. End in a truthful state such as `done`, `blocked`, or back to `planning`.
