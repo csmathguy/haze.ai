@@ -1,5 +1,6 @@
 import {
   Box,
+  ButtonBase,
   Chip,
   Paper,
   Stack,
@@ -113,11 +114,11 @@ function WorkItemBoardCard({
   const theme = useTheme();
 
   return (
-    <Paper
-      component="button"
+    <ButtonBase
       onClick={() => {
         onSelect(workItem.id);
       }}
+      focusRipple
       sx={{
         ...boardCardBaseSx,
         backgroundColor: selected
@@ -149,7 +150,7 @@ function WorkItemBoardCard({
           <Chip label={workItem.priority} size="small" />
         </Stack>
       </Stack>
-    </Paper>
+    </ButtonBase>
   );
 }
 
@@ -174,8 +175,12 @@ function renderTaskProgress(workItem: WorkItem): string {
 }
 
 const boardCardBaseSx = {
+  alignItems: "flex-start",
   borderRadius: 24,
+  borderStyle: "solid",
+  borderWidth: 1,
   cursor: "pointer",
+  display: "block",
   padding: 14,
   textAlign: "left",
   transition: "transform 120ms ease, border-color 120ms ease, background-color 120ms ease",

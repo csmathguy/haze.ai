@@ -17,10 +17,17 @@ interface WorkItemDetailProps {
   readonly onCriterionToggle: (criterionId: string, isPassed: boolean) => Promise<void>;
   readonly onStatusChange: (status: WorkItemStatus) => Promise<void>;
   readonly onTaskToggle: (taskId: string, isDone: boolean) => Promise<void>;
+  readonly surface?: "paper" | "plain";
   readonly workItem: WorkItem | null;
 }
 
-export function WorkItemDetail({ onCriterionToggle, onStatusChange, onTaskToggle, workItem }: WorkItemDetailProps) {
+export function WorkItemDetail({
+  onCriterionToggle,
+  onStatusChange,
+  onTaskToggle,
+  surface = "paper",
+  workItem
+}: WorkItemDetailProps) {
   if (workItem === null) {
     return (
       <Paper sx={{ minHeight: 360, p: 3 }}>
@@ -31,36 +38,40 @@ export function WorkItemDetail({ onCriterionToggle, onStatusChange, onTaskToggle
     );
   }
 
-  return (
-    <Paper sx={{ p: 3 }}>
-      <Stack spacing={3}>
-        <WorkItemHeader onStatusChange={onStatusChange} workItem={workItem} />
-        <Divider />
-        <ChecklistSection
-          emptyMessage="No tasks yet."
-          items={workItem.tasks.map((task) => ({
-            checked: task.status === "done",
-            id: task.id,
-            label: task.title
-          }))}
-          onToggle={onTaskToggle}
-          title="Tasks"
-        />
-        <ChecklistSection
-          emptyMessage="No acceptance criteria yet."
-          items={workItem.acceptanceCriteria.map((criterion) => ({
-            checked: criterion.status === "passed",
-            id: criterion.id,
-            label: criterion.title
-          }))}
-          onToggle={onCriterionToggle}
-          title="Acceptance criteria"
-        />
-        <Divider />
-        <LatestPlanSection workItem={workItem} />
-      </Stack>
-    </Paper>
+  const content = (
+    <Stack spacing={3}>
+      <WorkItemHeader onStatusChange={onStatusChange} workItem={workItem} />
+      <Divider />
+      <ChecklistSection
+        emptyMessage="No tasks yet."
+        items={workItem.tasks.map((task) => ({
+          checked: task.status === "done",
+          id: task.id,
+          label: task.title
+        }))}
+        onToggle={onTaskToggle}
+        title="Tasks"
+      />
+      <ChecklistSection
+        emptyMessage="No acceptance criteria yet."
+        items={workItem.acceptanceCriteria.map((criterion) => ({
+          checked: criterion.status === "passed",
+          id: criterion.id,
+          label: criterion.title
+        }))}
+        onToggle={onCriterionToggle}
+        title="Acceptance criteria"
+      />
+      <Divider />
+      <LatestPlanSection workItem={workItem} />
+    </Stack>
   );
+
+  if (surface === "plain") {
+    return content;
+  }
+
+  return <Paper sx={{ p: 3 }}>{content}</Paper>;
 }
 
 function WorkItemHeader({

@@ -44,6 +44,8 @@ Researched on March 13, 2026.
 - MUI Card docs: https://mui.com/material-ui/react-card/
 - MUI Chip docs: https://mui.com/material-ui/react-chip/
 - MUI customization docs: https://mui.com/material-ui/customization/how-to-customize/
+- MUI palette docs: https://mui.com/material-ui/customization/palette/
+- MUI dark mode docs: https://mui.com/material-ui/customization/dark-mode/
 - MUI theming docs: https://mui.com/material-ui/customization/theming/
 - MUI CSS theme variables docs: https://mui.com/material-ui/customization/css-theme-variables/usage/
 - MUI `styled()` utility docs: https://mui.com/system/styled/
@@ -62,6 +64,13 @@ Researched on March 13, 2026.
 
 - OWASP File Upload Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
 - OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+
+## Accessibility And Visual Design
+
+- W3C WAI, WCAG 2.2 Understanding SC 1.4.3 Contrast (Minimum): https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+- W3C WAI, WCAG 2.2 Understanding SC 1.4.11 Non-text Contrast: https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html
+- W3C WAI, WCAG 2.2 Understanding SC 1.4.1 Use of Color: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+- W3C WAI, WCAG 2.2 Understanding SC 2.4.13 Focus Appearance: https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html
 
 ## Observability And Trace Correlation
 
@@ -126,11 +135,23 @@ Researched on March 13, 2026.
 ## Pull Requests And Review Quality
 
 - GitHub Docs, creating a pull request template: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
+- GitHub Docs, reviewing proposed changes in a pull request: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/reviewing-proposed-changes-in-a-pull-request
+- GitHub REST API, list pull requests files: https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
+- GitHub REST API, list reviews for a pull request: https://docs.github.com/en/rest/pulls/reviews#list-reviews-for-a-pull-request
+- GitHub REST API, list review comments on a pull request: https://docs.github.com/en/rest/pulls/comments#list-review-comments-on-a-pull-request
 - GitHub Docs, adding repository custom instructions for GitHub Copilot: https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot
 - GitHub Docs, configuring custom instructions for pull request creation: https://docs.github.com/en/copilot/how-tos/agents/copilot-coding-agent/configure-the-pull-request-assistant/using-custom-instructions-for-pull-request-creation
 - Google Engineering Practices, change list descriptions: https://google.github.io/eng-practices/review/developer/cl-descriptions.html
+- Google Engineering Practices, reviewer guide: https://google.github.io/eng-practices/review/reviewer/
 - Kubernetes contributor docs, suggestions for getting your pull request reviewed: https://kubernetes.io/docs/contribute/review/for-contributors/
 - GitLab code review guidelines: https://docs.gitlab.com/development/code_review/
+- Microsoft Research, "Expectations, Outcomes, and Challenges of Modern Code Review": https://www.microsoft.com/en-us/research/publication/expectations-outcomes-and-challenges-of-modern-code-review/
+- arXiv, "First Come First Served? A Study of Pull Request Review Latency on GitHub": https://arxiv.org/abs/2205.12267
+- arXiv, "Test-Driven Code Review: An Empirical Investigation on Pull Requests and Effectiveness in GitHub Repositories": https://arxiv.org/abs/2403.14824
+- arXiv, "Not One to Rule Them All: Understanding Pull Request Review Methods in Practice": https://arxiv.org/abs/2503.17953
+- arXiv, "Human versus Agentic PRs: Exploring the Impact of Agents on Pull Request Quality": https://arxiv.org/abs/2508.18266
+- arXiv, "The Impact of Code Review Bots in Pull Requests": https://arxiv.org/abs/2410.21632
+- Science, "Retrieval Practice Produces More Learning than Elaborative Studying with Concept Mapping": https://www.science.org/doi/10.1126/science.1199327
 
 ## GitHub Repository Plumbing
 

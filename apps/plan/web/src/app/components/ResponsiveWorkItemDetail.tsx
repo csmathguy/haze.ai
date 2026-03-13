@@ -35,6 +35,7 @@ export function ResponsiveWorkItemDetail({
         onCriterionToggle={onCriterionToggle}
         onStatusChange={onStatusChange}
         onTaskToggle={onTaskToggle}
+        surface="plain"
         workItem={workItem}
       />
     </PlanningSurfaceDrawer>

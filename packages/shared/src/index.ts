@@ -1,5 +1,6 @@
 export * from "./audit.js";
 export * from "./assets.js";
+export * from "./code-review.js";
 export * from "./common.js";
 export * from "./documents.js";
 export * from "./extraction.js";

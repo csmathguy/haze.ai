@@ -27,6 +27,7 @@ import {
   updateTaskStatus,
   updateWorkItem
 } from "../../apps/plan/api/src/services/planning.js";
+import { CODE_REVIEW_SEED_ITEMS } from "./mvp-seed-data.js";
 
 type CommandHandler = (args: string[]) => Promise<unknown>;
 
@@ -122,7 +123,8 @@ const MVP_SEED_ITEMS: SeedWorkItem[] = [
     summary: "Seed the taxes project with backlog conventions that match the planning and audit projects.",
     tasks: ["Identify the first tax workflow improvements", "Capture acceptance criteria", "Validate cross-project selection rules"],
     title: "Taxes project backlog bootstrap"
-  }
+  },
+  ...CODE_REVIEW_SEED_ITEMS
 ];
 
 async function main(): Promise<void> {

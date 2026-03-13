@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import {
   Box,
@@ -34,7 +34,18 @@ export function PlanningSurfaceDrawer({
   title
 }: PlanningSurfaceDrawerProps) {
   const { desktopWidth, isMobile, mobileHeight, setDragStart } = useResizableDrawerState(open);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const theme = useTheme();
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    bodyRef.current?.scrollTo({
+      top: 0
+    });
+  }, [open, title]);
 
   return (
     <Drawer
@@ -79,7 +90,9 @@ export function PlanningSurfaceDrawer({
             <CloseRoundedIcon />
           </IconButton>
         </Stack>
-        <Box sx={getDrawerBodySx(isMobile)}>{children}</Box>
+        <Box ref={bodyRef} sx={getDrawerBodySx(isMobile)}>
+          {children}
+        </Box>
       </Stack>
     </Drawer>
   );
@@ -148,7 +161,7 @@ function useResizableDrawerState(open: boolean) {
     desktopWidth,
     isMobile,
     mobileHeight,
-    setDragStart,
+    setDragStart
   };
 }
 
@@ -250,22 +263,23 @@ function getDesktopResizeRailSx(textPrimary: string) {
 
 function getDrawerHeaderSx(isMobile: boolean, textPrimary: string) {
   return {
-    alignItems: "start",
+    alignItems: "flex-start",
     borderBottom: `1px solid ${alpha(textPrimary, 0.08)}`,
-    paddingBottom: 16,
-    paddingLeft: isMobile ? 24 : 32,
-    paddingRight: 16,
-    paddingTop: isMobile ? 0 : 24
+    paddingBottom: 12,
+    paddingLeft: isMobile ? 16 : 20,
+    paddingRight: 12,
+    paddingTop: isMobile ? 0 : 16
   } as const;
 }
 
 function getDrawerBodySx(isMobile: boolean) {
   return {
     flex: 1,
+    minHeight: 0,
     overflowY: "auto",
-    paddingBottom: 24,
-    paddingLeft: isMobile ? 24 : 32,
-    paddingRight: 24,
-    paddingTop: 24
+    paddingBottom: 16,
+    paddingLeft: isMobile ? 16 : 20,
+    paddingRight: 16,
+    paddingTop: 16
   } as const;
 }

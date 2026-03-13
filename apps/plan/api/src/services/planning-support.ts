@@ -29,6 +29,12 @@ const DEFAULT_PROJECTS = [
     key: "taxes",
     name: "Taxes",
     sortOrder: 2
+  },
+  {
+    description: "Human-centered pull request review, trust-building walkthroughs, and diff understanding.",
+    key: "code-review",
+    name: "Code Review",
+    sortOrder: 3
   }
 ] as const;
 export const PLAN_WORK_ITEM_INCLUDE = {
