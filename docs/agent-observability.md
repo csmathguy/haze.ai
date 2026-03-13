@@ -106,6 +106,7 @@ You can attach plan lineage directly at workflow start:
 - `artifacts` stores outputs such as PRs, screenshots, reports, migrations, and docs
 - `failures` stores classified problems such as merge conflicts, validation failures, timeouts, or dependency issues
 - `handoffs` stores agent-to-agent transitions with source, target, status, and optional artifact linkage
+- `failureInsights` enriches run detail with operator-facing failure analysis, including matched execution or event errors plus local log excerpts when they exist
 - run context fields make it possible to group and filter by project, work item, plan run, plan step, agent, and session
 
 ## Work Item Timeline
@@ -113,6 +114,13 @@ You can attach plan lineage directly at workflow start:
 - `GET /api/audit/work-items/:workItemId/timeline` returns the cross-run lineage for one work item
 - the response groups runs, events, decisions, artifacts, failures, and handoffs for that work item
 - the audit monitor now shows that lineage alongside selected run detail so multi-agent work is reviewable as one thread instead of disconnected runs
+
+## Failure Investigation
+
+- `GET /api/audit/runs/:runId` now returns `failureInsights` alongside the raw executions, events, and typed failures
+- each insight is synthesized from the nearest `failure`, failed `execution`, and failed `event` records for the selected run
+- when a failed execution points at a local `logs/*.log` artifact, the API includes a tail excerpt so operators can see the error cause without leaving the monitor
+- the monitor uses that richer payload to answer "why did this fail?" before dropping users into the lower-level tables and event timeline
 
 ## Why This Shape
 

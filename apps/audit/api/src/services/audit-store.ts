@@ -4,6 +4,7 @@ import { AuditAnalyticsSnapshotSchema, AuditRunDetailSchema } from "@taxes/share
 import { AUDIT_DATABASE_URL } from "../config.js";
 import { getAuditPrismaClient } from "../db/client.js";
 import { ensureAuditDatabaseReady } from "../db/migrations.js";
+import { listAuditFailureInsights } from "./audit-failure-insights.js";
 import type { AuditSyncEvent, AuditSyncSummary } from "./audit-sync-contract.js";
 import type { AuditPersistenceOptions } from "./context.js";
 import {
@@ -208,14 +209,20 @@ export async function getAuditRunDetail(
     return null;
   }
 
-  return AuditRunDetailSchema.parse({
+  const detail = AuditRunDetailSchema.parse({
     artifacts: run.artifacts.map(mapArtifactRecord),
     decisions: run.decisions.map(mapDecisionRecord),
     events: run.events.map(mapEventRecord),
     executions: run.executions.map(mapExecutionRecord),
+    failureInsights: [],
     failures: run.failures.map(mapFailureRecord),
     handoffs: run.handoffs.map(mapHandoffRecord),
     run: mapRunOverview(run)
+  });
+
+  return AuditRunDetailSchema.parse({
+    ...detail,
+    failureInsights: await listAuditFailureInsights(detail)
   });
 }
 

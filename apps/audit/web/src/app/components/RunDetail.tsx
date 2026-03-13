@@ -1,7 +1,6 @@
 import {
   Chip,
   Divider,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -10,38 +9,35 @@ import {
   TableRow,
   Typography
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
 
 import type { AuditRunDetail } from "@taxes/shared";
 
 import { formatDateTime, formatDuration } from "../time.js";
+import { AuditPanel, CodeBlock } from "./AuditPanel.js";
+import { FailureInvestigationPanel } from "./FailureInvestigationPanel.js";
+import { RunOverviewPanel } from "./RunOverviewPanel.js";
 
 interface RunDetailProps {
   readonly detail: AuditRunDetail | null;
   readonly isLoading: boolean;
 }
 
-const Panel = styled(Paper)(({ theme }) => ({
-  border: `1px solid var(--mui-palette-divider)`,
-  borderRadius: theme.shape.borderRadius,
-  padding: theme.spacing(2.5)
-}));
-
 export function RunDetail({ detail, isLoading }: RunDetailProps) {
   if (detail === null) {
     return (
-      <Panel elevation={0}>
+      <AuditPanel elevation={0}>
         <Typography variant="h3">Run detail</Typography>
         <Typography color="text.secondary" sx={{ mt: 1.5 }} variant="body2">
           {isLoading ? "Loading run detail..." : "Select a run to inspect its live audit trail."}
         </Typography>
-      </Panel>
+      </AuditPanel>
     );
   }
 
   return (
     <Stack spacing={2}>
       <RunOverviewPanel detail={detail} />
+      <FailureInvestigationPanel detail={detail} />
       <ExecutionsPanel detail={detail} />
       <DecisionsPanel detail={detail} />
       <ArtifactsPanel detail={detail} />
@@ -52,48 +48,9 @@ export function RunDetail({ detail, isLoading }: RunDetailProps) {
   );
 }
 
-function RunOverviewPanel({ detail }: { readonly detail: AuditRunDetail }) {
-  return (
-    <Panel elevation={0}>
-      <Stack spacing={1.5}>
-        <Stack
-          alignItems={{ sm: "center", xs: "flex-start" }}
-          direction={{ sm: "row", xs: "column" }}
-          justifyContent="space-between"
-          spacing={1}
-        >
-          <div>
-            <Typography variant="h3">{detail.run.task ?? detail.run.workflow}</Typography>
-            <Typography color="text.secondary" variant="body2">
-              {detail.run.runId}
-            </Typography>
-          </div>
-          <Chip color={toChipColor(detail.run.status)} label={detail.run.status} />
-        </Stack>
-        <DetailGrid
-          items={[
-            { label: "Workflow", value: detail.run.workflow },
-            { label: "Actor", value: detail.run.actor },
-            { label: "Agent", value: detail.run.agentName ?? "Unassigned" },
-            { label: "Project", value: detail.run.project ?? "Unassigned" },
-            { label: "Work item", value: detail.run.workItemId ?? "Unassigned" },
-            { label: "Plan run", value: detail.run.planRunId ?? "Unassigned" },
-            { label: "Plan step", value: detail.run.planStepId ?? "Unassigned" },
-            { label: "Session", value: detail.run.sessionId ?? "Unassigned" },
-            { label: "Worktree", value: detail.run.worktreePath },
-            { label: "Started", value: formatDateTime(detail.run.startedAt) },
-            { label: "Completed", value: formatDateTime(detail.run.completedAt) },
-            { label: "Duration", value: formatDuration(detail.run.durationMs) }
-          ]}
-        />
-      </Stack>
-    </Panel>
-  );
-}
-
 function ExecutionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <Typography variant="h3">Executions</Typography>
         <Table size="small">
@@ -103,7 +60,7 @@ function ExecutionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
               <TableCell>Kind</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Duration</TableCell>
-              <TableCell>Started</TableCell>
+              <TableCell>Error</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -129,20 +86,24 @@ function ExecutionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
                     <Chip color={toChipColor(execution.status)} label={execution.status} size="small" />
                   </TableCell>
                   <TableCell>{formatDuration(execution.durationMs)}</TableCell>
-                  <TableCell>{formatDateTime(execution.startedAt)}</TableCell>
+                  <TableCell>
+                    <Typography color="text.secondary" sx={{ maxWidth: 320, whiteSpace: "normal" }} variant="body2">
+                      {execution.errorMessage ?? "No error"}
+                    </Typography>
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </Stack>
-    </Panel>
+    </AuditPanel>
   );
 }
 
 function DecisionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <Typography variant="h3">Decisions</Typography>
         {detail.decisions.length === 0 ? (
@@ -169,13 +130,13 @@ function DecisionsPanel({ detail }: { readonly detail: AuditRunDetail }) {
           </Stack>
         )}
       </Stack>
-    </Panel>
+    </AuditPanel>
   );
 }
 
 function ArtifactsPanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <Typography variant="h3">Artifacts</Typography>
         {detail.artifacts.length === 0 ? (
@@ -207,15 +168,15 @@ function ArtifactsPanel({ detail }: { readonly detail: AuditRunDetail }) {
           </Stack>
         )}
       </Stack>
-    </Panel>
+    </AuditPanel>
   );
 }
 
 function FailuresPanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
-        <Typography variant="h3">Failures</Typography>
+        <Typography variant="h3">Typed failures</Typography>
         {detail.failures.length === 0 ? (
           <Typography color="text.secondary" variant="body2">
             No classified failures were recorded for this run.
@@ -248,13 +209,13 @@ function FailuresPanel({ detail }: { readonly detail: AuditRunDetail }) {
           </Stack>
         )}
       </Stack>
-    </Panel>
+    </AuditPanel>
   );
 }
 
 function HandoffsPanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <Typography variant="h3">Handoffs</Typography>
         {detail.handoffs.length === 0 ? (
@@ -290,13 +251,13 @@ function HandoffsPanel({ detail }: { readonly detail: AuditRunDetail }) {
           </Stack>
         )}
       </Stack>
-    </Panel>
+    </AuditPanel>
   );
 }
 
 function EventTimelinePanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
-    <Panel elevation={0}>
+    <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <Typography variant="h3">Event timeline</Typography>
         <Stack divider={<Divider flexItem />} spacing={1}>
@@ -323,42 +284,14 @@ function EventTimelinePanel({ detail }: { readonly detail: AuditRunDetail }) {
                 <Typography color="text.secondary" variant="body2">
                   {event.executionName ?? event.task ?? event.workflow}
                 </Typography>
-                {event.metadata === undefined ? null : (
-                  <Typography color="text.secondary" sx={{ wordBreak: "break-word" }} variant="caption">
-                    {JSON.stringify(event.metadata)}
-                  </Typography>
-                )}
+                {event.errorMessage === undefined ? null : <CodeBlock>{event.errorMessage}</CodeBlock>}
+                {event.metadata === undefined ? null : <CodeBlock>{JSON.stringify(event.metadata, null, 2)}</CodeBlock>}
               </Stack>
             ))
           )}
         </Stack>
       </Stack>
-    </Panel>
-  );
-}
-
-function DetailGrid({ items }: { readonly items: { label: string; value: string }[] }) {
-  return (
-    <Stack direction={{ md: "row", xs: "column" }} flexWrap="wrap" spacing={1.5} useFlexGap>
-      {items.map((item) => (
-        <Paper
-          elevation={0}
-          key={item.label}
-          sx={{
-            border: "1px solid var(--mui-palette-divider)",
-            flex: "1 1 220px",
-            p: 1.5
-          }}
-        >
-          <Typography color="text.secondary" variant="subtitle2">
-            {item.label}
-          </Typography>
-          <Typography sx={{ mt: 0.75, wordBreak: "break-word" }} variant="body2">
-            {item.value}
-          </Typography>
-        </Paper>
-      ))}
-    </Stack>
+    </AuditPanel>
   );
 }
 

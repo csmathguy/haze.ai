@@ -134,6 +134,25 @@ export const AuditFailureRecordSchema = z.object({
   summary: z.string(),
   timestamp: z.iso.datetime()
 });
+export const AuditFailureInsightSourceSchema = z.enum(["event", "execution", "failure"]);
+export const AuditFailureInsightSchema = z.object({
+  category: z.string().optional(),
+  detail: z.string().optional(),
+  errorMessage: z.string().optional(),
+  errorName: z.string().optional(),
+  executionId: z.string().optional(),
+  executionName: z.string().optional(),
+  insightId: z.string(),
+  logExcerpt: z.string().optional(),
+  logFile: z.string().optional(),
+  retryable: z.boolean().optional(),
+  severity: AuditFailureSeveritySchema.optional(),
+  sourceType: AuditFailureInsightSourceSchema,
+  status: z.string(),
+  step: z.string().optional(),
+  summary: z.string(),
+  timestamp: z.iso.datetime()
+});
 export const AuditHandoffRecordSchema = z.object({
   artifactIds: z.array(z.string()).optional(),
   detail: z.string().optional(),
@@ -156,6 +175,7 @@ export const AuditRunDetailSchema = z.object({
   decisions: z.array(AuditDecisionRecordSchema),
   events: z.array(AuditEventRecordSchema),
   executions: z.array(AuditExecutionRecordSchema),
+  failureInsights: z.array(AuditFailureInsightSchema),
   failures: z.array(AuditFailureRecordSchema),
   handoffs: z.array(AuditHandoffRecordSchema),
   run: AuditRunOverviewSchema
@@ -217,6 +237,8 @@ export type AuditExecutionKind = z.infer<typeof AuditExecutionKindSchema>;
 export type AuditExecutionRecord = z.infer<typeof AuditExecutionRecordSchema>;
 export type AuditEventType = z.infer<typeof AuditEventTypeSchema>;
 export type AuditFailureRecord = z.infer<typeof AuditFailureRecordSchema>;
+export type AuditFailureInsight = z.infer<typeof AuditFailureInsightSchema>;
+export type AuditFailureInsightSource = z.infer<typeof AuditFailureInsightSourceSchema>;
 export type AuditFailureSeverity = z.infer<typeof AuditFailureSeveritySchema>;
 export type AuditFailureStatus = z.infer<typeof AuditFailureStatusSchema>;
 export type AuditHandoffRecord = z.infer<typeof AuditHandoffRecordSchema>;
