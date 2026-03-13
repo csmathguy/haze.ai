@@ -4,18 +4,20 @@
 
 ```text
 apps/
-  api/
-    src/
-      modules/
-      services/
-      adapters/
-  web/
-    src/
-      app/
-      features/
-      components/
-      hooks/
-      theme/
+  taxes/
+    api/
+      src/
+        modules/
+        services/
+        adapters/
+    web/
+      src/
+        app/
+        features/
+        components/
+        hooks/
+        theme/
+  plan/
   audit/
     api/
       src/
@@ -51,11 +53,11 @@ tools/
 
 ## Boundary Model
 
-- `apps/web`
+- `apps/<product>/web`
   - renders views, owns UI state, calls backend APIs
   - owns the frontend theme, reusable UI primitives, and page/layout styling rules
   - must not read private document files directly from the filesystem
-- `apps/api`
+- `apps/<product>/api`
   - owns file intake, extraction orchestration, storage, validation, and output generation
   - persists structured metadata in SQLite through Prisma-backed services
   - should expose application services, not raw library details
@@ -89,13 +91,19 @@ tools/
 
 ## Current Scaffold
 
-- `apps/api`
+- `apps/taxes/api`
   - `GET /api/health` for local runtime checks
   - `GET /api/workspace` for the current tax workspace snapshot
   - `POST /api/documents` for local multipart file intake
   - `POST /api/questionnaire-responses` for guided gap-remediation answers
-- `apps/web`
+- `apps/taxes/web`
   - Vite-based React shell with upload, document ledger, review queue, questionnaire, and scenario surfaces
+- `apps/plan/api`
+  - `GET /api/planning/workspace` for the local planning backlog snapshot
+  - `POST /api/planning/work-items` for creating work items with tasks, criteria, and starter plan runs
+  - `PATCH /api/planning/work-items/:workItemId` for status and audit-reference updates
+- `apps/plan/web`
+  - Vite-based React shell for backlog creation, work-item inspection, status updates, and task or acceptance-criteria progress
 - `apps/audit/api`
   - Fastify API for audit run lists, run detail, and SSE event streaming backed by shared SQLite
 - `apps/audit/web`

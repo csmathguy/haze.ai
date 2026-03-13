@@ -10,8 +10,9 @@ This repository now has an initial working scaffold. The current deliverables ar
 - documentation writing standards in `docs/documentation-standards.md`
 - project-local agent skills in `skills/`
 - managed worktree tooling for parallel agent slices in `tools/agent`
-- a Fastify API scaffold in `apps/api`
-- a Vite + React + MUI web scaffold in `apps/web`
+- a Fastify API scaffold in `apps/taxes/api`
+- a Vite + React + MUI web scaffold in `apps/taxes/web`
+- reserved app families in `apps/plan` and `apps/audit`
 - shared tax-domain contracts in `packages/shared`
 - SQLite + Prisma persistence for structured metadata, review state, and lot tracking
 
@@ -19,8 +20,11 @@ This repository now has an initial working scaffold. The current deliverables ar
 
 ```text
 apps/
-  api/        Node + TypeScript backend
-  web/        React + TypeScript frontend
+  taxes/
+    api/      Node + TypeScript backend
+    web/      React + TypeScript frontend
+  plan/       reserved for future planning apps
+  audit/      reserved for future audit apps
 packages/
   shared/     shared domain types, schemas, and utilities
 docs/         project standards, architecture, and research notes

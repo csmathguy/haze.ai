@@ -1,6 +1,6 @@
 ---
 name: implementation-workflow
-description: Use this skill when implementing, refactoring, testing, or restructuring code in this repository. Apply it for changes in apps/web, apps/api, packages/shared, tooling, tests, or architecture docs.
+description: Use this skill when implementing, refactoring, testing, or restructuring code in this repository. Apply it for changes in apps/*/web, apps/*/api, packages/shared, tooling, tests, or architecture docs.
 ---
 
 # Implementation Workflow
@@ -15,7 +15,7 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 2. Read `references/checklist.md` if the change is more than trivial.
 3. For substantial work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
 4. For nested agent phases such as skill execution, tool invocation, or custom validation passes, use `npm run execution:start` and `npm run execution:end` inside the active workflow.
-5. Identify the boundary being changed: `apps/web`, `apps/api`, `packages/shared`, or `tools`.
+5. Identify the boundary being changed: `apps/*/web`, `apps/*/api`, `packages/shared`, or `tools`.
 6. For behavior changes, write or update a failing test first.
 7. Implement the smallest change that makes the test pass.
 8. Refactor only after behavior is green.

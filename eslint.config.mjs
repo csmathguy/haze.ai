@@ -120,7 +120,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["apps/api/**"],
+              group: ["apps/**/api/**"],
               message: "Import backend code through HTTP contracts, not direct frontend dependencies."
             }
           ]
@@ -139,7 +139,7 @@ export default tseslint.config(
     }
   },
   {
-    files: ["apps/web/**/*.{ts,tsx}"],
+    files: ["apps/**/web/**/*.{ts,tsx}"],
     languageOptions: {
       globals: {
         ...globals.browser
@@ -162,7 +162,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["apps/api/**"],
+              group: ["apps/**/api/**"],
               message: "Import backend code through HTTP contracts, not direct frontend dependencies."
             },
             {
@@ -183,20 +183,20 @@ export default tseslint.config(
     }
   },
   {
-    files: ["apps/web/src/theme/**/*.{ts,tsx}"],
+    files: ["apps/**/web/src/theme/**/*.{ts,tsx}"],
     rules: {
       "frontend-style/no-hardcoded-color-literals": "off"
     }
   },
   {
-    files: ["apps/api/**/*.ts"],
+    files: ["apps/**/api/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["apps/web/**"],
+              group: ["apps/**/web/**"],
               message: "Backend code must not depend on frontend code."
             },
             {
@@ -216,7 +216,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["apps/api/**", "apps/web/**"],
+              group: ["apps/**/api/**", "apps/**/web/**"],
               message: "Shared code must remain free of app-layer dependencies."
             },
             {

@@ -1,7 +1,9 @@
-import { API_HOST, API_PORT } from "./config.js";
+import { API_HOST, API_PORT, DATABASE_URL } from "./config.js";
 import { buildApp } from "./app.js";
+import { applyPendingMigrations } from "./db/migrations.js";
 
 async function main(): Promise<void> {
+  await applyPendingMigrations(DATABASE_URL);
   const app = await buildApp();
 
   try {

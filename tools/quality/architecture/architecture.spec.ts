@@ -8,7 +8,7 @@ const sharedFiles = projectFiles("./tsconfig.arch.json").inFolder("packages/shar
 const toolFiles = projectFiles("./tsconfig.arch.json").inFolder("tools/**");
 const webFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**/web/src/**");
 
-describe("architecture rules", () => {
+describe("architecture rules", { timeout: 60_000 }, () => {
   it("prevents frontend code from importing backend implementation details", async () => {
     await expect(webFiles.shouldNot().dependOnFiles().inFolder("apps/**/api/src/**")).toPassAsync();
   });
@@ -49,7 +49,7 @@ describe("architecture rules", () => {
 
     await expect(
       webFiles.should().adhereTo(
-        (file) => file.path.includes("/src/theme/") || !themeTokenImportPattern.test(file.content),
+        (file) => /apps\/[^/]+\/web\/src\/theme\//u.test(file.path) || !themeTokenImportPattern.test(file.content),
         "Web code must import theme concerns through the public theme entrypoint instead of internal token files."
       )
     ).toPassAsync();

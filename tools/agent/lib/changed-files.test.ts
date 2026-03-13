@@ -59,7 +59,7 @@ describe("buildChangedFilePlan", () => {
   });
 
   it("falls back to the full suite for test and tooling changes", () => {
-    const testPlan = buildChangedFilePlan(["apps/api/src/index.test.ts"]);
+    const testPlan = buildChangedFilePlan(["apps/taxes/api/src/index.test.ts"]);
     const toolingPlan = buildChangedFilePlan(["tools/agent/workflow-log.ts"]);
 
     expect(testPlan.testCommand).toEqual({
@@ -73,9 +73,9 @@ describe("buildChangedFilePlan", () => {
   });
 
   it("routes CSS changes into stylelint", () => {
-    const plan = buildChangedFilePlan(["apps/web/src/app/App.module.css"]);
+    const plan = buildChangedFilePlan(["apps/taxes/web/src/app/App.module.css"]);
 
-    expect(plan.stylelintTargets).toEqual(["apps/web/src/app/App.module.css"]);
+    expect(plan.stylelintTargets).toEqual(["apps/taxes/web/src/app/App.module.css"]);
     expect(plan.testCommand).toEqual({
       kind: "none",
       targets: []

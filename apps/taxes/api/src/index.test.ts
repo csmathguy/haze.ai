@@ -1,3 +1,5 @@
+import * as path from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 import type { WorkspaceSnapshot } from "@taxes/shared";
 
@@ -54,6 +56,28 @@ describe("buildApp", () => {
     expect(payload.snapshot.scenarios[0]?.id).toBe("scenario-fifo");
 
     await app.close();
+  });
+
+  it("creates a taxes workspace when started from the app workspace directory", async () => {
+    const originalWorkingDirectory = process.cwd();
+    const appWorkingDirectory = path.resolve(originalWorkingDirectory, "apps", "taxes", "api");
+
+    process.chdir(appWorkingDirectory);
+
+    try {
+      const workspace = await createTestWorkspaceContext("taxes-build-app-cwd");
+      workspaces.push(workspace);
+      const app = await buildApp(workspace);
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/health"
+      });
+
+      expect(response.statusCode).toBe(200);
+      await app.close();
+    } finally {
+      process.chdir(originalWorkingDirectory);
+    }
   });
 
   it("persists questionnaire responses through the API", async () => {

@@ -1,5 +1,5 @@
-import { DATABASE_URL } from "../../apps/api/src/config.js";
-import { applyPendingMigrations } from "../../apps/api/src/db/migrations.js";
+import { DATABASE_URL } from "../../apps/taxes/api/src/config.js";
+import { applyPendingMigrations } from "../../apps/taxes/api/src/db/migrations.js";
 
 async function main(): Promise<void> {
   const appliedCount = await applyPendingMigrations(DATABASE_URL);

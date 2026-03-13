@@ -7,8 +7,8 @@ describe("buildPullRequestDraft", () => {
     const draft = buildPullRequestDraft([
       "prisma/schema.prisma",
       "packages/shared/src/questionnaire.ts",
-      "apps/api/src/routes/questionnaire.ts",
-      "apps/web/src/app/api.ts",
+      "apps/taxes/api/src/routes/questionnaire.ts",
+      "apps/taxes/web/src/app/api.ts",
       "tools/agent/quality-gates.ts"
     ]);
 
@@ -52,14 +52,14 @@ describe("buildPullRequestDraft", () => {
 
   it("normalizes duplicate Windows paths", () => {
     const draft = buildPullRequestDraft([
-      "apps\\api\\src\\app.ts",
-      "apps/api/src/app.ts",
-      "apps\\api\\src\\index.test.ts"
+      "apps\\taxes\\api\\src\\app.ts",
+      "apps/taxes/api/src/app.ts",
+      "apps\\taxes\\api\\src\\index.test.ts"
     ]);
 
     expect(draft.areas).toEqual([
       {
-        files: ["apps/api/src/app.ts", "apps/api/src/index.test.ts"],
+        files: ["apps/taxes/api/src/app.ts", "apps/taxes/api/src/index.test.ts"],
         title: "API and backend workflow"
       }
     ]);

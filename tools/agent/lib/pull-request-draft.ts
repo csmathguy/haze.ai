@@ -38,13 +38,13 @@ const AREA_DEFINITIONS: DraftAreaDefinition[] = [
   {
     focus: "Inspect backend routes, services, validation, and privacy-sensitive file or persistence handling.",
     id: "api",
-    matches: (file) => file.startsWith("apps/api/"),
+    matches: isApiAppFile,
     title: "API and backend workflow"
   },
   {
     focus: "Inspect the user-facing flow, API assumptions, and whether the UI still reflects the backend contract accurately.",
     id: "web",
-    matches: (file) => file.startsWith("apps/web/"),
+    matches: isWebAppFile,
     title: "Web UI and client workflow"
   },
   {
@@ -234,4 +234,12 @@ function isRepositoryConfig(file: string): boolean {
     file === "vitest.config.ts" ||
     file === ".nvmrc"
   );
+}
+
+function isApiAppFile(file: string): boolean {
+  return /^apps\/[^/]+\/api\//u.test(file);
+}
+
+function isWebAppFile(file: string): boolean {
+  return /^apps\/[^/]+\/web\//u.test(file);
 }
