@@ -7,7 +7,7 @@ import {
   TextField,
   Typography
 } from "@mui/material";
-import type { CreateWorkItemDraftInput, PlanRunMode, WorkItemKind, WorkItemPriority } from "@taxes/shared";
+import type { CreateWorkItemDraftInput, PlanningProject, PlanRunMode, WorkItemKind, WorkItemPriority } from "@taxes/shared";
 
 const DEFAULT_FORM_STATE = {
   acceptanceCriteriaText: "",
@@ -17,6 +17,7 @@ const DEFAULT_FORM_STATE = {
   planStepsText: "",
   planSummary: "",
   priority: "high" as WorkItemPriority,
+  projectKey: "planning",
   summary: "",
   targetIteration: "",
   tasksText: "",
@@ -26,9 +27,10 @@ const DEFAULT_FORM_STATE = {
 interface CreateWorkItemFormProps {
   readonly disabled: boolean;
   readonly onSubmit: (input: CreateWorkItemDraftInput) => Promise<void>;
+  readonly projects: PlanningProject[];
 }
 
-export function CreateWorkItemForm({ disabled, onSubmit }: CreateWorkItemFormProps) {
+export function CreateWorkItemForm({ disabled, onSubmit, projects }: CreateWorkItemFormProps) {
   const [formState, setFormState] = useState(DEFAULT_FORM_STATE);
   const handleFieldChange = <Key extends keyof typeof DEFAULT_FORM_STATE>(field: Key, value: (typeof DEFAULT_FORM_STATE)[Key]) => {
     setFormState((current) => ({
@@ -55,6 +57,7 @@ export function CreateWorkItemForm({ disabled, onSubmit }: CreateWorkItemFormPro
               summary: formState.planSummary.trim()
             },
       priority: formState.priority,
+      projectKey: formState.projectKey,
       summary: formState.summary.trim(),
       targetIteration: emptyToUndefined(formState.targetIteration),
       tasks,
@@ -68,7 +71,7 @@ export function CreateWorkItemForm({ disabled, onSubmit }: CreateWorkItemFormPro
       <Stack spacing={2}>
         <Typography variant="h2">Create a planning work item</Typography>
         <BasicFieldsSection formState={formState} onFieldChange={handleFieldChange} />
-        <MetadataFieldsSection formState={formState} onFieldChange={handleFieldChange} />
+        <MetadataFieldsSection formState={formState} onFieldChange={handleFieldChange} projects={projects} />
         <TaskFieldsSection formState={formState} onFieldChange={handleFieldChange} />
         <PlanFieldsSection formState={formState} onFieldChange={handleFieldChange} />
         <Button
@@ -124,15 +127,33 @@ function BasicFieldsSection({ formState, onFieldChange }: FieldSectionProps) {
   );
 }
 
-function MetadataFieldsSection({ formState, onFieldChange }: FieldSectionProps) {
+function MetadataFieldsSection({
+  formState,
+  onFieldChange,
+  projects
+}: FieldSectionProps & { readonly projects: PlanningProject[] }) {
   return (
     <Stack direction={{ md: "row", xs: "column" }} spacing={2}>
+      <SelectField
+        label="Project"
+        onChange={(value) => {
+          onFieldChange("projectKey", value);
+        }}
+        options={projects.map((project) => ({
+          label: project.name,
+          value: project.key
+        }))}
+        value={formState.projectKey}
+      />
       <SelectField
         label="Kind"
         onChange={(value) => {
           onFieldChange("kind", value as WorkItemKind);
         }}
-        options={["epic", "feature", "maintenance", "spike", "task"]}
+        options={["epic", "feature", "maintenance", "spike", "task"].map((option) => ({
+          label: option,
+          value: option
+        }))}
         value={formState.kind}
       />
       <SelectField
@@ -140,7 +161,10 @@ function MetadataFieldsSection({ formState, onFieldChange }: FieldSectionProps) 
         onChange={(value) => {
           onFieldChange("priority", value as WorkItemPriority);
         }}
-        options={["critical", "high", "medium", "low"]}
+        options={["critical", "high", "medium", "low"].map((option) => ({
+          label: option,
+          value: option
+        }))}
         value={formState.priority}
       />
       <TextField
@@ -203,7 +227,10 @@ function PlanFieldsSection({ formState, onFieldChange }: FieldSectionProps) {
           onChange={(value) => {
             onFieldChange("planMode", value as PlanRunMode);
           }}
-          options={["manual", "single-agent", "parallel-agents"]}
+          options={["manual", "single-agent", "parallel-agents"].map((option) => ({
+            label: option,
+            value: option
+          }))}
           value={formState.planMode}
         />
       </Stack>
@@ -225,7 +252,10 @@ function PlanFieldsSection({ formState, onFieldChange }: FieldSectionProps) {
 interface SelectFieldProps {
   readonly label: string;
   readonly onChange: (value: string) => void;
-  readonly options: readonly string[];
+  readonly options: readonly {
+    label: string;
+    value: string;
+  }[];
   readonly value: string;
 }
 
@@ -241,8 +271,8 @@ function SelectField({ label, onChange, options, value }: SelectFieldProps) {
       value={value}
     >
       {options.map((option) => (
-        <MenuItem key={option} value={option}>
-          {option}
+        <MenuItem key={option.value} value={option.value}>
+          {option.label}
         </MenuItem>
       ))}
     </TextField>

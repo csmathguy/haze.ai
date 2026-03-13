@@ -147,6 +147,7 @@ model QuestionnaireResponse {
 model PlanWorkItem {
   id                    String                    @id
   sequence              Int                       @unique
+  projectId             String
   title                 String
   summary               String
   kind                  String
@@ -161,11 +162,27 @@ model PlanWorkItem {
   blockedByDependencies WorkItemDependency[]      @relation("BlockedWorkItem")
   blockingDependencies  WorkItemDependency[]      @relation("BlockingWorkItem")
   planRuns              PlanRun[]
+  project               PlanProject               @relation(fields: [projectId], references: [id], onDelete: Restrict)
   tasks                 PlanWorkItemTask[]
 
+  @@index([projectId])
   @@index([priority])
   @@index([status])
   @@index([updatedAt])
+}
+
+model PlanProject {
+  id          String         @id
+  key         String         @unique
+  name        String
+  description String?
+  isActive    Boolean        @default(true)
+  sortOrder   Int
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workItems   PlanWorkItem[]
+
+  @@index([isActive, sortOrder])
 }
 
 model PlanWorkItemTask {

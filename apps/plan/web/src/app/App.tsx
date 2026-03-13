@@ -5,7 +5,9 @@ import {
   CircularProgress,
   Container,
   Grid,
+  MenuItem,
   Stack,
+  TextField,
   Typography
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -31,10 +33,13 @@ export function App() {
     handleStatusChange,
     handleTaskToggle,
     isBusy,
+    selectedProjectKey,
     selectedWorkItem,
     selectedWorkItemId,
+    setSelectedProjectKey,
     setSelectedWorkItemId,
     successMessage,
+    visibleWorkItems,
     workspace
   } = usePlanningWorkspaceController();
 
@@ -46,10 +51,13 @@ export function App() {
       handleStatusChange={handleStatusChange}
       handleTaskToggle={handleTaskToggle}
       isBusy={isBusy}
+      selectedProjectKey={selectedProjectKey}
       selectedWorkItem={selectedWorkItem}
       selectedWorkItemId={selectedWorkItemId}
+      setSelectedProjectKey={setSelectedProjectKey}
       setSelectedWorkItemId={setSelectedWorkItemId}
       successMessage={successMessage}
+      visibleWorkItems={visibleWorkItems}
       workspace={workspace}
     />
   );
@@ -58,13 +66,18 @@ export function App() {
 function usePlanningWorkspaceController() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(true);
+  const [selectedProjectKey, setSelectedProjectKey] = useState("all");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<PlanningWorkspace | null>(null);
+  const visibleWorkItems =
+    workspace === null || selectedProjectKey === "all"
+      ? workspace?.workItems ?? []
+      : workspace.workItems.filter((workItem) => workItem.projectKey === selectedProjectKey);
   const {
     selectedWorkItem,
     selectedWorkItemId,
     setSelectedWorkItemId
-  } = useSelectedWorkItem(workspace);
+  } = useSelectedWorkItem(visibleWorkItems);
 
   useEffect(() => {
     void refreshWorkspace();
@@ -106,29 +119,33 @@ function usePlanningWorkspaceController() {
     handleStatusChange,
     handleTaskToggle,
     isBusy,
+    selectedProjectKey,
     selectedWorkItem,
     selectedWorkItemId,
+    setSelectedProjectKey,
     setSelectedWorkItemId,
     successMessage,
+    visibleWorkItems,
     workspace
   };
 }
 
-function useSelectedWorkItem(workspace: PlanningWorkspace | null) {
+function useSelectedWorkItem(workItems: PlanningWorkspace["workItems"]) {
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (workspace === null) {
+    if (workItems.length === 0) {
+      setSelectedWorkItemId(null);
       return;
     }
 
-    if (selectedWorkItemId === null || workspace.workItems.every((item) => item.id !== selectedWorkItemId)) {
-      setSelectedWorkItemId(workspace.workItems[0]?.id ?? null);
+    if (selectedWorkItemId === null || workItems.every((item) => item.id !== selectedWorkItemId)) {
+      setSelectedWorkItemId(workItems[0]?.id ?? null);
     }
-  }, [selectedWorkItemId, workspace]);
+  }, [selectedWorkItemId, workItems]);
 
   return {
-    selectedWorkItem: workspace?.workItems.find((workItem) => workItem.id === selectedWorkItemId) ?? null,
+    selectedWorkItem: workItems.find((workItem) => workItem.id === selectedWorkItemId) ?? null,
     selectedWorkItemId,
     setSelectedWorkItemId
   };
@@ -248,10 +265,13 @@ interface PlanningPageLayoutProps {
   readonly handleStatusChange: (status: WorkItemStatus) => Promise<void>;
   readonly handleTaskToggle: (taskId: string, checked: boolean) => Promise<void>;
   readonly isBusy: boolean;
+  readonly selectedProjectKey: string;
   readonly selectedWorkItem: PlanningWorkspace["workItems"][number] | null;
   readonly selectedWorkItemId: string | null;
+  readonly setSelectedProjectKey: (projectKey: string) => void;
   readonly setSelectedWorkItemId: (workItemId: string | null) => void;
   readonly successMessage: string | null;
+  readonly visibleWorkItems: PlanningWorkspace["workItems"];
   readonly workspace: PlanningWorkspace | null;
 }
 
@@ -262,10 +282,13 @@ function PlanningPageLayout({
   handleStatusChange,
   handleTaskToggle,
   isBusy,
+  selectedProjectKey,
   selectedWorkItem,
   selectedWorkItemId,
+  setSelectedProjectKey,
   setSelectedWorkItemId,
   successMessage,
+  visibleWorkItems,
   workspace
 }: PlanningPageLayoutProps) {
   return (
@@ -293,9 +316,14 @@ function PlanningPageLayout({
           ) : (
             <>
               <WorkspaceSummary workspace={workspace} />
+              <ProjectScopeBar
+                projects={workspace.projects}
+                selectedProjectKey={selectedProjectKey}
+                setSelectedProjectKey={setSelectedProjectKey}
+              />
               <Grid container spacing={2}>
                 <Grid size={{ lg: 5, xs: 12 }}>
-                  <CreateWorkItemForm disabled={false} onSubmit={handleCreateWorkItem} />
+                  <CreateWorkItemForm disabled={false} onSubmit={handleCreateWorkItem} projects={workspace.projects} />
                 </Grid>
                 <Grid size={{ lg: 7, xs: 12 }}>
                   <WorkItemDetail
@@ -309,7 +337,7 @@ function PlanningPageLayout({
                   <WorkItemList
                     onSelect={setSelectedWorkItemId}
                     selectedWorkItemId={selectedWorkItemId}
-                    workItems={workspace.workItems}
+                    workItems={visibleWorkItems}
                   />
                 </Grid>
               </Grid>
@@ -318,5 +346,37 @@ function PlanningPageLayout({
         </Stack>
       </Container>
     </Box>
+  );
+}
+
+interface ProjectScopeBarProps {
+  readonly projects: PlanningWorkspace["projects"];
+  readonly selectedProjectKey: string;
+  readonly setSelectedProjectKey: (projectKey: string) => void;
+}
+
+function ProjectScopeBar({ projects, selectedProjectKey, setSelectedProjectKey }: ProjectScopeBarProps) {
+  return (
+    <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
+      <Typography color="text.secondary">
+        Filter the backlog by project while keeping one shared planning database across worktrees.
+      </Typography>
+      <TextField
+        label="Project scope"
+        onChange={(event) => {
+          setSelectedProjectKey(event.target.value);
+        }}
+        select
+        sx={{ minWidth: 220 }}
+        value={selectedProjectKey}
+      >
+        <MenuItem value="all">All projects</MenuItem>
+        {projects.map((project) => (
+          <MenuItem key={project.key} value={project.key}>
+            {project.name}
+          </MenuItem>
+        ))}
+      </TextField>
+    </Stack>
   );
 }

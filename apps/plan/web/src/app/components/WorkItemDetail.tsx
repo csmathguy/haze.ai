@@ -95,6 +95,7 @@ function WorkItemMetaChips({ workItem }: { readonly workItem: WorkItem }) {
   return (
     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
       <Chip label={workItem.id} />
+      <Chip color="primary" label={workItem.projectKey} />
       <Chip label={workItem.kind} />
       <Chip label={workItem.priority} />
       {workItem.targetIteration !== undefined ? <Chip label={workItem.targetIteration} /> : null}
