@@ -78,6 +78,7 @@
     "audit:artifact": "tsx tools/agent/audit-record.ts artifact",
     "audit:decision": "tsx tools/agent/audit-record.ts decision",
     "audit:failure": "tsx tools/agent/audit-record.ts failure",
+    "audit:handoff": "tsx tools/agent/audit-record.ts handoff",
     "workflow:retro": "tsx tools/agent/retrospective.ts",
     "execution:start": "tsx tools/agent/execution-log.ts start",
     "execution:end": "tsx tools/agent/execution-log.ts end",

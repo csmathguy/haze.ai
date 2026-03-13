@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { AuditAnalyticsSnapshotSchema, AuditRunDetailSchema, AuditRunOverviewSchema } from "@taxes/shared";
+import { AuditAnalyticsSnapshotSchema, AuditRunDetailSchema, AuditRunOverviewSchema, AuditWorkItemTimelineSchema } from "@taxes/shared";
 import type { AuditEvent, AuditSummary } from "../../../../tools/agent/lib/audit.js";
 import { buildApp } from "./app.js";
 import type { TestAuditContext } from "./test/database.js";
@@ -30,7 +30,12 @@ describe("audit app", () => {
       durationMs: 5000,
       executions: [],
       failures: [],
+      handoffs: [],
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
+      project: "audit",
       runId,
+      sessionId: "session-1",
       startedAt: "2026-03-12T00:00:00.000Z",
       stats: {
         byKind: {},
@@ -41,18 +46,24 @@ describe("audit app", () => {
       status: "success",
       steps: [],
       task: "seed audit api",
-      workflow: "implementation"
+      workflow: "implementation",
+      workItemId: "PLAN-7"
     };
     const event: AuditEvent = {
       actor: "codex",
       cwd,
       eventId: "event-1",
       eventType: "workflow-start",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
+      project: "audit",
       runId,
+      sessionId: "session-1",
       status: "running",
       task: "seed audit api",
       timestamp: "2026-03-12T00:00:00.000Z",
-      workflow: "implementation"
+      workflow: "implementation",
+      workItemId: "PLAN-7"
     };
 
     await syncAuditEvent(event, {
@@ -77,10 +88,15 @@ describe("audit app", () => {
       method: "GET",
       url: `/api/audit/runs/${runId}`
     });
+    const timelineResponse = await app.inject({
+      method: "GET",
+      url: "/api/audit/work-items/PLAN-7/timeline"
+    });
 
     const runsPayload = z.object({ runs: z.array(AuditRunOverviewSchema) }).parse(runsResponse.json());
     const analyticsPayload = z.object({ analytics: AuditAnalyticsSnapshotSchema }).parse(analyticsResponse.json());
     const detailPayload = z.object({ detail: AuditRunDetailSchema }).parse(detailResponse.json());
+    const timelinePayload = z.object({ timeline: AuditWorkItemTimelineSchema }).parse(timelineResponse.json());
 
     expect(runsResponse.statusCode).toBe(200);
     expect(runsPayload.runs[0]?.runId).toBe(runId);
@@ -91,6 +107,9 @@ describe("audit app", () => {
     expect(detailResponse.statusCode).toBe(200);
     expect(detailPayload.detail.run.runId).toBe(runId);
     expect(detailPayload.detail.events[0]?.eventId).toBe("event-1");
+    expect(timelineResponse.statusCode).toBe(200);
+    expect(timelinePayload.timeline.workItemId).toBe("PLAN-7");
+    expect(timelinePayload.timeline.runs[0]?.runId).toBe(runId);
 
     await app.close();
   });

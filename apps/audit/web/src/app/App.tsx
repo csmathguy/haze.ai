@@ -8,15 +8,15 @@ import {
   Stack,
   Typography
 } from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
-import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import CableOutlinedIcon from "@mui/icons-material/CableOutlined";
-import PlayCircleOutlineOutlinedIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
 import ChecklistRtlOutlinedIcon from "@mui/icons-material/ChecklistRtlOutlined";
-import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
+import PlayCircleOutlineOutlinedIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
+import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
+import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
+import { alpha, styled } from "@mui/material/styles";
 
-import type { AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import type { AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
 import type { AuditRunFilters } from "./api.js";
 import { FiltersBar } from "./components/FiltersBar.js";
@@ -24,6 +24,7 @@ import { MetricCard } from "./components/MetricCard.js";
 import { RunDetail } from "./components/RunDetail.js";
 import { RunDurationChart } from "./components/RunDurationChart.js";
 import { RunList } from "./components/RunList.js";
+import { WorkItemTimeline } from "./components/WorkItemTimeline.js";
 import { formatDateTime } from "./time.js";
 import { useAuditMonitor, type ConnectionState, type RunStats } from "./useAuditMonitor.js";
 
@@ -57,6 +58,7 @@ export function App() {
     isLoadingAnalytics,
     isLoadingDetail,
     isLoadingRuns,
+    isLoadingTimeline,
     lastEventAt,
     projects,
     runError,
@@ -65,6 +67,8 @@ export function App() {
     selectedRunId,
     setFilters,
     setSelectedRunId,
+    timeline,
+    timelineError,
     workflows,
     workItemIds,
     worktreePaths
@@ -75,20 +79,23 @@ export function App() {
       agentNames={agentNames}
       analyticsError={analyticsError}
       connectionState={connectionState}
-      deferredRuns={runs}
       detail={detail}
       detailError={detailError}
       filters={filters}
       isLoadingAnalytics={isLoadingAnalytics}
       isLoadingDetail={isLoadingDetail}
       isLoadingRuns={isLoadingRuns}
+      isLoadingTimeline={isLoadingTimeline}
       lastEventAt={lastEventAt}
       onFilterChange={setFilters}
       onSelectRun={setSelectedRunId}
       projects={projects}
       runError={runError}
       runStats={runStats}
+      runs={runs}
       selectedRunId={selectedRunId}
+      timeline={timeline}
+      timelineError={timelineError}
       workflows={workflows}
       workItemIds={workItemIds}
       worktreePaths={worktreePaths}
@@ -100,20 +107,23 @@ interface AuditMonitorLayoutProps {
   readonly agentNames: string[];
   readonly analyticsError: string | null;
   readonly connectionState: ConnectionState;
-  readonly deferredRuns: AuditRunOverview[];
   readonly detail: AuditRunDetail | null;
   readonly detailError: string | null;
   readonly filters: AuditRunFilters;
   readonly isLoadingAnalytics: boolean;
   readonly isLoadingDetail: boolean;
   readonly isLoadingRuns: boolean;
+  readonly isLoadingTimeline: boolean;
   readonly lastEventAt: string | null;
   readonly onFilterChange: (filters: AuditRunFilters) => void;
   readonly onSelectRun: (runId: string | null) => void;
   readonly projects: string[];
   readonly runError: string | null;
   readonly runStats: RunStats;
+  readonly runs: AuditRunOverview[];
   readonly selectedRunId: string | null;
+  readonly timeline: AuditWorkItemTimeline | null;
+  readonly timelineError: string | null;
   readonly workflows: string[];
   readonly workItemIds: string[];
   readonly worktreePaths: string[];
@@ -123,20 +133,23 @@ function AuditMonitorLayout({
   agentNames,
   analyticsError,
   connectionState,
-  deferredRuns,
   detail,
   detailError,
   filters,
   isLoadingAnalytics,
   isLoadingDetail,
   isLoadingRuns,
+  isLoadingTimeline,
   lastEventAt,
   onFilterChange,
   onSelectRun,
   projects,
   runError,
   runStats,
+  runs,
   selectedRunId,
+  timeline,
+  timelineError,
   workflows,
   workItemIds,
   worktreePaths
@@ -146,11 +159,11 @@ function AuditMonitorLayout({
       <Shell>
         <Stack spacing={3}>
           <MonitorHeader
+            agentNames={agentNames}
             connectionState={connectionState}
             filters={filters}
             lastEventAt={lastEventAt}
             onFilterChange={onFilterChange}
-            agentNames={agentNames}
             projects={projects}
             workflows={workflows}
             workItemIds={workItemIds}
@@ -159,14 +172,17 @@ function AuditMonitorLayout({
           {runError !== null ? <Alert severity="error">{runError}</Alert> : null}
           {analyticsError !== null ? <Alert severity="warning">{analyticsError}</Alert> : null}
           {detailError !== null ? <Alert severity="warning">{detailError}</Alert> : null}
+          {timelineError !== null ? <Alert severity="warning">{timelineError}</Alert> : null}
           <MetricGrid isLoadingAnalytics={isLoadingAnalytics} runStats={runStats} />
           <ContentGrid
             detail={detail}
             isLoadingDetail={isLoadingDetail}
             isLoadingRuns={isLoadingRuns}
+            isLoadingTimeline={isLoadingTimeline}
             onSelectRun={onSelectRun}
-            runs={deferredRuns}
+            runs={runs}
             selectedRunId={selectedRunId}
+            timeline={timeline}
           />
         </Stack>
       </Shell>
@@ -186,15 +202,7 @@ function MonitorHeader({
   worktreePaths
 }: Pick<
   AuditMonitorLayoutProps,
-  | "agentNames"
-  | "connectionState"
-  | "filters"
-  | "lastEventAt"
-  | "onFilterChange"
-  | "projects"
-  | "workflows"
-  | "workItemIds"
-  | "worktreePaths"
+  "agentNames" | "connectionState" | "filters" | "lastEventAt" | "onFilterChange" | "projects" | "workflows" | "workItemIds" | "worktreePaths"
 >) {
   return (
     <Stack spacing={1.5}>
@@ -240,12 +248,7 @@ function MetricGrid({
   return (
     <Grid container spacing={2}>
       <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
-        <MetricCard
-          caption="Runs loaded for the current filters."
-          icon={<QueryStatsOutlinedIcon />}
-          label="Visible runs"
-          value={runStats.totalRuns.toString()}
-        />
+        <MetricCard caption="Runs loaded for the current filters." icon={<QueryStatsOutlinedIcon />} label="Visible runs" value={runStats.totalRuns.toString()} />
       </Grid>
       <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
         <MetricCard
@@ -281,10 +284,18 @@ function MetricGrid({
       </Grid>
       <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
         <MetricCard
-          caption={isLoadingAnalytics ? "Refreshing analytics…" : "Captured artifacts across the visible run set."}
+          caption={isLoadingAnalytics ? "Refreshing analytics..." : "Captured artifacts across the visible run set."}
           icon={<FolderOpenOutlinedIcon />}
           label="Artifacts"
           value={runStats.artifactCount.toString()}
+        />
+      </Grid>
+      <Grid size={{ lg: 3, sm: 6, xs: 12 }}>
+        <MetricCard
+          caption="Agent handoffs linked to the visible work."
+          icon={<RouteOutlinedIcon />}
+          label="Handoffs"
+          value={runStats.handoffCount.toString()}
         />
       </Grid>
     </Grid>
@@ -295,16 +306,20 @@ function ContentGrid({
   detail,
   isLoadingDetail,
   isLoadingRuns,
+  isLoadingTimeline,
   onSelectRun,
   runs,
-  selectedRunId
+  selectedRunId,
+  timeline
 }: {
   readonly detail: AuditRunDetail | null;
   readonly isLoadingDetail: boolean;
   readonly isLoadingRuns: boolean;
+  readonly isLoadingTimeline: boolean;
   readonly onSelectRun: (runId: string | null) => void;
   readonly runs: AuditRunOverview[];
   readonly selectedRunId: string | null;
+  readonly timeline: AuditWorkItemTimeline | null;
 }) {
   return (
     <Grid container spacing={2}>
@@ -319,6 +334,7 @@ function ContentGrid({
         <Stack spacing={2}>
           <RunDurationChart runs={runs} />
           <RunDetail detail={detail} isLoading={isLoadingDetail} />
+          <WorkItemTimeline isLoading={isLoadingTimeline} timeline={timeline} />
         </Stack>
       </Grid>
     </Grid>

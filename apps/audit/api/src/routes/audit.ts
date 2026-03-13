@@ -1,9 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { AUDIT_STREAM_POLL_INTERVAL_MS } from "../config.js";
 import type { AuditPersistenceOptions } from "../services/context.js";
 import { getAuditAnalytics, getAuditRunDetail, listAuditEventsSince, listAuditRuns } from "../services/audit-store.js";
+import { getAuditWorkItemTimeline } from "../services/audit-work-item-timeline.js";
 
 const ListRunsQuerySchema = z.object({
   agentName: z.string().optional(),
@@ -20,6 +21,11 @@ const ListEventsQuerySchema = z.object({
 });
 
 export function registerAuditRoutes(app: FastifyInstance, options: AuditPersistenceOptions = {}): void {
+  registerRunRoutes(app, options);
+  registerEventRoutes(app, options);
+}
+
+function registerRunRoutes(app: FastifyInstance, options: AuditPersistenceOptions): void {
   app.get("/api/audit/runs", async (request) => {
     const query = parseListRunsQuery(request.query);
     return {
@@ -51,6 +57,24 @@ export function registerAuditRoutes(app: FastifyInstance, options: AuditPersiste
     };
   });
 
+  app.get("/api/audit/work-items/:workItemId/timeline", async (request, reply) => {
+    const params = z.object({ workItemId: z.string() }).parse(request.params);
+    const timeline = await getAuditWorkItemTimeline(params.workItemId, options);
+
+    if (timeline === null) {
+      reply.code(404);
+      return {
+        error: "Audit work item timeline not found."
+      };
+    }
+
+    return {
+      timeline
+    };
+  });
+}
+
+function registerEventRoutes(app: FastifyInstance, options: AuditPersistenceOptions): void {
   app.get("/api/audit/events", async (request) => {
     const query = ListEventsQuerySchema.parse(request.query);
 
@@ -64,34 +88,7 @@ export function registerAuditRoutes(app: FastifyInstance, options: AuditPersiste
 
   app.get("/api/audit/stream", async (request, reply) => {
     const query = ListEventsQuerySchema.parse(request.query);
-    const stream = reply.raw;
-    let latestEventId: string | undefined;
-    let latestTimestamp = query.since ?? new Date().toISOString();
-    reply.header("Cache-Control", "no-cache");
-    reply.header("Connection", "keep-alive");
-    reply.header("Content-Type", "text/event-stream");
-    reply.hijack();
-    stream.flushHeaders();
-    stream.write(`event: ready\ndata: ${JSON.stringify({ since: latestTimestamp })}\n\n`);
-
-    for (;;) {
-      if (request.raw.destroyed) {
-        break;
-      }
-
-      const events = await listAuditEventsSince(
-        latestTimestamp,
-        buildStreamQueryOptions(query.limit ?? 100, latestEventId, options.databaseUrl)
-      );
-
-      for (const event of events) {
-        stream.write(`event: audit-event\ndata: ${JSON.stringify(event)}\n\n`);
-        latestEventId = event.eventId;
-        latestTimestamp = event.timestamp;
-      }
-
-      await wait(AUDIT_STREAM_POLL_INTERVAL_MS);
-    }
+    await streamAuditEvents(request, reply, query, options);
   });
 }
 
@@ -118,6 +115,42 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs);
   });
+}
+
+async function streamAuditEvents(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  query: z.infer<typeof ListEventsQuerySchema>,
+  options: AuditPersistenceOptions
+) {
+  const stream = reply.raw;
+  let latestEventId: string | undefined;
+  let latestTimestamp = query.since ?? new Date().toISOString();
+  reply.header("Cache-Control", "no-cache");
+  reply.header("Connection", "keep-alive");
+  reply.header("Content-Type", "text/event-stream");
+  reply.hijack();
+  stream.flushHeaders();
+  stream.write(`event: ready\ndata: ${JSON.stringify({ since: latestTimestamp })}\n\n`);
+
+  for (;;) {
+    if (request.raw.destroyed) {
+      break;
+    }
+
+    const events = await listAuditEventsSince(
+      latestTimestamp,
+      buildStreamQueryOptions(query.limit ?? 100, latestEventId, options.databaseUrl)
+    );
+
+    for (const event of events) {
+      stream.write(`event: audit-event\ndata: ${JSON.stringify(event)}\n\n`);
+      latestEventId = event.eventId;
+      latestTimestamp = event.timestamp;
+    }
+
+    await wait(AUDIT_STREAM_POLL_INTERVAL_MS);
+  }
 }
 
 function buildStreamQueryOptions(limit: number, afterEventId: string | undefined, databaseUrl: string | undefined) {

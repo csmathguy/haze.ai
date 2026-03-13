@@ -15,7 +15,7 @@ This skill standardizes how agents record what they ran and when they ran it. Us
 2. Read `references/audit-steps.md`.
 3. Start the workflow with `npm run workflow:start <name> "<summary>"`.
 4. For long-running skills, tools, hooks, or custom operations, open an execution span with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>`.
-5. When the work includes meaningful choices, outputs, or classified failures, log them explicitly with `npm run audit:decision`, `npm run audit:artifact`, and `npm run audit:failure`.
+5. When the work includes meaningful choices, outputs, classified failures, or agent-to-agent transitions, log them explicitly with `npm run audit:decision`, `npm run audit:artifact`, `npm run audit:failure`, and `npm run audit:handoff`.
 6. Add notes during longer tasks with `npm run workflow:note <name> "<note>"`.
 7. Use audited wrapper scripts such as `npm run quality:logged -- <name>`.
 8. Close execution spans with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
@@ -25,6 +25,8 @@ This skill standardizes how agents record what they ran and when they ran it. Us
 
 - Prefer structured audit events over free-form chat summaries when recording work.
 - Prefer typed decision/artifact/failure records over burying those details in workflow notes.
+- Prefer passing `--work-item-id`, `--plan-run-id`, and `--plan-step-id` at workflow start when the work maps to a planning item.
+- Prefer explicit handoff records when work changes owners between agents or worktrees.
 - Prefer wrapper scripts for repeated guardrail runs.
 - Keep audit data in ignored artifact paths and the shared local audit database.
 - Prefer execution spans over extra workflow names when the work is nested inside an already active workflow.

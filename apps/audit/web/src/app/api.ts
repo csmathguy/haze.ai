@@ -1,4 +1,4 @@
-import type { AuditAnalyticsSnapshot, AuditEventRecord, AuditRunDetail, AuditRunOverview } from "@taxes/shared";
+import type { AuditAnalyticsSnapshot, AuditEventRecord, AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
 export interface AuditRunFilters {
   agentName: string;
@@ -19,6 +19,10 @@ interface RunsResponse {
 
 interface DetailResponse {
   detail: AuditRunDetail;
+}
+
+interface TimelineResponse {
+  timeline: AuditWorkItemTimeline;
 }
 
 interface StreamSubscriptionOptions {
@@ -93,6 +97,17 @@ export async function fetchAuditRunDetail(runId: string): Promise<AuditRunDetail
 
   const payload = (await response.json()) as DetailResponse;
   return payload.detail;
+}
+
+export async function fetchAuditWorkItemTimeline(workItemId: string): Promise<AuditWorkItemTimeline> {
+  const response = await fetch(`/api/audit/work-items/${encodeURIComponent(workItemId)}/timeline`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load audit work item timeline.");
+  }
+
+  const payload = (await response.json()) as TimelineResponse;
+  return payload.timeline;
 }
 
 export function subscribeToAuditStream(options: StreamSubscriptionOptions): () => void {

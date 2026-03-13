@@ -82,6 +82,7 @@ const TIMELINE_ENTRY_BUILDERS: Record<AuditEvent["eventType"], TimelineEntryBuil
     createFailedExecutionEntry(event, failedAttemptsByLabel, runDir),
   "execution-start": () => null,
   "failure-recorded": (event) => createTypedRecordEntry(event, "Failure"),
+  "handoff-recorded": (event) => createTypedRecordEntry(event, "Handoff"),
   "workflow-end": (event) => createWorkflowEndEntry(event),
   "workflow-note": (event) => createWorkflowNoteEntry(event),
   "workflow-start": (event) => createWorkflowStartEntry(event)

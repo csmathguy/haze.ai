@@ -5,6 +5,7 @@ import {
   appendAuditEvent,
   appendDecisionSummary,
   appendFailureSummary,
+  appendHandoffSummary,
   createEvent,
   createWorkflowSummary,
   ensureAuditPaths,
@@ -20,74 +21,27 @@ import type {
   AuditDecisionSummary,
   AuditFailureSeverity,
   AuditFailureStatus,
-  AuditFailureSummary
+  AuditFailureSummary,
+  AuditHandoffStatus,
+  AuditHandoffSummary
 } from "./lib/audit-records.js";
 
-type CommandName = "artifact" | "decision" | "failure";
+type CommandName = "artifact" | "decision" | "failure" | "handoff";
+type WorkflowContext = Awaited<ReturnType<typeof loadWorkflowContext>>;
 
 async function main(): Promise<void> {
   const [commandName, ...rawArgs] = process.argv.slice(2);
 
   if (!isCommandName(commandName)) {
-    throw new Error("Expected one of: artifact, decision, failure");
+    throw new Error("Expected one of: artifact, decision, failure, handoff");
   }
 
   const parsed = parseFlagPairs(rawArgs);
   const workflow = readRequiredString(parsed, "--workflow");
-  const runId = await getExistingRunId(workflow);
-  const paths = await ensureAuditPaths(runId);
-  const summary = (await readSummary(paths)) ?? createWorkflowSummary(runId, workflow);
+  const context = await loadWorkflowContext(workflow);
+  const output = await COMMAND_HANDLERS[commandName](parsed, context);
 
-  if (commandName === "decision") {
-    const decision = buildDecisionSummary(parsed);
-
-    appendDecisionSummary(summary, decision);
-    await appendAuditEvent(
-      paths,
-      createEvent(runId, workflow, "decision-recorded", {
-        ...getEventContextFields(summary),
-        ...(decision.executionId === undefined ? {} : { executionId: decision.executionId }),
-        metadata: buildDecisionMetadata(decision),
-        status: summary.status
-      })
-    );
-    await writeSummary(paths, summary);
-    process.stdout.write(`${decision.decisionId}\n`);
-    return;
-  }
-
-  if (commandName === "artifact") {
-    const artifact = buildArtifactSummary(parsed);
-
-    appendArtifactSummary(summary, artifact);
-    await appendAuditEvent(
-      paths,
-      createEvent(runId, workflow, "artifact-recorded", {
-        ...getEventContextFields(summary),
-        ...(artifact.executionId === undefined ? {} : { executionId: artifact.executionId }),
-        metadata: buildArtifactMetadata(artifact),
-        status: summary.status
-      })
-    );
-    await writeSummary(paths, summary);
-    process.stdout.write(`${artifact.artifactId}\n`);
-    return;
-  }
-
-  const failure = buildFailureSummary(parsed);
-
-  appendFailureSummary(summary, failure);
-  await appendAuditEvent(
-    paths,
-    createEvent(runId, workflow, "failure-recorded", {
-      ...getEventContextFields(summary),
-      ...(failure.executionId === undefined ? {} : { executionId: failure.executionId }),
-      metadata: buildFailureMetadata(failure),
-      status: summary.status
-    })
-  );
-  await writeSummary(paths, summary);
-  process.stdout.write(`${failure.failureId}\n`);
+  process.stdout.write(`${output}\n`);
 }
 
 async function getExistingRunId(workflow: string): Promise<string> {
@@ -101,7 +55,7 @@ async function getExistingRunId(workflow: string): Promise<string> {
 }
 
 function isCommandName(value: string | undefined): value is CommandName {
-  return value === "artifact" || value === "decision" || value === "failure";
+  return value === "artifact" || value === "decision" || value === "failure" || value === "handoff";
 }
 
 function buildDecisionSummary(parsed: Record<string, string[]>): AuditDecisionSummary {
@@ -149,6 +103,27 @@ function buildFailureSummary(parsed: Record<string, string[]>): AuditFailureSumm
   };
 }
 
+function buildHandoffSummary(
+  parsed: Record<string, string[]>,
+  summary: { planRunId?: string; planStepId?: string; workItemId?: string }
+): AuditHandoffSummary {
+  return {
+    handoffId: randomUUID(),
+    sourceAgent: readRequiredString(parsed, "--source-agent"),
+    status: readHandoffStatus(parsed),
+    summary: readRequiredString(parsed, "--summary"),
+    targetAgent: readRequiredString(parsed, "--target-agent"),
+    timestamp: new Date().toISOString(),
+    ...(parsed["--artifact-id"] === undefined ? {} : { artifactIds: parsed["--artifact-id"] }),
+    ...(parsed["--detail"] === undefined ? {} : { detail: readRequiredString(parsed, "--detail") }),
+    ...(parsed["--execution-id"] === undefined ? {} : { executionId: readRequiredString(parsed, "--execution-id") }),
+    ...(parsed["--metadata"] === undefined ? {} : { metadata: parseMetadataEntries(parsed["--metadata"]) }),
+    ...resolveOptionalContextField(parsed, "--plan-run-id", "planRunId", summary.planRunId),
+    ...resolveOptionalContextField(parsed, "--plan-step-id", "planStepId", summary.planStepId),
+    ...resolveOptionalContextField(parsed, "--work-item-id", "workItemId", summary.workItemId)
+  };
+}
+
 function buildDecisionMetadata(decision: AuditDecisionSummary): AuditMetadata {
   return {
     category: decision.category,
@@ -186,6 +161,23 @@ function buildFailureMetadata(failure: AuditFailureSummary): AuditMetadata {
     ...(failure.detail === undefined ? {} : { detail: failure.detail }),
     ...(failure.executionId === undefined ? {} : { executionId: failure.executionId }),
     ...(failure.metadata === undefined ? {} : { metadata: failure.metadata })
+  };
+}
+
+function buildHandoffMetadata(handoff: AuditHandoffSummary): AuditMetadata {
+  return {
+    handoffId: handoff.handoffId,
+    sourceAgent: handoff.sourceAgent,
+    status: handoff.status,
+    summary: handoff.summary,
+    targetAgent: handoff.targetAgent,
+    ...(handoff.artifactIds === undefined ? {} : { artifactIds: handoff.artifactIds }),
+    ...(handoff.detail === undefined ? {} : { detail: handoff.detail }),
+    ...(handoff.executionId === undefined ? {} : { executionId: handoff.executionId }),
+    ...(handoff.metadata === undefined ? {} : { metadata: handoff.metadata }),
+    ...(handoff.planRunId === undefined ? {} : { planRunId: handoff.planRunId }),
+    ...(handoff.planStepId === undefined ? {} : { planStepId: handoff.planStepId }),
+    ...(handoff.workItemId === undefined ? {} : { workItemId: handoff.workItemId })
   };
 }
 
@@ -242,6 +234,16 @@ function readFailureStatus(parsed: Record<string, string[]>): AuditFailureStatus
   throw new Error(`Unknown failure status: ${value}`);
 }
 
+function readHandoffStatus(parsed: Record<string, string[]>): AuditHandoffStatus {
+  const value = parsed["--status"]?.at(-1) ?? "pending";
+
+  if (value === "accepted" || value === "blocked" || value === "cancelled" || value === "completed" || value === "pending") {
+    return value;
+  }
+
+  throw new Error(`Unknown handoff status: ${value}`);
+}
+
 function parseMetadataEntries(entries: string[]): AuditMetadata {
   return Object.fromEntries(
     entries.map((entry) => {
@@ -281,6 +283,106 @@ function parseMetadataValue(value: string): AuditMetadataValue {
   }
 
   return parsed;
+}
+
+async function loadWorkflowContext(workflow: string) {
+  const runId = await getExistingRunId(workflow);
+  const paths = await ensureAuditPaths(runId);
+  const summary = (await readSummary(paths)) ?? createWorkflowSummary(runId, workflow);
+
+  return {
+    paths,
+    runId,
+    summary,
+    workflow
+  };
+}
+
+const COMMAND_HANDLERS: Record<CommandName, (parsed: Record<string, string[]>, context: WorkflowContext) => Promise<string>> = {
+  artifact: async (parsed, context) => {
+    const artifact = buildArtifactSummary(parsed);
+
+    appendArtifactSummary(context.summary, artifact);
+    await persistTypedRecord(context, {
+      eventType: "artifact-recorded",
+      metadata: buildArtifactMetadata(artifact),
+      ...(artifact.executionId === undefined ? {} : { executionId: artifact.executionId })
+    });
+    return artifact.artifactId;
+  },
+  decision: async (parsed, context) => {
+    const decision = buildDecisionSummary(parsed);
+
+    appendDecisionSummary(context.summary, decision);
+    await persistTypedRecord(context, {
+      eventType: "decision-recorded",
+      metadata: buildDecisionMetadata(decision),
+      ...(decision.executionId === undefined ? {} : { executionId: decision.executionId })
+    });
+    return decision.decisionId;
+  },
+  failure: async (parsed, context) => {
+    const failure = buildFailureSummary(parsed);
+
+    appendFailureSummary(context.summary, failure);
+    await persistTypedRecord(context, {
+      eventType: "failure-recorded",
+      metadata: buildFailureMetadata(failure),
+      ...(failure.executionId === undefined ? {} : { executionId: failure.executionId })
+    });
+    return failure.failureId;
+  },
+  handoff: async (parsed, context) => {
+    const handoff = buildHandoffSummary(parsed, context.summary);
+
+    appendHandoffSummary(context.summary, handoff);
+    await persistTypedRecord(context, {
+      eventType: "handoff-recorded",
+      metadata: buildHandoffMetadata(handoff),
+      ...(handoff.executionId === undefined ? {} : { executionId: handoff.executionId }),
+      ...(handoff.planRunId === undefined ? {} : { planRunId: handoff.planRunId }),
+      ...(handoff.planStepId === undefined ? {} : { planStepId: handoff.planStepId }),
+      ...(handoff.workItemId === undefined ? {} : { workItemId: handoff.workItemId })
+    });
+    return handoff.handoffId;
+  }
+};
+
+async function persistTypedRecord(
+  context: WorkflowContext,
+  event: {
+    eventType: "artifact-recorded" | "decision-recorded" | "failure-recorded" | "handoff-recorded";
+    executionId?: string;
+    metadata: AuditMetadata;
+    planRunId?: string;
+    planStepId?: string;
+    workItemId?: string;
+  }
+): Promise<void> {
+  await appendAuditEvent(
+    context.paths,
+    createEvent(context.runId, context.workflow, event.eventType, {
+      ...getEventContextFields(context.summary),
+      ...(event.executionId === undefined ? {} : { executionId: event.executionId }),
+      ...(event.planRunId === undefined ? {} : { planRunId: event.planRunId }),
+      ...(event.planStepId === undefined ? {} : { planStepId: event.planStepId }),
+      ...(event.workItemId === undefined ? {} : { workItemId: event.workItemId }),
+      metadata: event.metadata,
+      status: context.summary.status
+    })
+  );
+  await writeSummary(context.paths, context.summary);
+}
+
+function resolveOptionalContextField(
+  parsed: Record<string, string[]>,
+  flag: "--plan-run-id" | "--plan-step-id" | "--work-item-id",
+  field: "planRunId" | "planStepId" | "workItemId",
+  fallback: string | undefined
+) {
+  const value = parsed[flag] === undefined ? fallback : readRequiredString(parsed, flag);
+
+  return value === undefined ? {} : { [field]: value };
 }
 
 void main().catch((error: unknown) => {

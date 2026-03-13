@@ -13,6 +13,7 @@ import {
   mapEventRecord,
   mapExecutionRecord,
   mapFailureRecord,
+  mapHandoffRecord,
   mapRunOverview
 } from "./audit-serialization.js";
 import {
@@ -33,6 +34,8 @@ import {
   buildDecisionUpdateInput,
   buildFailureCreateInput,
   buildFailureUpdateInput,
+  buildHandoffCreateInput,
+  buildHandoffUpdateInput,
   syncTypedRecordFromEvent
 } from "./audit-typed-record-model.js";
 
@@ -131,6 +134,16 @@ export async function syncAuditSummary(
         }
       });
     }
+
+    for (const handoff of summary.handoffs) {
+      await transaction.auditHandoffRecord.upsert({
+        create: buildHandoffCreateInput(summary.runId, handoff),
+        update: buildHandoffUpdateInput(handoff),
+        where: {
+          id: handoff.handoffId
+        }
+      });
+    }
   });
 }
 
@@ -179,6 +192,11 @@ export async function getAuditRunDetail(
         orderBy: {
           timestamp: "asc"
         }
+      },
+      handoffs: {
+        orderBy: {
+          timestamp: "asc"
+        }
       }
     },
     where: {
@@ -196,6 +214,7 @@ export async function getAuditRunDetail(
     events: run.events.map(mapEventRecord),
     executions: run.executions.map(mapExecutionRecord),
     failures: run.failures.map(mapFailureRecord),
+    handoffs: run.handoffs.map(mapHandoffRecord),
     run: mapRunOverview(run)
   });
 }
@@ -245,10 +264,13 @@ export async function getAuditAnalytics(
       decisionCount: true,
       executionCount: true,
       failureCount: true,
+      handoffCount: true,
       id: true,
       project: true,
       status: true,
       workflow: true
+      ,
+      workItemId: true
     },
     where
   });
@@ -267,19 +289,38 @@ export async function getAuditAnalytics(
             }
           }
         });
+  const handoffRows =
+    runIds.length === 0
+      ? []
+      : await prisma.auditHandoffRecord.groupBy({
+          _count: {
+            status: true
+          },
+          by: ["status"],
+          where: {
+            runId: {
+              in: runIds
+            }
+          }
+        });
 
   return AuditAnalyticsSnapshotSchema.parse({
     byAgent: summarizeBreakdown(runs.map((run) => run.agentName ?? "unassigned")),
     byProject: summarizeBreakdown(runs.map((run) => run.project ?? "unassigned")),
+    byWorkItem: summarizeBreakdown(runs.map((run) => run.workItemId ?? "unassigned")),
     byWorkflow: summarizeBreakdown(runs.map((run) => run.workflow)),
     failureCategories: failureRows
       .map((row) => mapAnalyticsBreakdownEntry(row.category, row._count.category))
+      .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key)),
+    handoffStatuses: handoffRows
+      .map((row) => mapAnalyticsBreakdownEntry(row.status, row._count.status))
       .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key)),
     totals: {
       artifactCount: runs.reduce((sum, run) => sum + run.artifactCount, 0),
       decisionCount: runs.reduce((sum, run) => sum + run.decisionCount, 0),
       executionCount: runs.reduce((sum, run) => sum + run.executionCount, 0),
       failureCount: runs.reduce((sum, run) => sum + run.failureCount, 0),
+      handoffCount: runs.reduce((sum, run) => sum + run.handoffCount, 0),
       failedRuns: runs.filter((run) => run.status === "failed").length,
       runningRuns: runs.filter((run) => run.status === "running").length,
       totalRuns: runs.length

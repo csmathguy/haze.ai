@@ -22,11 +22,13 @@
 4. Read the relevant docs in `docs/` before making non-trivial changes.
 5. Work in red-green-refactor order for behavior changes whenever practical.
 6. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
-7. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
-8. Use `npm run dev:audit:api` and `npm run dev:audit:web` when you need the live shared audit monitor while agents are running.
-9. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
-10. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
-11. Before finishing, run the strongest available validation for the touched area:
+7. When the work maps to planning entities, pass `--project`, `--work-item-id`, `--plan-run-id`, and `--plan-step-id` to `workflow:start` so audit runs can be traced back to plan lineage.
+8. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
+9. When work moves from one agent to another, record it with `npm run audit:handoff -- --workflow <name> --source-agent <from> --target-agent <to> --summary "<handoff>" --status pending|accepted|completed|blocked`.
+10. Use `npm run dev:audit:api` and `npm run dev:audit:web` when you need the live shared audit monitor while agents are running.
+11. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
+12. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
+13. Before finishing, run the strongest available validation for the touched area:
    - Fast iteration: `npm run quality:changed -- <files...>` or let the git `pre-commit` hook run `npm run quality:changed:staged`
    - Database changes: `npm run prisma:check` and `npm run prisma:migrate:deploy`
    - Full compile checks with `npm run typecheck`
@@ -34,10 +36,10 @@
    - Frontend styling changes: `npm run stylelint`
    - Full tests with `npm test` or architecture-only tests with `npm run test:arch`
    - Use `npm run quality:logged -- implementation` when you want a single audited full guardrail run
-12. When the task produces branch-ready changes, make atomic commits, push the branch, and create or update the pull request before claiming the work is done. Use `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed`.
-13. Agents must not merge pull requests. PR merge is a human-controlled action that happens after review, and this repository will later route that decision through the `code-review` project workflow.
-14. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
-15. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
+14. When the task produces branch-ready changes, make atomic commits, push the branch, and create or update the pull request before claiming the work is done. Use `node tools/runtime/run-npm.cjs run pr:sync -- --summary "<what changed>" --value "<why it matters>" --privacy-confirmed`.
+15. Agents must not merge pull requests. PR merge is a human-controlled action that happens after review, and this repository will later route that decision through the `code-review` project workflow.
+16. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
+17. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
 ## Architecture Rules
 - Keep a strict separation between app surfaces under `apps/*/web`, `apps/*/api`, and `packages/shared`.

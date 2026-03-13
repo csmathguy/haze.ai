@@ -1,6 +1,7 @@
 export type AuditExecutionKind = "command" | "hook" | "operation" | "skill" | "tool" | "validation";
 export type AuditFailureSeverity = "critical" | "high" | "low" | "medium";
 export type AuditFailureStatus = "open" | "resolved";
+export type AuditHandoffStatus = "accepted" | "blocked" | "cancelled" | "completed" | "pending";
 export type AuditWorkflowStatus = "failed" | "running" | "skipped" | "success";
 export type AuditMetadataValue =
   | AuditMetadata
@@ -16,6 +17,8 @@ export interface AuditMetadata {
 
 export interface AuditRunContextFields {
   agentName?: string;
+  planRunId?: string;
+  planStepId?: string;
   project?: string;
   sessionId?: string;
   workItemId?: string;
@@ -36,6 +39,7 @@ export interface AuditSyncEvent {
     | "execution-end"
     | "execution-start"
     | "failure-recorded"
+    | "handoff-recorded"
     | "workflow-end"
     | "workflow-note"
     | "workflow-start";
@@ -45,6 +49,8 @@ export interface AuditSyncEvent {
   exitCode?: number;
   logFile?: string;
   metadata?: AuditMetadata;
+  planRunId?: string;
+  planStepId?: string;
   parentExecutionId?: string;
   project?: string;
   runId: string;
@@ -111,6 +117,22 @@ export interface AuditSyncFailureSummary {
   timestamp: string;
 }
 
+export interface AuditSyncHandoffSummary {
+  artifactIds?: string[];
+  detail?: string;
+  executionId?: string;
+  handoffId: string;
+  metadata?: AuditMetadata;
+  planRunId?: string;
+  planStepId?: string;
+  sourceAgent: string;
+  status: AuditHandoffStatus;
+  summary: string;
+  targetAgent: string;
+  timestamp: string;
+  workItemId?: string;
+}
+
 export interface AuditSyncSummary {
   actor: string;
   agentName?: string;
@@ -121,6 +143,9 @@ export interface AuditSyncSummary {
   durationMs?: number;
   executions: AuditSyncExecutionSummary[];
   failures: AuditSyncFailureSummary[];
+  handoffs: AuditSyncHandoffSummary[];
+  planRunId?: string;
+  planStepId?: string;
   project?: string;
   runId: string;
   sessionId?: string;

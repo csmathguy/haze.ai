@@ -16,14 +16,14 @@ Raw pull request diffs make it too easy for a reviewer to miss the value of a ch
 
 ### Review workflow
 
-- GitHub’s native review flow is anchored on changed files, comments, and review state, so the MVP should build on that mental model instead of inventing a completely different one.
+- GitHub's native review flow is anchored on changed files, comments, and review state, so the MVP should build on that mental model instead of inventing a completely different one.
 - The GitHub REST API already exposes changed files and diff metadata for pull requests, which is enough to start a local-first ingestion adapter without a third-party middle layer.
-- Bacchelli and Bird’s modern code review research supports treating review as a knowledge-sharing and understanding activity, not only a defect filter.
-- Google’s reviewer guidance reinforces small scope, clear starting points, and explicit risk framing, which supports a guided review order instead of a flat file list.
+- Bacchelli and Bird's modern code review research supports treating review as a knowledge-sharing and understanding activity, not only a defect filter.
+- Google's reviewer guidance reinforces small scope, clear starting points, and explicit risk framing, which supports a guided review order instead of a flat file list.
 
 ### Human learning
 
-- Karpicke and Blunt’s retrieval-practice result suggests that active recall and explanation improve durable understanding more than passive rereading. Inference: the review app should use checkpoints and questions, not only passive summaries.
+- Karpicke and Blunt's retrieval-practice result suggests that active recall and explanation improve durable understanding more than passive rereading. Inference: the review app should use checkpoints and questions, not only passive summaries.
 - The MVP should therefore expose reviewer questions per section, not only documentation-style prose.
 
 ### Gamification

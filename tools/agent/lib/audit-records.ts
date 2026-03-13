@@ -6,6 +6,7 @@ interface AuditMetadata {
 
 export type AuditFailureSeverity = "critical" | "high" | "low" | "medium";
 export type AuditFailureStatus = "open" | "resolved";
+export type AuditHandoffStatus = "accepted" | "blocked" | "cancelled" | "completed" | "pending";
 
 export interface AuditDecisionSummary {
   category: string;
@@ -44,6 +45,22 @@ export interface AuditFailureSummary {
   timestamp: string;
 }
 
+export interface AuditHandoffSummary {
+  artifactIds?: string[];
+  detail?: string;
+  executionId?: string;
+  handoffId: string;
+  metadata?: AuditMetadata;
+  planRunId?: string;
+  planStepId?: string;
+  sourceAgent: string;
+  status: AuditHandoffStatus;
+  summary: string;
+  targetAgent: string;
+  timestamp: string;
+  workItemId?: string;
+}
+
 export function appendDecisionSummary(
   decisions: AuditDecisionSummary[],
   decision: AuditDecisionSummary
@@ -63,4 +80,11 @@ export function appendFailureSummary(
   failure: AuditFailureSummary
 ): AuditFailureSummary[] {
   return [...failures, failure];
+}
+
+export function appendHandoffSummary(
+  handoffs: AuditHandoffSummary[],
+  handoff: AuditHandoffSummary
+): AuditHandoffSummary[] {
+  return [...handoffs, handoff];
 }

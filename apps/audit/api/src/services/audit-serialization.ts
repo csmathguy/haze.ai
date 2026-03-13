@@ -5,16 +5,18 @@ import type {
   AuditEventRecord,
   AuditExecutionRecord,
   AuditFailureRecord,
+  AuditHandoffRecord,
   AuditRunOverview,
   AuditStatsSnapshot
 } from "@taxes/shared";
 import {
+  AuditArtifactRecordSchema,
+  AuditDecisionRecordSchema,
   AuditEventRecordSchema,
   AuditExecutionRecordSchema,
   AuditFailureRecordSchema,
+  AuditHandoffRecordSchema,
   AuditRunOverviewSchema,
-  AuditDecisionRecordSchema,
-  AuditArtifactRecordSchema
 } from "@taxes/shared";
 
 export function mapRunOverview(run: {
@@ -27,8 +29,11 @@ export function mapRunOverview(run: {
   executionCount: number;
   failedExecutionCount: number;
   failureCount: number;
+  handoffCount: number;
   id: string;
   latestEventAt: Date | null;
+  planRunId: string | null;
+  planStepId: string | null;
   project: string | null;
   repoPath: string | null;
   sessionId: string | null;
@@ -43,26 +48,31 @@ export function mapRunOverview(run: {
 }): AuditRunOverview {
   return AuditRunOverviewSchema.parse({
     actor: run.actor,
-    agentName: run.agentName ?? undefined,
     artifactCount: run.artifactCount,
-    completedAt: run.completedAt?.toISOString(),
     decisionCount: run.decisionCount,
-    durationMs: run.durationMs ?? undefined,
     executionCount: run.executionCount,
     failedExecutionCount: run.failedExecutionCount,
     failureCount: run.failureCount,
-    latestEventAt: run.latestEventAt?.toISOString(),
-    project: run.project ?? undefined,
-    repoPath: run.repoPath ?? undefined,
+    handoffCount: run.handoffCount,
     runId: run.id,
-    sessionId: run.sessionId ?? undefined,
     startedAt: run.startedAt.toISOString(),
     stats: parseStats(run.statsByKindJson, run.statsByStatusJson, run.executionCount, run.failedExecutionCount),
     status: run.status,
-    task: run.task ?? undefined,
     workflow: run.workflow,
-    workItemId: run.workItemId ?? undefined,
-    worktreePath: run.worktreePath
+    worktreePath: run.worktreePath,
+    ...compactObject({
+      agentName: toUndefined(run.agentName),
+      completedAt: run.completedAt?.toISOString(),
+      durationMs: toUndefined(run.durationMs),
+      latestEventAt: run.latestEventAt?.toISOString(),
+      planRunId: toUndefined(run.planRunId),
+      planStepId: toUndefined(run.planStepId),
+      project: toUndefined(run.project),
+      repoPath: toUndefined(run.repoPath),
+      sessionId: toUndefined(run.sessionId),
+      task: toUndefined(run.task),
+      workItemId: toUndefined(run.workItemId)
+    })
   });
 }
 
@@ -118,6 +128,8 @@ export function mapEventRecord(record: {
   id: string;
   logFile: string | null;
   metadataJson: string | null;
+  planRunId: string | null;
+  planStepId: string | null;
   parentExecutionId: string | null;
   project: string | null;
   runId: string;
@@ -135,6 +147,8 @@ export function mapEventRecord(record: {
     cwd: record.cwd,
     eventId: record.id,
     eventType: record.eventType,
+    planRunId: record.planRunId ?? undefined,
+    planStepId: record.planStepId ?? undefined,
     project: record.project ?? undefined,
     runId: record.runId,
     sessionId: record.sessionId ?? undefined,
@@ -237,6 +251,40 @@ export function mapFailureRecord(record: {
     status: record.status,
     summary: record.summary,
     timestamp: record.timestamp.toISOString()
+  });
+}
+
+export function mapHandoffRecord(record: {
+  artifactIdsJson: string | null;
+  detail: string | null;
+  executionId: string | null;
+  id: string;
+  metadataJson: string | null;
+  planRunId: string | null;
+  planStepId: string | null;
+  runId: string;
+  sourceAgent: string;
+  status: string;
+  summary: string;
+  targetAgent: string;
+  timestamp: Date;
+  workItemId: string | null;
+}): AuditHandoffRecord {
+  return AuditHandoffRecordSchema.parse({
+    artifactIds: parseJsonArray(record.artifactIdsJson),
+    detail: record.detail ?? undefined,
+    executionId: record.executionId ?? undefined,
+    handoffId: record.id,
+    metadata: parseJsonObject(record.metadataJson),
+    planRunId: record.planRunId ?? undefined,
+    planStepId: record.planStepId ?? undefined,
+    runId: record.runId,
+    sourceAgent: record.sourceAgent,
+    status: record.status,
+    summary: record.summary,
+    targetAgent: record.targetAgent,
+    timestamp: record.timestamp.toISOString(),
+    workItemId: record.workItemId ?? undefined
   });
 }
 

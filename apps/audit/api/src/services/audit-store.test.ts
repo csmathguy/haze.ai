@@ -88,6 +88,8 @@ async function seedAuditRun(databaseUrl: string) {
       ...eventBase,
       eventId: "event-1",
       eventType: "workflow-start",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       status: "running",
       task: "monitor audit work",
       timestamp: startedAt
@@ -99,6 +101,8 @@ async function seedAuditRun(databaseUrl: string) {
       executionId: "exec-1",
       executionKind: "validation",
       executionName: "quality-gates",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       status: "running",
       timestamp: "2026-03-12T00:00:01.000Z"
     },
@@ -110,6 +114,8 @@ async function seedAuditRun(databaseUrl: string) {
       executionId: "exec-1",
       executionKind: "validation",
       executionName: "quality-gates",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       status: "success",
       timestamp: "2026-03-12T00:00:03.000Z"
     },
@@ -118,6 +124,8 @@ async function seedAuditRun(databaseUrl: string) {
       eventId: "event-4",
       eventType: "decision-recorded",
       executionId: "exec-1",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       metadata: {
         category: "transport",
         decisionId: "decision-1",
@@ -133,6 +141,8 @@ async function seedAuditRun(databaseUrl: string) {
       eventId: "event-5",
       eventType: "artifact-recorded",
       executionId: "exec-1",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       metadata: {
         artifactId: "artifact-1",
         artifactType: "report",
@@ -148,6 +158,8 @@ async function seedAuditRun(databaseUrl: string) {
       eventId: "event-6",
       eventType: "failure-recorded",
       executionId: "exec-1",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
       metadata: {
         category: "environment",
         detail: "Audit API was started from the wrong working directory",
@@ -159,10 +171,31 @@ async function seedAuditRun(databaseUrl: string) {
       },
       status: "running",
       timestamp: "2026-03-12T00:00:06.000Z"
+    },
+    {
+      ...eventBase,
+      eventId: "event-7",
+      eventType: "handoff-recorded",
+      executionId: "exec-1",
+      planRunId: "plan-run-1",
+      planStepId: "plan-step-1",
+      metadata: {
+        artifactIds: ["artifact-1"],
+        handoffId: "handoff-1",
+        sourceAgent: "planner",
+        status: "pending",
+        summary: "Hand off implementation to the audit agent",
+        targetAgent: "auditor",
+        workItemId: "PLAN-42"
+      },
+      status: "running",
+      timestamp: "2026-03-12T00:00:07.000Z",
+      workItemId: "PLAN-42"
     }
   ];
   const summary: AuditSummary = {
     actor: "codex",
+    agentName: "planner",
     artifacts: [
       {
         artifactId: "artifact-1",
@@ -198,7 +231,26 @@ async function seedAuditRun(databaseUrl: string) {
         status: "success"
       }
     ],
+    handoffs: [
+      {
+        artifactIds: ["artifact-1"],
+        executionId: "exec-1",
+        handoffId: "handoff-1",
+        planRunId: "plan-run-1",
+        planStepId: "plan-step-1",
+        sourceAgent: "planner",
+        status: "pending",
+        summary: "Hand off implementation to the audit agent",
+        targetAgent: "auditor",
+        timestamp: "2026-03-12T00:00:07.000Z",
+        workItemId: "PLAN-42"
+      }
+    ],
+    planRunId: "plan-run-1",
+    planStepId: "plan-step-1",
+    project: "audit",
     runId,
+    sessionId: "session-1",
     startedAt,
     stats: {
       byKind: {
@@ -226,7 +278,8 @@ async function seedAuditRun(databaseUrl: string) {
       }
     ],
     task: "monitor audit work",
-    workflow: "implementation"
+    workflow: "implementation",
+    workItemId: "PLAN-42"
   };
 
   for (const event of events) {
@@ -260,8 +313,17 @@ function assertPersistedRun(
   expect(persisted.analytics.totals.decisionCount).toBe(1);
   expect(persisted.analytics.totals.artifactCount).toBe(1);
   expect(persisted.analytics.totals.failureCount).toBe(1);
+  expect(persisted.analytics.totals.handoffCount).toBe(1);
   expect(persisted.analytics.failureCategories[0]?.key).toBe("environment");
-  expect(persisted.recentEvents.map((event) => event.eventId)).toEqual(["event-2", "event-3", "event-4", "event-5", "event-6"]);
+  expect(persisted.analytics.handoffStatuses[0]?.key).toBe("pending");
+  expect(persisted.recentEvents.map((event) => event.eventId)).toEqual([
+    "event-2",
+    "event-3",
+    "event-4",
+    "event-5",
+    "event-6",
+    "event-7"
+  ]);
 }
 
 function assertRunOverview(runs: AuditRunOverview[], seeded: Awaited<ReturnType<typeof seedAuditRun>>): void {
@@ -273,6 +335,7 @@ function assertRunOverview(runs: AuditRunOverview[], seeded: Awaited<ReturnType<
       executionCount: 1,
       failedExecutionCount: 0,
       failureCount: 1,
+      handoffCount: 1,
       runId: seeded.runId,
       status: "success",
       task: "monitor audit work",
@@ -292,6 +355,10 @@ function assertRunDetail(detail: AuditRunDetail, seeded: Awaited<ReturnType<type
   expect(detail.executions[0]?.kind).toBe("validation");
   expect(detail.executions[0]?.status).toBe("success");
   expect(detail.failures[0]?.failureId).toBe("failure-1");
+  expect(detail.handoffs[0]?.handoffId).toBe("handoff-1");
+  expect(detail.run.planRunId).toBe("plan-run-1");
+  expect(detail.run.planStepId).toBe("plan-step-1");
+  expect(detail.run.workItemId).toBe("PLAN-42");
   expect(detail.run.runId).toBe(seeded.runId);
   expect(detail.run.status).toBe("success");
 }

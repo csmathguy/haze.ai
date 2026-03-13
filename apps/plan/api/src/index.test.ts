@@ -30,7 +30,7 @@ describe("plan buildApp", () => {
 
     expect(response.statusCode).toBe(200);
     expect(payload.workspace.localOnly).toBe(true);
-    expect(payload.workspace.projects.map((project) => project.key)).toEqual(["planning", "audit", "taxes"]);
+    expect(payload.workspace.projects.map((project) => project.key)).toEqual(["planning", "audit", "taxes", "code-review"]);
     expect(payload.workspace.summary.totalItems).toBe(0);
     expect(payload.workspace.workItems).toEqual([]);
 

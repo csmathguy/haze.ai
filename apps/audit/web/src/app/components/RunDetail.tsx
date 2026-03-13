@@ -46,6 +46,7 @@ export function RunDetail({ detail, isLoading }: RunDetailProps) {
       <DecisionsPanel detail={detail} />
       <ArtifactsPanel detail={detail} />
       <FailuresPanel detail={detail} />
+      <HandoffsPanel detail={detail} />
       <EventTimelinePanel detail={detail} />
     </Stack>
   );
@@ -76,6 +77,8 @@ function RunOverviewPanel({ detail }: { readonly detail: AuditRunDetail }) {
             { label: "Agent", value: detail.run.agentName ?? "Unassigned" },
             { label: "Project", value: detail.run.project ?? "Unassigned" },
             { label: "Work item", value: detail.run.workItemId ?? "Unassigned" },
+            { label: "Plan run", value: detail.run.planRunId ?? "Unassigned" },
+            { label: "Plan step", value: detail.run.planStepId ?? "Unassigned" },
             { label: "Session", value: detail.run.sessionId ?? "Unassigned" },
             { label: "Worktree", value: detail.run.worktreePath },
             { label: "Started", value: formatDateTime(detail.run.startedAt) },
@@ -249,6 +252,48 @@ function FailuresPanel({ detail }: { readonly detail: AuditRunDetail }) {
   );
 }
 
+function HandoffsPanel({ detail }: { readonly detail: AuditRunDetail }) {
+  return (
+    <Panel elevation={0}>
+      <Stack spacing={1.5}>
+        <Typography variant="h3">Handoffs</Typography>
+        {detail.handoffs.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No explicit handoffs were recorded for this run.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {detail.handoffs.map((handoff) => (
+              <Stack key={handoff.handoffId} spacing={0.5}>
+                <Stack
+                  alignItems={{ sm: "center", xs: "flex-start" }}
+                  direction={{ sm: "row", xs: "column" }}
+                  justifyContent="space-between"
+                  spacing={1}
+                >
+                  <Typography fontWeight={700} variant="body2">
+                    {handoff.sourceAgent} {"->"} {handoff.targetAgent}
+                  </Typography>
+                  <Chip color={toHandoffChipColor(handoff.status)} label={handoff.status} size="small" />
+                </Stack>
+                <Typography variant="body2">{handoff.summary}</Typography>
+                <Typography color="text.secondary" variant="body2">
+                  {formatDateTime(handoff.timestamp)}
+                </Typography>
+                {handoff.detail === undefined ? null : (
+                  <Typography color="text.secondary" variant="body2">
+                    {handoff.detail}
+                  </Typography>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Panel>
+  );
+}
+
 function EventTimelinePanel({ detail }: { readonly detail: AuditRunDetail }) {
   return (
     <Panel elevation={0}>
@@ -327,6 +372,21 @@ function toChipColor(status: string): "default" | "error" | "success" | "warning
       return "default";
     case "success":
       return "success";
+    default:
+      return "default";
+  }
+}
+
+function toHandoffChipColor(status: string): "default" | "error" | "info" | "success" | "warning" {
+  switch (status) {
+    case "accepted":
+      return "info";
+    case "blocked":
+      return "error";
+    case "completed":
+      return "success";
+    case "pending":
+      return "warning";
     default:
       return "default";
   }
