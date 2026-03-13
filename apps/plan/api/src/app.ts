@@ -12,7 +12,7 @@ export async function buildApp(options: PlanningPersistenceOptions = {}) {
   });
 
   await app.register(cors, {
-    origin: [`http://${PLAN_API_HOST}:5174`, "http://localhost:5174"]
+    origin: [`http://${PLAN_API_HOST}:5174`, `http://${PLAN_API_HOST}:5175`, "http://localhost:5174", "http://localhost:5175"]
   });
   app.addHook("onClose", async () => {
     await disconnectPrismaClient(options.databaseUrl);
