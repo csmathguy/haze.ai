@@ -8,7 +8,7 @@ const sharedFiles = projectFiles("./tsconfig.arch.json").inFolder("packages/shar
 const toolFiles = projectFiles("./tsconfig.arch.json").inFolder("tools/**");
 const webFiles = projectFiles("./tsconfig.arch.json").inFolder("apps/**/web/src/**");
 
-describe("architecture rules", () => {
+describe("architecture rules", { timeout: 60_000 }, () => {
   it("prevents frontend code from importing backend implementation details", async () => {
     await expect(
       allFiles

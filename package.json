@@ -39,6 +39,7 @@
     "pr:draft": "tsx tools/agent/pull-request-draft.ts",
     "pr:sync": "tsx tools/agent/pull-request-sync.ts",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "postinstall": "npm run prisma:generate",
     "prepare": "simple-git-hooks",
     "lint": "eslint \"apps/taxes/api/src/**/*.ts\" \"apps/taxes/web/src/**/*.{ts,tsx}\" \"apps/taxes/web/vite.config.ts\" \"apps/plan/api/src/**/*.ts\" \"apps/plan/web/src/**/*.{ts,tsx}\" \"apps/plan/web/vite.config.ts\" packages/shared/src prisma.config.ts tools/agent tools/database tools/quality vitest.config.ts --max-warnings=0",
     "lint:fix": "eslint \"apps/taxes/api/src/**/*.ts\" \"apps/taxes/web/src/**/*.{ts,tsx}\" \"apps/taxes/web/vite.config.ts\" \"apps/plan/api/src/**/*.ts\" \"apps/plan/web/src/**/*.{ts,tsx}\" \"apps/plan/web/vite.config.ts\" packages/shared/src prisma.config.ts tools/agent tools/database tools/quality vitest.config.ts --fix",
