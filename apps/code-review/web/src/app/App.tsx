@@ -1,8 +1,6 @@
 import { startTransition, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import ErrorOutlineOutlinedIcon from "@mui/icons-material/ErrorOutlineOutlined";
-import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
-import PsychologyAltOutlinedIcon from "@mui/icons-material/PsychologyAltOutlined";
+import MergeTypeOutlinedIcon from "@mui/icons-material/MergeTypeOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import {
   Alert,
@@ -15,65 +13,78 @@ import {
   Typography
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import type { CodeReviewWorkspace, ReviewLaneId } from "@taxes/shared";
+import type { CodeReviewPullRequestDetail, CodeReviewWorkspace, ReviewLaneId } from "@taxes/shared";
 
-import { fetchCodeReviewWorkspace } from "./api.js";
+import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace } from "./api.js";
 import { LaneDetailPanel } from "./components/LaneDetailPanel.js";
 import { LaneSelector } from "./components/LaneSelector.js";
-import { ResearchPanel } from "./components/ResearchPanel.js";
-import { RoadmapBoard } from "./components/RoadmapBoard.js";
-import { groupRoadmapItems } from "./index.js";
+import { PullRequestList } from "./components/PullRequestList.js";
+import { PullRequestOverviewPanel } from "./components/PullRequestOverviewPanel.js";
+import { countPullRequestsByState } from "./index.js";
 
 export function App() {
-  const { errorMessage, selectedLaneId, setSelectedLaneId, workspace } = useCodeReviewWorkspace();
+  const controller = useCodeReviewController();
 
-  if (workspace === null) {
+  if (controller.workspace === null) {
     return (
       <PageShell>
-        {errorMessage === null ? <Alert severity="info">Loading review workspace...</Alert> : <Alert severity="error">{errorMessage}</Alert>}
+        {controller.errorMessage === null ? (
+          <Alert severity="info">Loading the code review workspace...</Alert>
+        ) : (
+          <Alert severity="error">{controller.errorMessage}</Alert>
+        )}
       </PageShell>
     );
   }
 
-  const activeLane = workspace.lanes.find((lane) => lane.id === selectedLaneId) ?? workspace.lanes[0];
-
-  if (activeLane === undefined) {
-    return null;
-  }
-
   return (
     <PageShell>
-      {errorMessage === null ? null : <Alert severity="warning">{errorMessage}</Alert>}
-      <Hero workspace={workspace} />
+      {controller.errorMessage === null ? null : <Alert severity="warning">{controller.errorMessage}</Alert>}
+      <Hero workspace={controller.workspace} />
+      {controller.workspace.showingRecentFallback ? (
+        <Alert severity="info">No open pull requests were found. Showing the most recent merged and closed pull requests instead.</Alert>
+      ) : null}
       <Grid container spacing={2}>
         <Grid size={{ lg: 4, xs: 12 }}>
-          <LaneSelector lanes={workspace.lanes} onSelect={setSelectedLaneId} selectedLaneId={activeLane.id} />
+          <PullRequestList
+            pullRequests={controller.workspace.pullRequests}
+            selectedPullRequestNumber={controller.selectedPullRequestNumber}
+            onSelect={controller.setSelectedPullRequestNumber}
+          />
         </Grid>
         <Grid size={{ lg: 8, xs: 12 }}>
-          <LaneDetailPanel lane={activeLane} />
-        </Grid>
-      </Grid>
-      <RoadmapBoard groupedRoadmap={groupRoadmapItems(workspace.roadmap)} />
-      <Grid container spacing={2}>
-        <Grid size={{ md: 7, xs: 12 }}>
-          <TrustPanel workspace={workspace} />
-        </Grid>
-        <Grid size={{ md: 5, xs: 12 }}>
-          <ResearchPanel sources={workspace.researchSources} />
+          <PullRequestDetailState
+            isLoading={controller.isPullRequestLoading}
+            pullRequest={controller.pullRequest}
+            selectedLaneId={controller.selectedLaneId}
+            setSelectedLaneId={controller.setSelectedLaneId}
+          />
         </Grid>
       </Grid>
     </PageShell>
   );
 }
 
-function useCodeReviewWorkspace() {
+function useCodeReviewController() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedLaneId, setSelectedLaneId] = useState<ReviewLaneId>("tests");
+  const [isPullRequestLoading, setIsPullRequestLoading] = useState(false);
+  const [pullRequest, setPullRequest] = useState<CodeReviewPullRequestDetail | null>(null);
+  const [selectedLaneId, setSelectedLaneId] = useState<ReviewLaneId>("context");
+  const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<CodeReviewWorkspace | null>(null);
 
   useEffect(() => {
     void loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    if (selectedPullRequestNumber === null) {
+      setPullRequest(null);
+      return;
+    }
+
+    void loadPullRequest(selectedPullRequestNumber);
+  }, [selectedPullRequestNumber]);
 
   async function loadWorkspace(): Promise<void> {
     setErrorMessage(null);
@@ -83,19 +94,81 @@ function useCodeReviewWorkspace() {
 
       startTransition(() => {
         setWorkspace(nextWorkspace);
-        setSelectedLaneId(nextWorkspace.lanes[0]?.id ?? "tests");
+        setSelectedPullRequestNumber(nextWorkspace.pullRequests[0]?.number ?? null);
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load the code review workspace.");
     }
   }
 
+  async function loadPullRequest(pullRequestNumber: number): Promise<void> {
+    setIsPullRequestLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const nextPullRequest = await fetchCodeReviewPullRequest(pullRequestNumber);
+
+      startTransition(() => {
+        setPullRequest(nextPullRequest);
+        setSelectedLaneId(nextPullRequest.lanes[0]?.id ?? "context");
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load the pull request detail.");
+    } finally {
+      setIsPullRequestLoading(false);
+    }
+  }
+
   return {
     errorMessage,
+    isPullRequestLoading,
+    pullRequest,
     selectedLaneId,
+    selectedPullRequestNumber,
     setSelectedLaneId,
+    setSelectedPullRequestNumber,
     workspace
   };
+}
+
+function PullRequestDetailState({
+  isLoading,
+  pullRequest,
+  selectedLaneId,
+  setSelectedLaneId
+}: {
+  readonly isLoading: boolean;
+  readonly pullRequest: CodeReviewPullRequestDetail | null;
+  readonly selectedLaneId: ReviewLaneId;
+  readonly setSelectedLaneId: (laneId: ReviewLaneId) => void;
+}) {
+  if (isLoading && pullRequest === null) {
+    return <Alert severity="info">Loading pull request detail...</Alert>;
+  }
+
+  if (pullRequest === null) {
+    return <Alert severity="info">Select a pull request to review its summary, lanes, checks, and planning context.</Alert>;
+  }
+
+  const activeLane = pullRequest.lanes.find((lane) => lane.id === selectedLaneId) ?? pullRequest.lanes[0];
+
+  if (activeLane === undefined) {
+    return null;
+  }
+
+  return (
+    <Stack spacing={2}>
+      <PullRequestOverviewPanel pullRequest={pullRequest} />
+      <Grid container spacing={2}>
+        <Grid size={{ md: 4, xs: 12 }}>
+          <LaneSelector lanes={pullRequest.lanes} onSelect={setSelectedLaneId} selectedLaneId={activeLane.id} />
+        </Grid>
+        <Grid size={{ md: 8, xs: 12 }}>
+          <LaneDetailPanel lane={activeLane} />
+        </Grid>
+      </Grid>
+    </Stack>
+  );
 }
 
 function PageShell({ children }: { readonly children: ReactNode }) {
@@ -103,139 +176,88 @@ function PageShell({ children }: { readonly children: ReactNode }) {
     <Box
       sx={(theme) => ({
         background: `
-          radial-gradient(circle at top left, ${alpha(theme.palette.secondary.main, 0.18)}, transparent 30%),
-          linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.04)}, transparent 55%),
+          radial-gradient(circle at top left, ${alpha(theme.palette.secondary.main, 0.18)}, transparent 28%),
+          linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.05)}, transparent 55%),
           ${theme.palette.background.default}
         `,
         minHeight: "100vh",
-        py: 5
+        py: 4.5
       })}
     >
       <Container maxWidth="xl">
-        <Stack spacing={3}>{children}</Stack>
+        <Stack spacing={2.5}>{children}</Stack>
       </Container>
     </Box>
   );
 }
 
 function Hero({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
+  const openPullRequestCount = countPullRequestsByState(workspace.pullRequests, "OPEN");
+
   return (
     <Paper
       sx={(theme) => ({
-        background: `linear-gradient(140deg, ${alpha(theme.palette.primary.main, 0.94)}, ${alpha(theme.palette.secondary.main, 0.84)})`,
+        background: `linear-gradient(140deg, ${alpha(theme.palette.primary.main, 0.96)}, ${alpha(theme.palette.secondary.main, 0.86)})`,
         color: theme.palette.common.white,
         p: { md: 4, xs: 3 }
       })}
     >
       <Grid container spacing={3}>
         <Grid size={{ md: 8, xs: 12 }}>
-          <HeroContent workspace={workspace} />
+          <Stack spacing={2}>
+            <Typography variant="h1">{workspace.title}</Typography>
+            <Typography maxWidth={840} variant="body1">
+              {workspace.purpose}
+            </Typography>
+            <Typography
+              maxWidth={820}
+              sx={(theme) => ({
+                color: alpha(theme.palette.common.white, 0.84)
+              })}
+              variant="body2"
+            >
+              {workspace.trustStatement}
+            </Typography>
+            <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
+              <HeroChip icon={<MergeTypeOutlinedIcon />} label={`${openPullRequestCount.toString()} open pull requests`} />
+              <HeroChip icon={<RuleFolderOutlinedIcon />} label={`${workspace.pullRequests.length.toString()} recent review threads`} />
+            </Stack>
+          </Stack>
         </Grid>
         <Grid size={{ md: 4, xs: 12 }}>
-          <HeroReviewSequence workspace={workspace} />
-        </Grid>
-      </Grid>
-    </Paper>
-  );
-}
-
-function TrustPanel({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
-  return (
-    <Paper sx={{ p: 3 }} variant="outlined">
-      <Stack spacing={2}>
-        <Typography variant="h2">Trust contract</Typography>
-        {workspace.principles.map((principle) => (
-          <Stack key={principle.title} spacing={0.5}>
-            <Typography variant="h3">{principle.title}</Typography>
-            <Typography color="text.secondary" variant="body2">
-              {principle.description}
-            </Typography>
-          </Stack>
-        ))}
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Freshness strategy</Typography>
-          {workspace.freshnessStrategy.map((item) => (
-            <Stack alignItems="flex-start" direction="row" key={item} spacing={1}>
-              <ErrorOutlineOutlinedIcon color="info" fontSize="small" sx={{ mt: 0.2 }} />
-              <Typography variant="body2">{item}</Typography>
-            </Stack>
-          ))}
-        </Stack>
-      </Stack>
-    </Paper>
-  );
-}
-
-function HeroContent({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
-  return (
-    <Stack spacing={2}>
-      <Typography variant="h1">{workspace.title}</Typography>
-      <Typography maxWidth={860} variant="body1">
-        {workspace.purpose}
-      </Typography>
-      <Typography
-        maxWidth={820}
-        sx={(theme) => ({
-          color: alpha(theme.palette.common.white, 0.84)
-        })}
-        variant="body2"
-      >
-        {workspace.trustStatement}
-      </Typography>
-      <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
-        <HeroChip icon={<FactCheckOutlinedIcon />} label={`${workspace.lanes.length.toString()} review lanes`} />
-        <HeroChip icon={<RuleFolderOutlinedIcon />} label={`${workspace.roadmap.length.toString()} roadmap slices`} />
-        <HeroChip icon={<PsychologyAltOutlinedIcon />} label="Human trust remains the final gate" />
-      </Stack>
-    </Stack>
-  );
-}
-
-function HeroReviewSequence({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
-  return (
-    <Paper
-      sx={(theme) => ({
-        backgroundColor: alpha(theme.palette.common.white, 0.12),
-        borderColor: alpha(theme.palette.common.white, 0.18),
-        color: theme.palette.common.white,
-        p: 2.5
-      })}
-      variant="outlined"
-    >
-      <Stack spacing={1.25}>
-        <Typography
-          sx={(theme) => ({
-            color: alpha(theme.palette.common.white, 0.8)
-          })}
-          variant="subtitle2"
-        >
-          Review sequence
-        </Typography>
-        {workspace.lanes.slice(0, 4).map((lane, index) => (
-          <Stack alignItems="flex-start" direction="row" key={lane.id} spacing={1.25}>
-            <Chip
-              label={(index + 1).toString()}
-              size="small"
-              sx={(theme) => ({
-                backgroundColor: alpha(theme.palette.common.white, 0.18),
-                color: theme.palette.common.white,
-                minWidth: 32
-              })}
-            />
-            <Stack spacing={0.25}>
-              <Typography variant="body2">{lane.title}</Typography>
+          <Paper
+            sx={(theme) => ({
+              backgroundColor: alpha(theme.palette.common.white, 0.12),
+              borderColor: alpha(theme.palette.common.white, 0.18),
+              color: theme.palette.common.white,
+              p: 2.5
+            })}
+            variant="outlined"
+          >
+            <Stack spacing={1.25}>
               <Typography
                 sx={(theme) => ({
-                  color: alpha(theme.palette.common.white, 0.78)
+                  color: alpha(theme.palette.common.white, 0.8)
+                })}
+                variant="subtitle2"
+              >
+                Repository
+              </Typography>
+              <Typography variant="h3">
+                {workspace.repository.owner}/{workspace.repository.name}
+              </Typography>
+              <Typography
+                sx={(theme) => ({
+                  color: alpha(theme.palette.common.white, 0.82)
                 })}
                 variant="body2"
               >
-                {lane.summary}
+                PRs are pulled directly from this repository and then classified into context, tests, implementation, validation, and risk lanes.
               </Typography>
             </Stack>
-          </Stack>
-        ))}
-      </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
     </Paper>
   );
 }

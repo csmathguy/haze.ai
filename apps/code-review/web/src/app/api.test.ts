@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchCodeReviewWorkspace } from "./api.js";
+import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace } from "./api.js";
 
 interface MockFetchResponse {
-  json?: () => Promise<unknown>;
-  ok: boolean;
-  status?: number;
+  readonly json?: () => Promise<unknown>;
+  readonly ok: boolean;
+  readonly status?: number;
 }
 
 describe("code review app api", () => {
@@ -18,46 +18,32 @@ describe("code review app api", () => {
       json: () =>
         Promise.resolve({
           workspace: {
-            freshnessStrategy: ["Refresh on head SHA change"],
-            generatedAt: "2026-03-13T19:45:00.000Z",
-            lanes: [
-              {
-                evidence: ["Changed tests"],
-                id: "tests",
-                questions: ["Do the tests cover the intended behavior?"],
-                reviewerGoal: "Review proof separately from implementation.",
-                summary: "Test review lane",
-                title: "Tests"
-              }
-            ],
+            generatedAt: "2026-03-14T03:30:00.000Z",
             localOnly: true,
-            principles: [
+            pullRequests: [
               {
-                description: "Keep review order deterministic.",
-                title: "Reduce comprehension friction first"
+                author: {
+                  isBot: false,
+                  login: "csmathguy"
+                },
+                baseRefName: "main",
+                headRefName: "feature/plan-53-local-env-runner",
+                isDraft: false,
+                number: 25,
+                reviewDecision: "",
+                state: "MERGED",
+                title: "Add a main-checkout environment runner",
+                updatedAt: "2026-03-14T02:59:48.000Z",
+                url: "https://github.com/csmathguy/Taxes/pull/25"
               }
             ],
-            purpose: "Help humans review agent pull requests.",
-            researchSources: [
-              {
-                authority: "official-docs",
-                id: "github",
-                note: "Baseline review workflow.",
-                reviewedAt: "2026-03-13",
-                title: "GitHub Docs",
-                url: "https://docs.github.com"
-              }
-            ],
-            roadmap: [
-              {
-                dependencies: [],
-                id: "workspace",
-                outcome: "Scaffold exists.",
-                stage: "mvp",
-                summary: "Scaffold the workspace.",
-                title: "Review workspace scaffold"
-              }
-            ],
+            purpose: "Help humans review pull requests.",
+            repository: {
+              name: "Taxes",
+              owner: "csmathguy",
+              url: "https://github.com/csmathguy/Taxes"
+            },
+            showingRecentFallback: true,
             title: "Code Review Studio",
             trustStatement: "Human review confirms trust."
           }
@@ -70,16 +56,78 @@ describe("code review app api", () => {
     const workspace = await fetchCodeReviewWorkspace();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/code-review/workspace");
-    expect(workspace.lanes[0]?.id).toBe("tests");
+    expect(workspace.pullRequests[0]?.number).toBe(25);
   });
 
-  it("throws when the code review workspace payload is invalid", async () => {
+  it("loads a pull request detail payload", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<MockFetchResponse>>().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          pullRequest: {
+            author: {
+              isBot: false,
+              login: "csmathguy"
+            },
+            baseRefName: "main",
+            body: "## Summary\n- Add a local runner",
+            checks: [],
+            headRefName: "feature/plan-53-local-env-runner",
+            isDraft: false,
+            lanes: [
+              {
+                evidence: ["Add a local runner"],
+                files: [],
+                highlights: ["workflow: 1 file"],
+                id: "context",
+                questions: ["What changed?"],
+                reviewerGoal: "Orient the review.",
+                summary: "Context lane.",
+                title: "Context"
+              }
+            ],
+            mergeStateStatus: "UNKNOWN",
+            narrative: {
+              reviewFocus: ["Confirm the workflow impact."],
+              reviewOrder: ["Context"],
+              risks: ["None beyond normal regression risk."],
+              summaryBullets: ["Add a local runner"],
+              validationCommands: [],
+              valueSummary: "Add a local runner",
+              whatChangedSections: []
+            },
+            number: 25,
+            reviewDecision: "",
+            state: "MERGED",
+            stats: {
+              commentCount: 0,
+              fileCount: 1,
+              reviewCount: 0,
+              totalAdditions: 2,
+              totalDeletions: 0
+            },
+            title: "Add a main-checkout environment runner",
+            trustStatement: "Human review remains the final gate.",
+            updatedAt: "2026-03-14T02:59:48.000Z",
+            url: "https://github.com/csmathguy/Taxes/pull/25"
+          }
+        }),
+      ok: true
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pullRequest = await fetchCodeReviewPullRequest(25);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/code-review/pull-requests/25");
+    expect(pullRequest.number).toBe(25);
+  });
+
+  it("throws when the workspace payload is invalid", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<MockFetchResponse>>().mockResolvedValue({
       json: () =>
         Promise.resolve({
           workspace: {
-            generatedAt: "2026-03-13T19:45:00.000Z",
-            localOnly: true
+            generatedAt: "2026-03-14T03:30:00.000Z"
           }
         }),
       ok: true

@@ -1,22 +1,44 @@
-import type { CodeReviewWorkspace } from "@taxes/shared";
-import { CodeReviewWorkspaceSchema } from "@taxes/shared";
+import type { CodeReviewPullRequestDetail, CodeReviewWorkspace } from "@taxes/shared";
+import { CodeReviewPullRequestDetailSchema, CodeReviewWorkspaceSchema } from "@taxes/shared";
+
+interface CodeReviewPullRequestResponse {
+  readonly pullRequest: CodeReviewPullRequestDetail;
+}
 
 interface CodeReviewWorkspaceResponse {
-  workspace: CodeReviewWorkspace;
+  readonly workspace: CodeReviewWorkspace;
 }
 
 export async function fetchCodeReviewWorkspace(): Promise<CodeReviewWorkspace> {
-  const response = await fetch("/api/code-review/workspace");
+  return parseResponse("/api/code-review/workspace", CodeReviewWorkspaceSchema, "Code review workspace response was invalid.", "workspace");
+}
+
+export async function fetchCodeReviewPullRequest(pullRequestNumber: number): Promise<CodeReviewPullRequestDetail> {
+  return parseResponse(
+    `/api/code-review/pull-requests/${pullRequestNumber.toString()}`,
+    CodeReviewPullRequestDetailSchema,
+    "Pull request detail response was invalid.",
+    "pullRequest"
+  );
+}
+
+async function parseResponse<TSchemaOutput>(
+  url: string,
+  schema: { parse: (value: unknown) => TSchemaOutput },
+  invalidMessage: string,
+  field: "pullRequest" | "workspace"
+): Promise<TSchemaOutput> {
+  const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Code review workspace request failed with ${response.status.toString()}.`);
+    throw new Error(`Code review request failed with ${response.status.toString()}.`);
   }
 
-  const payload = (await response.json()) as CodeReviewWorkspaceResponse;
+  const payload = (await response.json()) as CodeReviewWorkspaceResponse & CodeReviewPullRequestResponse;
 
   try {
-    return CodeReviewWorkspaceSchema.parse(payload.workspace);
+    return schema.parse(payload[field]);
   } catch {
-    throw new Error("Code review workspace response was invalid.");
+    throw new Error(invalidMessage);
   }
 }

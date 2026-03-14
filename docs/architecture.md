@@ -131,9 +131,9 @@ tools/
 - `apps/knowledge/web`
   - Vite-based React shell for browsing long-term memory, research notes, and aligned human or agent knowledge
 - `apps/code-review/api`
-  - Fastify API for the local review workspace scaffold and future GitHub pull-request ingestion
+  - Fastify API for GitHub-backed pull-request review workspace data, lane classification, and future merge-workflow hooks
 - `apps/code-review/web`
-  - Vite-based React shell for sectioned PR review lanes, trust checkpoints, and interactive walkthroughs
+  - Vite-based React shell for PR inbox, sectioned review lanes, trust checkpoints, and later interactive walkthroughs
 - `apps/audit/api`
   - Fastify API for audit run lists, run detail, and SSE event streaming backed by shared SQLite
 - `apps/audit/web`

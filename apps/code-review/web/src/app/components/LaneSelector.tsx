@@ -32,14 +32,19 @@ export function LaneSelector({ lanes, onSelect, selectedLaneId }: LaneSelectorPr
             <Stack spacing={1.25}>
               <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={1}>
                 <Typography variant="h3">{lane.title}</Typography>
-                <Chip color={isSelected ? "secondary" : "primary"} label={isSelected ? "Reviewing now" : "Ready"} size="small" variant={isSelected ? "filled" : "outlined"} />
+                <Chip
+                  color={isSelected ? "secondary" : "primary"}
+                  label={isSelected ? "Reviewing now" : "Ready"}
+                  size="small"
+                  variant={isSelected ? "filled" : "outlined"}
+                />
               </Stack>
               <Typography color="text.secondary" variant="body2">
                 {lane.summary}
               </Typography>
               <Stack direction="row" flexWrap="wrap" gap={1}>
-                <Chip label={`${lane.evidence.length.toString()} evidence`} size="small" variant="outlined" />
-                <Chip label={`${lane.questions.length.toString()} questions`} size="small" variant="outlined" />
+                <Chip label={`${lane.files.length.toString()} files`} size="small" variant="outlined" />
+                <Chip label={`${lane.highlights.length.toString()} highlights`} size="small" variant="outlined" />
                 <Chip label={summarizeLaneEvidence(lane)} size="small" sx={{ color: "text.secondary" }} variant="outlined" />
               </Stack>
               <Button

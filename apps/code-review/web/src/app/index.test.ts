@@ -1,31 +1,54 @@
 import { describe, expect, it } from "vitest";
 
-import { groupRoadmapItems, summarizeLaneEvidence } from "./index.js";
+import { countPullRequestsByState, formatPullRequestState, summarizeLaneEvidence } from "./index.js";
 
-describe("groupRoadmapItems", () => {
-  it("groups roadmap items by stage", () => {
-    const grouped = groupRoadmapItems([
-      {
-        dependencies: [],
-        id: "mvp",
-        outcome: "MVP exists.",
-        stage: "mvp",
-        summary: "Scaffold the app.",
-        title: "MVP"
-      },
-      {
-        dependencies: [],
-        id: "later",
-        outcome: "Motivation is careful.",
-        stage: "later",
-        summary: "Prototype motivation.",
-        title: "Motivation"
-      }
-    ]);
+describe("countPullRequestsByState", () => {
+  it("counts pull requests by state", () => {
+    expect(
+      countPullRequestsByState(
+        [
+          {
+            author: {
+              isBot: false,
+              login: "csmathguy"
+            },
+            baseRefName: "main",
+            headRefName: "feature/plan-29-pr-workspace",
+            isDraft: false,
+            number: 29,
+            reviewDecision: "",
+            state: "OPEN",
+            title: "PR workspace",
+            updatedAt: "2026-03-14T03:30:00.000Z",
+            url: "https://github.com/csmathguy/Taxes/pull/29"
+          },
+          {
+            author: {
+              isBot: false,
+              login: "csmathguy"
+            },
+            baseRefName: "main",
+            headRefName: "feature/plan-53-local-env-runner",
+            isDraft: false,
+            number: 25,
+            reviewDecision: "",
+            state: "MERGED",
+            title: "Env runner",
+            updatedAt: "2026-03-14T02:59:48.000Z",
+            url: "https://github.com/csmathguy/Taxes/pull/25"
+          }
+        ],
+        "OPEN"
+      )
+    ).toBe(1);
+  });
+});
 
-    expect(grouped.mvp).toHaveLength(1);
-    expect(grouped.later).toHaveLength(1);
-    expect(grouped.next).toEqual([]);
+describe("formatPullRequestState", () => {
+  it("renders human-readable state labels", () => {
+    expect(formatPullRequestState("OPEN", false)).toBe("Open");
+    expect(formatPullRequestState("MERGED", false)).toBe("Merged");
+    expect(formatPullRequestState("CLOSED", true)).toBe("Draft");
   });
 });
 
@@ -34,12 +57,23 @@ describe("summarizeLaneEvidence", () => {
     expect(
       summarizeLaneEvidence({
         evidence: ["Changed tests", "Coverage notes"],
+        files: [
+          {
+            additions: 3,
+            areaLabel: "code-review",
+            deletions: 1,
+            laneId: "tests",
+            path: "apps/code-review/web/src/app/App.test.tsx",
+            tags: ["test", "unit", "web"]
+          }
+        ],
+        highlights: ["unit: 1 file"],
         id: "tests",
         questions: ["Is the behavior covered?"],
         reviewerGoal: "Keep proof visible.",
         summary: "Tests",
         title: "Tests"
       })
-    ).toBe("2 evidence | 1 questions");
+    ).toBe("1 files | 2 evidence");
   });
 });

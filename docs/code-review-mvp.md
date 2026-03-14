@@ -1,11 +1,11 @@
 # Code Review MVP
 
-Reviewed on March 13, 2026.
+Reviewed on March 14, 2026.
 
 ## Scope
 
 - Audience: the human reviewer validating agent-created pull requests in this repository
-- System area: `apps/code-review/api`, `apps/code-review/web`, planning backlog, and future GitHub ingestion adapters
+- System area: `apps/code-review/api`, `apps/code-review/web`, GitHub pull-request intake, and planning backlog
 - Output type: explanation and implementation-direction document
 
 ## Problem
@@ -35,31 +35,31 @@ Raw pull request diffs make it too easy for a reviewer to miss the value of a ch
 
 The MVP should do four things well:
 
-1. Materialize a local-first code-review workspace in code, not only in planning notes.
+1. Pull live pull requests from this repository into a local-first review workspace.
 2. Present a deterministic review order with lanes for context, tests, implementation, validation, and risks.
-3. Make the trust contract explicit: human review is the final confirmation step.
-4. Show the roadmap for GitHub intake, walkthroughs, and freshness so the scaffold is connected to the real product direction.
+3. Link the review thread back to planning context whenever a work item can be inferred from the PR branch or body.
+4. Make the trust contract explicit: human review is the final confirmation step.
 
 The MVP should not yet:
 
-- ingest live pull requests from GitHub
 - index the repository for explanations
 - persist reviewer notes
+- trigger approval or merge actions from the web app
 - add gamified incentives beyond planning and research notes
 
 ## Product Shape
 
 ### API
 
-- Serve a typed review-workspace contract.
-- Add GitHub access later behind an adapter seam.
+- Serve a typed review workspace and pull-request detail contract.
+- Keep GitHub access behind an adapter seam so authentication and retrieval remain replaceable.
 - Keep all data local-only and fetch the minimum GitHub payload needed for review.
 
 ### Web
 
 - Use a master-detail review-lane layout.
 - Keep tests and validation separate from production-code detail.
-- Show roadmap and research context so the reviewer understands why the product behaves this way.
+- Keep PR summary, linked planning context, and changed-file lanes visible without leaving the review surface.
 
 ### Freshness
 
@@ -71,9 +71,9 @@ The MVP should not yet:
 
 ### MVP
 
-- Review workspace scaffold
 - GitHub PR intake
 - Sectioned review lanes
+- Review workspace scaffold
 
 ### Next
 

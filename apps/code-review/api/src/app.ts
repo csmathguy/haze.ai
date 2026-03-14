@@ -4,8 +4,13 @@ import Fastify from "fastify";
 import { CODE_REVIEW_API_HOST } from "./config.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
+import { createCodeReviewService, type CodeReviewService } from "./services/workspace.js";
 
-export async function buildApp() {
+interface BuildAppOptions {
+  readonly codeReviewService?: CodeReviewService;
+}
+
+export async function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
     logger: false
   });
@@ -15,7 +20,7 @@ export async function buildApp() {
   });
 
   registerHealthRoutes(app);
-  registerWorkspaceRoutes(app);
+  registerWorkspaceRoutes(app, options.codeReviewService ?? createCodeReviewService());
 
   return app;
 }
