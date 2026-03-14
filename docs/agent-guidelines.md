@@ -149,6 +149,49 @@ mklink /J <worktree>\node_modules <main-checkout>\node_modules
 ln -s <main-checkout>/node_modules <worktree>/node_modules
 ```
 
+## Worktree Test Failure Diagnosis
+
+When a test passes in the main checkout but fails in a worktree, diagnose with these three
+steps before spending time on other hypotheses (test ordering, module duplication, etc.).
+
+**Step 1** — Run the test from the main checkout.
+
+```bash
+cd <main-checkout>
+npx vitest run --reporter=verbose <test-file>
+```
+
+Passes → environment issue in the worktree. Go to step 2.
+Fails → test is broken in `main` too. Fix there first.
+
+**Step 2** — Check if your branch is behind `main` on workspace packages.
+
+```bash
+git log HEAD..origin/main --oneline -- packages/
+```
+
+Any output → merge `main` into your branch:
+
+```bash
+git merge origin/main
+```
+
+This resolves schema version mismatches where the junction-linked `node_modules` loads a
+newer schema than your branch's code expects (e.g. silent Zod parse failures, null returns
+from cache reads). The worktree creation script now warns about this automatically (PLAN-67).
+
+**Step 3** — Run with `--pool forks` to isolate module caches.
+
+```bash
+npx vitest run --pool=forks --reporter=verbose <test-file>
+```
+
+Passes → `node_modules` junction was causing vitest to load the same module from two paths.
+The pre-commit hook now passes `--pool forks` automatically in worktrees (PLAN-66).
+
+See `CLAUDE.md > Troubleshooting > Worktree test failure diagnosis` for the full decision
+tree with commands and branch conditions.
+
 ## Execution Lifecycle
 
 The repository workflow should stay explicit in this order:

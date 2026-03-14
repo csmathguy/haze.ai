@@ -81,3 +81,65 @@ When auto-compacting, always preserve:
 
 Use `claude --continue` to resume the most recent session, or `claude --resume <session-id>`
 to resume a specific past session. Useful when context was lost mid-workflow.
+
+## Troubleshooting
+
+### Worktree test failure diagnosis
+
+A test that passes on `main` but fails in a worktree almost always has one of three causes.
+Work through these steps in order — most failures resolve at step 1 or 2.
+
+**Step 1 — Confirm the failure is environment-specific**
+
+Run the exact failing test from the main checkout:
+
+```bash
+cd C:/Users/csmat/source/repos/Taxes   # or wherever the main checkout lives
+npx vitest run --reporter=verbose <test-file>
+```
+
+- **Passes** → the failure is worktree-environment-specific. Continue to step 2.
+- **Fails** → the test is broken in `main` too. Fix the test in `main`, then merge into your worktree branch.
+
+**Step 2 — Check if your branch is behind main on workspace packages**
+
+```bash
+# From the worktree
+git log HEAD..origin/main --oneline -- packages/
+```
+
+- **Output is empty** → packages are in sync. Skip to step 3.
+- **One or more commits listed** → your branch is missing shared package changes. Merge main:
+
+  ```bash
+  git merge origin/main
+  ```
+
+  Re-run the failing test. This resolves schema version mismatches caused by the
+  junction-linked `node_modules` loading a newer schema than your branch expects.
+
+**Step 3 — Run with `--pool forks` to eliminate module cache sharing**
+
+The worktree shares `node_modules` with the main checkout via a directory junction.
+Vitest's default thread pool can load the same module from two different resolved paths
+(the worktree path and the junction path), causing false cache misses.
+
+```bash
+npx vitest run --pool=forks --reporter=verbose <test-file>
+```
+
+- **Passes** → the pre-commit hook now passes `--pool forks` automatically (PLAN-66).
+  If you need to run `quality:changed` manually, pass `--pool forks`:
+
+  ```bash
+  npm run quality:changed -- --pool forks <files...>
+  ```
+
+- **Still fails** → the test has a genuine defect. Read the stack trace and fix the bug.
+
+**Why pre-commit passing does not guarantee worktree correctness**
+
+Before PLAN-66, the pre-commit hook ran `quality:changed` from the **main checkout** using
+staged file paths. Tests passed against main's file versions, not the worktree's. A broken
+test in the worktree could pass pre-commit while failing on push. After PLAN-66 the hook
+runs from the worktree CWD with `--pool forks`, so the staged versions are what is tested.
