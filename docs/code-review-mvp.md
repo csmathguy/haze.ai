@@ -53,7 +53,7 @@ The MVP should not yet:
 
 - Serve a typed review workspace and pull-request detail contract.
 - Keep GitHub access behind an adapter seam so authentication and retrieval remain replaceable.
-- Keep all data local-only and fetch the minimum GitHub payload needed for review.
+- Keep all data local-only, cache only the minimum review summary and diff data needed for rendering, and fall back to cached data when live GitHub retrieval is temporarily unavailable.
 
 ### Web
 
