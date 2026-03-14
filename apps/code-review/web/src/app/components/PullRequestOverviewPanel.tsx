@@ -194,8 +194,8 @@ function ValidationAccordion({
               </Typography>
             ))
           )}
-          {pullRequest.checks.map((check) => (
-            <Typography key={`${check.workflowName ?? check.name}-${check.status}`} color="text.secondary" variant="body2">
+          {pullRequest.checks.map((check, index) => (
+            <Typography key={buildValidationCheckKey(check, index)} color="text.secondary" variant="body2">
               {check.workflowName ?? check.name}: {check.conclusion?.toLowerCase() ?? check.status.toLowerCase()}
             </Typography>
           ))}
@@ -203,6 +203,16 @@ function ValidationAccordion({
       </AccordionDetails>
     </Accordion>
   );
+}
+
+function buildValidationCheckKey(check: CodeReviewPullRequestDetail["checks"][number], index: number): string {
+  return [
+    check.workflowName ?? "workflow",
+    check.name,
+    check.status,
+    check.conclusion ?? "no-conclusion",
+    check.detailsUrl ?? check.startedAt ?? check.completedAt ?? `row-${index.toString()}`
+  ].join(":");
 }
 
 function buildPlanningEvidence(pullRequest: CodeReviewPullRequestDetail): string[] {
