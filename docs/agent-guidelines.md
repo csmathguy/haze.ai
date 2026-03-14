@@ -75,10 +75,57 @@ The current curated catalog includes `figma` and `figma-implement-design`. Those
 - use a dedicated research skill when guidance must be dated, source-ranked, or converted into repeatable repo standards
 - keep merge authority with humans even when agents prepare the branch, commits, and pull request
 
+## AGENTS.md vs CLAUDE.md Compatibility
+
+`AGENTS.md` is the cross-tool standard (Claude Code, OpenAI Codex, Cursor, GitHub Copilot,
+Gemini CLI, Aider, and others). Use it as the single source of truth for all agents.
+
+`CLAUDE.md` is Claude Code-exclusive. When both files exist at the same directory level,
+Claude Code prefers `CLAUDE.md`. Use it only for Claude Code-specific features:
+
+- `@path/to/file` import syntax to pull in sub-documents without bloating `AGENTS.md`
+- Claude Code subagent routing notes (`.claude/agents/`)
+- Claude Code hook configuration references (`.claude/settings.json.example`)
+- Session resume and context compaction instructions
+
+The project root `CLAUDE.md` imports `AGENTS.md` via `@AGENTS.md` so Claude Code loads
+both files without duplication. Do not repeat content between the two files.
+
+### Compatibility Rules
+
+- Put all workflow, architecture, and privacy rules in `AGENTS.md` only.
+- Put Claude Code-exclusive feature docs in `CLAUDE.md` only.
+- Never add a `CLAUDE.md` unless there is Claude Code-exclusive content to add.
+- Nested directories that have `AGENTS.md` do not need a `CLAUDE.md` unless those
+  directories also have Claude Code-specific overrides.
+
+## Custom Subagents
+
+Claude Code subagents live in `.claude/agents/`. Each is a Markdown file with YAML
+frontmatter controlling model, tools, and context isolation. Key fields:
+
+```yaml
+---
+name: subagent-name
+description: When to invoke and what it returns — Claude reads this to auto-select
+tools: Read, Grep, Glob, Bash
+model: sonnet
+context: fork   # isolated context window; main thread only receives the summary
+---
+```
+
+Subagents run in isolated context windows so verbose output (test logs, large diffs, web
+fetch results) does not accumulate in the main conversation. Use them for:
+- Code review passes that would otherwise flood the main context
+- Research fetch tasks where raw source HTML is irrelevant to the main task
+- Exploration passes (finding files, counting lines) where the answer is a number, not a log
+
+Subagents cannot spawn other subagents. Only the main orchestrating thread can invoke them.
+
 ## Current Worktree Gap
 
 - Fresh worktrees may not have their own `node_modules` tree, so git hooks and `npm run` wrappers can fail even when the shared root install exists.
-- Until the repo grows a worktree bootstrap or shared-toolchain wrapper for hooks, run the equivalent validation commands manually and record that limitation in the nearest workflow doc when it blocks normal execution.
+- Until the repo grows a worktree bootstrap or shared-toolchain wrapper for hooks, run npm scripts from the main checkout while doing file work in the worktree, and record that limitation in the nearest workflow doc when it blocks normal execution.
 
 ## Execution Lifecycle
 

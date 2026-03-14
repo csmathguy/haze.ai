@@ -62,3 +62,28 @@
 - Keep `docs/research-sources.md` current when adding or replacing major stack guidance.
 - Update the closest architecture or workflow doc when implementation decisions change.
 - Keep `.nvmrc` and `package.json` engine versions aligned with the validated local toolchain.
+
+## Claude Code-Specific Context
+
+> This section applies when the agent is Claude Code (Anthropic CLI). OpenAI Codex and other
+> tools ignore it gracefully. For the full Claude Code context file with @path imports and
+> feature details, see `CLAUDE.md` at the project root.
+
+### Subagents
+
+Custom subagents are defined in `.claude/agents/`. They run in isolated context windows and
+are invoked via the Agent tool. Use them to keep focused work out of the main context:
+- `code-reviewer` — diff review against architecture, privacy, and quality rules
+- `research` — dated, source-ranked external research with citation discipline
+
+### Hooks
+
+Copy `.claude/settings.json.example` to `.claude/settings.json` to activate PostToolUse
+linting hooks and pre-approved npm permissions. This avoids repeated approval prompts for
+safe commands and keeps formatting automatic.
+
+### Worktree Gap (Known Limitation)
+
+Fresh worktrees do not have their own `node_modules`. Run npm scripts from the main checkout
+(`/c/Users/csmat/source/repos/Taxes`) while doing file work in the worktree. Document this
+limitation in the nearest workflow doc when it blocks normal execution.

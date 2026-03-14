@@ -1,0 +1,56 @@
+{
+  "_comment": "Copy this file to .claude/settings.json to activate hooks and permissions.",
+  "_comment2": ".claude/settings.json is git-ignored so local overrides stay out of the repo.",
+
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git worktree*)",
+      "Bash(node tools/*)",
+      "Bash(npx tsx tools/*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run quality:changed:staged 2>/dev/null || true",
+            "_comment": "Runs lint and type checks on staged files after each edit. Failures are advisory — Claude sees the output and can fix issues."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node tools/runtime/run-npm.cjs run audit:pre-command 2>/dev/null || true",
+            "_comment": "Optional pre-command audit hook. Logs bash commands to the audit trail when an active workflow exists."
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "_comment": "Uncomment to route subagents to a cheaper model for exploration tasks.",
+    "_CLAUDE_CODE_SUBAGENT_MODEL": "claude-haiku-4-5-20251001"
+  }
+}
