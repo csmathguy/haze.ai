@@ -56,9 +56,9 @@ export function PlanningSurfaceDrawer({
       slotProps={{
         paper: {
           sx: {
-            borderBottomLeftRadius: isMobile ? 0 : 28,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: isMobile ? 28 : 0,
+            borderBottomLeftRadius: isMobile ? 0 : "28px",
+            borderTopLeftRadius: "28px",
+            borderTopRightRadius: isMobile ? "28px" : 0,
             height: isMobile ? mobileHeight : "100%",
             maxHeight: isMobile ? `calc(100vh - ${String(MOBILE_TOP_OFFSET)}px)` : "100vh",
             overflow: "hidden",
@@ -226,8 +226,8 @@ const mobileResizeHandleSx = {
   cursor: "ns-resize",
   display: "flex",
   justifyContent: "center",
-  paddingBottom: 10,
-  paddingTop: 12
+  paddingBottom: "10px",
+  paddingTop: "12px"
 } as const;
 
 const desktopResizeHandleSx = {
@@ -236,15 +236,15 @@ const desktopResizeHandleSx = {
   left: 0,
   position: "absolute",
   top: 0,
-  width: 16
+  width: "16px"
 } as const;
 
 function getMobileResizePillSx(textPrimary: string) {
   return {
     backgroundColor: alpha(textPrimary, 0.18),
     borderRadius: 999,
-    height: 6,
-    width: 64
+    height: "6px",
+    width: "64px"
   } as const;
 }
 
@@ -252,12 +252,12 @@ function getDesktopResizeRailSx(textPrimary: string) {
   return {
     backgroundColor: alpha(textPrimary, 0.12),
     borderRadius: 999,
-    height: 88,
-    left: 6,
+    height: "88px",
+    left: "6px",
     position: "absolute",
     top: "50%",
     transform: "translateY(-50%)",
-    width: 4
+    width: "4px"
   } as const;
 }
 
@@ -265,10 +265,10 @@ function getDrawerHeaderSx(isMobile: boolean, textPrimary: string) {
   return {
     alignItems: "flex-start",
     borderBottom: `1px solid ${alpha(textPrimary, 0.08)}`,
-    paddingBottom: 12,
-    paddingLeft: isMobile ? 16 : 20,
-    paddingRight: 12,
-    paddingTop: isMobile ? 0 : 16
+    paddingBottom: "12px",
+    paddingLeft: isMobile ? "16px" : "20px",
+    paddingRight: "12px",
+    paddingTop: isMobile ? 0 : "16px"
   } as const;
 }
 
@@ -277,9 +277,9 @@ function getDrawerBodySx(isMobile: boolean) {
     flex: 1,
     minHeight: 0,
     overflowY: "auto",
-    paddingBottom: 16,
-    paddingLeft: isMobile ? 16 : 20,
-    paddingRight: 16,
-    paddingTop: 16
+    paddingBottom: "16px",
+    paddingLeft: isMobile ? "16px" : "20px",
+    paddingRight: "16px",
+    paddingTop: "16px"
   } as const;
 }

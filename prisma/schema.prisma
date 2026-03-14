@@ -255,6 +255,54 @@ model WorkItemDependency {
   @@index([blockingWorkItemId])
 }
 
+model KnowledgeSubject {
+  id             String           @id
+  slug           String           @unique
+  kind           String
+  name           String
+  namespace      String
+  summary        String?
+  profileJson    String?
+  isPrimaryHuman Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  entries        KnowledgeEntry[]
+
+  @@index([kind, name])
+  @@index([isPrimaryHuman, updatedAt])
+  @@index([namespace])
+}
+
+model KnowledgeEntry {
+  id            String           @id
+  slug          String           @unique
+  subjectId     String?
+  namespace     String
+  title         String
+  kind          String
+  visibility    String
+  status        String
+  importance    String
+  origin        String
+  createdByKind String
+  createdByName String?
+  tagsJson      String
+  contentJson   String
+  sourceTitle   String?
+  sourceUri     String?
+  sourceChecksum String?
+  lastReviewedAt DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  subject       KnowledgeSubject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([subjectId, updatedAt])
+  @@index([kind, updatedAt])
+  @@index([namespace, updatedAt])
+  @@index([status, updatedAt])
+  @@index([visibility, updatedAt])
+}
+
 model AuditRun {
   id                   String                 @id
   workflow             String

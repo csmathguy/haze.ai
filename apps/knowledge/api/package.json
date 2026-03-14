@@ -1,0 +1,22 @@
+{
+  "name": "@taxes/knowledge-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../../node_modules/tsx/dist/cli.mjs watch src/index.ts",
+    "start": "node ../../../node_modules/tsx/dist/cli.mjs src/index.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@prisma/adapter-better-sqlite3": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "@taxes/shared": "^0.1.0",
+    "better-sqlite3": "^12.6.2",
+    "fastify": "^5.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}

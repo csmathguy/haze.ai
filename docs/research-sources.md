@@ -105,6 +105,14 @@ Researched on March 13, 2026.
 - Microsoft Learn, "Function Invocation": https://learn.microsoft.com/en-us/semantic-kernel/concepts/ai-services/chat-completion/function-calling/function-invocation
 - Microsoft Learn, "Semantic Kernel Components": https://learn.microsoft.com/en-us/semantic-kernel/concepts/semantic-kernel-components
 
+## Knowledge And Agent Memory
+
+- LangGraph docs, "Memory": https://langchain-ai.github.io/langgraph/concepts/memory/
+- LangGraph docs, "Cross-thread persistence": https://langchain-ai.github.io/langgraph/concepts/memory/#cross-thread-persistence
+- DeepAgents docs, "Memory": https://docs.langchain.com/labs/deepagents/memory
+- Letta docs, "Memory": https://docs.letta.com/guides/agents/memory
+- CoALA paper, "Cognitive Architectures for Language Agents": https://arxiv.org/abs/2309.02427
+
 ## Documentation Writing And Structure
 
 - Google developer documentation style guide: https://developers.google.com/style
