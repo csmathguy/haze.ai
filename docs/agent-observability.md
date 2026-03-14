@@ -60,6 +60,7 @@ You can attach plan lineage directly at workflow start:
 - The current rollout is dual-write:
   - file artifacts still land under `artifacts/audit/`
   - the same events and summaries are mirrored into the shared database
+- The local active-run registry at `artifacts/audit/active-runs.json` now uses a filesystem lock for updates and quarantines malformed snapshots into timestamped `active-runs.corrupt-*.json` artifacts before rebuilding a clean registry.
 - The monitor stack lives under:
   - `apps/audit/api`
   - `apps/audit/web`
