@@ -5,8 +5,14 @@ import { pathToFileURL } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+interface AuditActiveRunsModule {
+  getActiveRunId: (workflow: string) => Promise<string | null>;
+  setActiveRun: (workflow: string, runId: string, task?: string) => Promise<void>;
+}
+
 const originalCwd = process.cwd();
 const modulePath = path.join(originalCwd, "tools", "agent", "lib", "audit-active-runs.ts");
+let importSequence = 0;
 
 describe("active run registry", () => {
   let tempDirectory = "";
@@ -34,7 +40,7 @@ describe("active run registry", () => {
     expect(await activeRuns.getActiveRunId("implementation")).toBe("run-1");
 
     const currentContents = await readFile(path.join(tempDirectory, "artifacts", "audit", "active-runs.json"), "utf8");
-    expect(() => JSON.parse(currentContents)).not.toThrow();
+    expect(() => parseJson(currentContents)).not.toThrow();
 
     const artifactNames = await readdir(path.join(tempDirectory, "artifacts", "audit"));
     expect(artifactNames.some((name) => name.startsWith("active-runs.corrupt-") && name.endsWith(".json"))).toBe(true);
@@ -52,12 +58,17 @@ describe("active run registry", () => {
     }
 
     const currentContents = await readFile(path.join(tempDirectory, "artifacts", "audit", "active-runs.json"), "utf8");
-    expect(() => JSON.parse(currentContents)).not.toThrow();
+    expect(() => parseJson(currentContents)).not.toThrow();
   });
 });
 
-async function loadModule() {
-  const imported = await import(`${pathToFileURL(modulePath).href}?t=${Date.now().toString()}-${Math.random().toString(16).slice(2)}`);
+async function loadModule(): Promise<AuditActiveRunsModule> {
+  importSequence += 1;
+  const imported: unknown = await import(`${pathToFileURL(modulePath).href}?t=${importSequence.toString()}`);
 
-  return imported as typeof import("./audit-active-runs.js");
+  return imported as AuditActiveRunsModule;
+}
+
+function parseJson(contents: string): unknown {
+  return JSON.parse(contents) as unknown;
 }

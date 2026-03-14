@@ -188,7 +188,9 @@ async function acquireActiveRunsLock(): Promise<void> {
       }
 
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for ${ACTIVE_RUNS_LOCK_PATH}.`);
+        throw new Error(`Timed out waiting for ${ACTIVE_RUNS_LOCK_PATH}.`, {
+          cause: error
+        });
       }
 
       await wait(ACTIVE_RUNS_LOCK_RETRY_MS);
