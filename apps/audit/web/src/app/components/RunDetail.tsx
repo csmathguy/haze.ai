@@ -10,7 +10,7 @@ import {
   Typography
 } from "@mui/material";
 
-import type { AuditRunDetail } from "@taxes/shared";
+import type { AuditRunDetail, AuditWorkItemTimeline } from "@taxes/shared";
 
 import { formatDateTime, formatDuration } from "../time.js";
 import { AuditPanel, CodeBlock } from "./AuditPanel.js";
@@ -20,9 +20,10 @@ import { RunOverviewPanel } from "./RunOverviewPanel.js";
 interface RunDetailProps {
   readonly detail: AuditRunDetail | null;
   readonly isLoading: boolean;
+  readonly timeline: AuditWorkItemTimeline | null;
 }
 
-export function RunDetail({ detail, isLoading }: RunDetailProps) {
+export function RunDetail({ detail, isLoading, timeline }: RunDetailProps) {
   if (detail === null) {
     return (
       <AuditPanel elevation={0}>
@@ -36,14 +37,14 @@ export function RunDetail({ detail, isLoading }: RunDetailProps) {
 
   return (
     <Stack spacing={2}>
-      <RunOverviewPanel detail={detail} />
+      <RunOverviewPanel detail={detail} timeline={timeline} />
       <FailureInvestigationPanel detail={detail} />
+      <EventTimelinePanel detail={detail} />
       <ExecutionsPanel detail={detail} />
       <DecisionsPanel detail={detail} />
       <ArtifactsPanel detail={detail} />
       <FailuresPanel detail={detail} />
       <HandoffsPanel detail={detail} />
-      <EventTimelinePanel detail={detail} />
     </Stack>
   );
 }
