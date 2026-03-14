@@ -252,7 +252,7 @@ function Hero({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
                 })}
                 variant="body2"
               >
-                PRs are pulled directly from this repository and then classified into context, tests, implementation, validation, and risk lanes.
+                PRs are pulled directly from this repository and then classified into context, risks, tests, implementation, validation, and docs lanes.
               </Typography>
             </Stack>
           </Paper>

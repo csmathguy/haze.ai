@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { WorkItemIdSchema } from "./planning.js";
 
-export const ReviewLaneIdSchema = z.enum(["context", "implementation", "risks", "tests", "validation"]);
+export const ReviewLaneIdSchema = z.enum(["context", "docs", "implementation", "risks", "tests", "validation"]);
 export const CodeReviewPullRequestStateSchema = z.enum(["CLOSED", "MERGED", "OPEN"]);
 export const CodeReviewPlanContextSourceSchema = z.enum(["body", "branch"]);
 

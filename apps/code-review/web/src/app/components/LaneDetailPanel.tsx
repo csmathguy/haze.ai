@@ -12,6 +12,8 @@ interface LaneDetailPanelProps {
 }
 
 export function LaneDetailPanel({ lane }: LaneDetailPanelProps) {
+  const fileSections = createFileSections(lane);
+
   return (
     <Paper sx={{ p: 3 }} variant="outlined">
       <Stack spacing={2}>
@@ -36,12 +38,28 @@ export function LaneDetailPanel({ lane }: LaneDetailPanelProps) {
               No files were classified into this lane.
             </Typography>
           ) : (
-            lane.files.map((file) => <LaneFileCard file={file} key={`${lane.id}-${file.path}`} />)
+            fileSections.map((section) => (
+              <Stack key={`${lane.id}-${section.title}`} spacing={1}>
+                {fileSections.length === 1 ? null : (
+                  <Typography color="text.secondary" sx={{ letterSpacing: "0.08em", textTransform: "uppercase" }} variant="body2">
+                    {section.title}
+                  </Typography>
+                )}
+                {section.files.map((file) => (
+                  <LaneFileCard file={file} key={`${lane.id}-${section.title}-${file.path}`} />
+                ))}
+              </Stack>
+            ))
           )}
         </Stack>
       </Stack>
     </Paper>
   );
+}
+
+interface LaneFileSection {
+  readonly files: CodeReviewChangedFile[];
+  readonly title: string;
 }
 
 function LaneSection({
@@ -108,11 +126,47 @@ function LaneFileCard({ file }: { readonly file: CodeReviewChangedFile }) {
         </Stack>
         <Stack direction="row" flexWrap="wrap" gap={1}>
           <Chip label={file.areaLabel} size="small" variant="outlined" />
-          {file.tags.map((tag) => (
+          {orderTags(file.tags).map((tag) => (
             <Chip key={`${file.path}-${tag}`} label={tag} size="small" variant="outlined" />
           ))}
         </Stack>
       </Stack>
     </Paper>
   );
+}
+
+function createFileSections(lane: ReviewLane): LaneFileSection[] {
+  if (lane.id !== "tests") {
+    return [{ files: lane.files, title: "Changed files" }];
+  }
+
+  const sections: LaneFileSection[] = [
+    createTagSection("End-to-end", lane.files, "e2e"),
+    createTagSection("Integration", lane.files, "integration"),
+    createTagSection("Unit", lane.files, "unit")
+  ].filter((section) => section.files.length > 0);
+
+  return sections.length > 0 ? sections : [{ files: lane.files, title: "Tests" }];
+}
+
+function createTagSection(title: string, files: CodeReviewChangedFile[], tag: string): LaneFileSection {
+  return {
+    files: files.filter((file) => file.tags.includes(tag)),
+    title
+  };
+}
+
+function orderTags(tags: string[]): string[] {
+  const priority = new Map(
+    ["e2e", "integration", "unit", "test", "workflow", "tooling", "docs", "api", "web", "shared", "database", "dependencies"].map(
+      (tag, index) => [tag, index]
+    )
+  );
+
+  return [...tags].sort((left, right) => {
+    const leftPriority = priority.get(left) ?? Number.MAX_SAFE_INTEGER;
+    const rightPriority = priority.get(right) ?? Number.MAX_SAFE_INTEGER;
+
+    return leftPriority - rightPriority || left.localeCompare(right);
+  });
 }

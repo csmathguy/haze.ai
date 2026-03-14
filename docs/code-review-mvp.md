@@ -36,7 +36,7 @@ Raw pull request diffs make it too easy for a reviewer to miss the value of a ch
 The MVP should do four things well:
 
 1. Pull live pull requests from this repository into a local-first review workspace.
-2. Present a deterministic review order with lanes for context, tests, implementation, validation, and risks.
+2. Present a deterministic review order with lanes for context, risks, tests, implementation, validation, and docs.
 3. Link the review thread back to planning context whenever a work item can be inferred from the PR branch or body.
 4. Make the trust contract explicit: human review is the final confirmation step.
 
@@ -58,7 +58,7 @@ The MVP should not yet:
 ### Web
 
 - Use a master-detail review-lane layout.
-- Keep tests and validation separate from production-code detail.
+- Keep tests and validation separate from production-code detail, and split test evidence by unit, integration, and end-to-end slices when possible.
 - Keep PR summary, linked planning context, and changed-file lanes visible without leaving the review surface.
 
 ### Freshness

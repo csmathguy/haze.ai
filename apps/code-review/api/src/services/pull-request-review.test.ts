@@ -72,6 +72,11 @@ describe("toPullRequestDetail", () => {
             additions: 8,
             deletions: 0,
             path: ".github/workflows/ci.yml"
+          },
+          {
+            additions: 6,
+            deletions: 0,
+            path: "docs/code-review-mvp.md"
           }
         ],
         headRefName: "feature/plan-29-pr-workspace",
@@ -101,8 +106,10 @@ describe("toPullRequestDetail", () => {
     );
 
     expect(detail.linkedPlan?.workItemId).toBe("PLAN-29");
+    expect(detail.lanes.map((lane) => lane.id)).toEqual(["context", "risks", "tests", "implementation", "validation", "docs"]);
     expect(detail.lanes.find((lane) => lane.id === "tests")?.files[0]?.path).toContain("App.test.tsx");
     expect(detail.lanes.find((lane) => lane.id === "validation")?.evidence).toContain("typecheck: success");
     expect(detail.lanes.find((lane) => lane.id === "risks")?.files[0]?.path).toBe(".github/workflows/ci.yml");
+    expect(detail.lanes.find((lane) => lane.id === "docs")?.files[0]?.path).toBe("docs/code-review-mvp.md");
   });
 });
