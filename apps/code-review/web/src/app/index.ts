@@ -23,5 +23,9 @@ export function formatPullRequestState(state: CodeReviewPullRequestState, isDraf
 }
 
 export function summarizeLaneEvidence(lane: ReviewLane): string {
-  return `${lane.files.length.toString()} files | ${lane.evidence.length.toString()} evidence`;
+  return `${formatCount(lane.files.length, "file")} | ${formatCount(lane.evidence.length, "evidence", "evidence")}`;
+}
+
+function formatCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count.toString()} ${count === 1 ? singular : plural}`;
 }

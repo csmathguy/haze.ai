@@ -74,6 +74,6 @@ describe("summarizeLaneEvidence", () => {
         summary: "Tests",
         title: "Tests"
       })
-    ).toBe("1 files | 2 evidence");
+    ).toBe("1 file | 2 evidence");
   });
 });
