@@ -28,7 +28,7 @@ This follows the pattern described by `agents.md`: the nearest applicable file s
 
 ## Project Skills
 
-This repository defines ten local skills:
+This repository defines eleven local skills:
 
 - `implementation-workflow`
   - use for implementation, refactor, testing, and architecture changes
@@ -36,6 +36,8 @@ This repository defines ten local skills:
   - use for backlog creation, work decomposition, acceptance criteria capture, and audit-linked planning
 - `ui-design-workflow`
   - use for frontend layout, forms, tables, charts, and MUI usage
+- `visualization-workflow`
+  - use for reusable diagrams, PR change visuals, workflow monitoring visuals, and renderer selection across apps
 - `workflow-audit`
   - use for audited workflow start/end logging and deterministic guardrail execution
 - `parallel-work-orchestrator`
@@ -72,6 +74,11 @@ The current curated catalog includes `figma` and `figma-implement-design`. Those
 - prefer structured logs over free-form notes when you want auditability
 - use a dedicated research skill when guidance must be dated, source-ranked, or converted into repeatable repo standards
 - keep merge authority with humans even when agents prepare the branch, commits, and pull request
+
+## Current Worktree Gap
+
+- Fresh worktrees may not have their own `node_modules` tree, so git hooks and `npm run` wrappers can fail even when the shared root install exists.
+- Until the repo grows a worktree bootstrap or shared-toolchain wrapper for hooks, run the equivalent validation commands manually and record that limitation in the nearest workflow doc when it blocks normal execution.
 
 ## Execution Lifecycle
 

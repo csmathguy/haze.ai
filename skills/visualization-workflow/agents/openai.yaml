@@ -1,0 +1,6 @@
+interface:
+  display_name: "Visualization Workflow"
+  short_description: "Choose and create reusable repo visuals"
+  default_prompt: "Use $visualization-workflow to choose and produce diagrams or visualizations for this repository."
+policy:
+  allow_implicit_invocation: true
