@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   }
 
   const plan = buildChangedFilePlan(files);
-  const steps = buildCommands(plan);
+  const steps = buildCommands(plan, options.pool);
 
   if (steps.length === 0) {
     process.stdout.write("No code validation required for the detected files.\n");
@@ -47,6 +47,7 @@ async function main(): Promise<void> {
 
 interface ParsedArgs {
   files: string[];
+  pool?: string;
   staged: boolean;
   workflow?: string;
 }
@@ -80,6 +81,18 @@ function parseArgs(rawArgs: string[]): ParsedArgs {
       }
 
       parsed.workflow = workflow;
+      index += 1;
+      continue;
+    }
+
+    if (current === "--pool") {
+      const pool = rawArgs[index + 1];
+
+      if (pool === undefined) {
+        throw new Error("Missing value after --pool");
+      }
+
+      parsed.pool = pool;
       index += 1;
       continue;
     }
@@ -120,7 +133,7 @@ function getHeadDiffArgs(): string[] {
   }
 }
 
-function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>): LoggedCommand[] {
+function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>, pool?: string): LoggedCommand[] {
   const npmCommand = resolveNpmCommand();
   const commands: LoggedCommand[] = [];
 
@@ -156,12 +169,12 @@ function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>): LoggedCom
     });
   }
 
-  commands.push(...buildTestCommands(npmCommand, plan));
+  commands.push(...buildTestCommands(npmCommand, plan, pool));
 
   return commands;
 }
 
-function buildTestCommands(npmCommand: ResolvedCommand, plan: ReturnType<typeof buildChangedFilePlan>): LoggedCommand[] {
+function buildTestCommands(npmCommand: ResolvedCommand, plan: ReturnType<typeof buildChangedFilePlan>, pool?: string): LoggedCommand[] {
   switch (plan.testCommand.kind) {
     case "arch":
       return [
@@ -182,7 +195,7 @@ function buildTestCommands(npmCommand: ResolvedCommand, plan: ReturnType<typeof 
     case "related":
       return [
         {
-          args: ["exec", "vitest", "--", "related", "--run", ...plan.testCommand.targets],
+          args: ["exec", "vitest", "--", "related", "--run", ...(pool === undefined ? [] : ["--pool", pool]), ...plan.testCommand.targets],
           command: npmCommand,
           step: "test-related"
         }

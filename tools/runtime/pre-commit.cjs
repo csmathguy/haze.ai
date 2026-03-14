@@ -10,9 +10,10 @@
  * This script resolves the issue by:
  *   1. Detecting whether the current directory is a worktree (.git is a file).
  *   2. In a worktree: extracting the staged file list from the worktree's index,
- *      then running `quality:changed` from the main checkout with those files as
- *      explicit arguments. The main checkout has a real node_modules directory and
- *      vitest runs cleanly.
+ *      then running `quality:changed` from the WORKTREE CWD with `--pool forks`.
+ *      Using `--pool forks` spawns each test file in a separate forked Node.js
+ *      process, eliminating the shared module cache that causes deduplication
+ *      issues when node_modules is a junction to the main checkout.
  *   3. In the main checkout: running `quality:changed:staged` as normal.
  */
 
@@ -32,11 +33,10 @@ if (isWorktree) {
     process.exit(0);
   }
 
-  const mainCheckout = resolveMainCheckout(cwd);
-  process.stdout.write(`[pre-commit] Worktree detected. Running quality check from main checkout: ${mainCheckout}\n`);
+  process.stdout.write("[pre-commit] Worktree detected. Running quality check from worktree with --pool forks\n");
   process.stdout.write(`[pre-commit] Staged files: ${stagedFiles.join(", ")}\n`);
 
-  const result = runNpm(mainCheckout, ["run", "quality:changed", "--", ...stagedFiles]);
+  const result = runNpm(cwd, ["run", "quality:changed", "--", "--pool", "forks", ...stagedFiles]);
   process.exit(result.status ?? 1);
 } else {
   const result = runNpm(cwd, ["run", "quality:changed:staged"]);
@@ -53,15 +53,6 @@ function getStagedFiles(repoPath) {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
-
-function resolveMainCheckout(worktreePath) {
-  const gitCommonDir = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
-    cwd: worktreePath,
-    encoding: "utf8"
-  }).trim();
-
-  return path.dirname(gitCommonDir);
 }
 
 function runNpm(runCwd, args) {
