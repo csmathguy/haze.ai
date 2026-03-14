@@ -16,10 +16,9 @@ import { alpha } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, CodeReviewWorkspace, ReviewLaneId } from "@taxes/shared";
 
 import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace } from "./api.js";
-import { LaneDetailPanel } from "./components/LaneDetailPanel.js";
-import { LaneSelector } from "./components/LaneSelector.js";
 import { PullRequestList } from "./components/PullRequestList.js";
 import { PullRequestOverviewPanel } from "./components/PullRequestOverviewPanel.js";
+import { WalkthroughDeck } from "./components/WalkthroughDeck.js";
 import { countPullRequestsByState } from "./index.js";
 
 export function App() {
@@ -159,14 +158,7 @@ function PullRequestDetailState({
   return (
     <Stack spacing={2}>
       <PullRequestOverviewPanel pullRequest={pullRequest} />
-      <Grid container spacing={2}>
-        <Grid size={{ md: 4, xs: 12 }}>
-          <LaneSelector lanes={pullRequest.lanes} onSelect={setSelectedLaneId} selectedLaneId={activeLane.id} />
-        </Grid>
-        <Grid size={{ md: 8, xs: 12 }}>
-          <LaneDetailPanel lane={activeLane} />
-        </Grid>
-      </Grid>
+      <WalkthroughDeck pullRequest={pullRequest} selectedLaneId={activeLane.id} setSelectedLaneId={setSelectedLaneId} />
     </Stack>
   );
 }

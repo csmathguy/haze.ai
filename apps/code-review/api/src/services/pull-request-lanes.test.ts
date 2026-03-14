@@ -25,17 +25,20 @@ describe("classifyFiles", () => {
       {
         additions: 10,
         deletions: 0,
-        path: "docs/code-review-mvp.md"
+        path: "docs/code-review-mvp.md",
+        status: "modified"
       },
       {
         additions: 5,
         deletions: 1,
-        path: "apps/code-review/web/src/app/App.tsx"
+        path: "apps/code-review/web/src/app/App.tsx",
+        status: "modified"
       }
     ]);
 
     expect(files.find((file) => file.path === "docs/code-review-mvp.md")?.laneId).toBe("docs");
     expect(files.find((file) => file.path === "apps/code-review/web/src/app/App.tsx")?.laneId).toBe("implementation");
+    expect(files.find((file) => file.path === "apps/code-review/web/src/app/App.tsx")?.explanation.summary).toContain("implementation seam");
   });
 });
 
@@ -45,32 +48,38 @@ describe("buildReviewLanes", () => {
       {
         additions: 20,
         deletions: 0,
-        path: "apps/code-review/web/src/app/App.test.tsx"
+        path: "apps/code-review/web/src/app/App.test.tsx",
+        status: "modified"
       },
       {
         additions: 30,
         deletions: 2,
-        path: "apps/code-review/api/src/integration/pull-request.test.ts"
+        path: "apps/code-review/api/src/integration/pull-request.test.ts",
+        status: "modified"
       },
       {
         additions: 14,
         deletions: 0,
-        path: "apps/code-review/web/e2e/review.spec.ts"
+        path: "apps/code-review/web/e2e/review.spec.ts",
+        status: "added"
       },
       {
         additions: 12,
         deletions: 1,
-        path: "package.json"
+        path: "package.json",
+        status: "modified"
       },
       {
         additions: 15,
         deletions: 4,
-        path: "tools/agent/dev-environment.ts"
+        path: "tools/agent/dev-environment.ts",
+        status: "modified"
       },
       {
         additions: 8,
         deletions: 0,
-        path: ".github/workflows/ci.yml"
+        path: ".github/workflows/ci.yml",
+        status: "modified"
       }
     ]);
 

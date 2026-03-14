@@ -1,4 +1,4 @@
-import type { CodeReviewChangedFile, ReviewLaneId } from "@taxes/shared";
+import type { CodeReviewChangedFile, CodeReviewFileChangeType, ReviewLaneId } from "@taxes/shared";
 
 export type NonRiskReviewLaneId = Exclude<ReviewLaneId, "risks">;
 export type TestSubtype = "e2e" | "integration" | "unit";
@@ -112,6 +112,20 @@ export function formatTestSubtype(subtype: TestSubtype): string {
 
 export function formatFileLabel(count: number): string {
   return count === 1 ? "file" : "files";
+}
+
+export function normalizeChangeType(changeType: string | undefined): CodeReviewFileChangeType {
+  switch (changeType) {
+    case undefined:
+    case "added":
+    case "copied":
+    case "deleted":
+    case "modified":
+    case "renamed":
+      return changeType ?? "unknown";
+    default:
+      return "unknown";
+  }
 }
 
 function createSurfaceTags(filePath: string): string[] {
