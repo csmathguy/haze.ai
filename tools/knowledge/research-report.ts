@@ -56,7 +56,7 @@ export const ResearchReportUpsertInputSchema = z.object({
 });
 
 export type FindKnowledgeEntriesInput = z.infer<typeof FindKnowledgeEntriesInputSchema>;
-export type ResearchReportUpsertInput = z.infer<typeof ResearchReportUpsertInputSchema>;
+export type ResearchReportUpsertInput = z.input<typeof ResearchReportUpsertInputSchema>;
 
 export function findKnowledgeEntries(entries: KnowledgeEntry[], input: FindKnowledgeEntriesInput): KnowledgeEntry[] {
   const searchTerms = normalizeSearchTerms(input.search);

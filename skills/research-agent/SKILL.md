@@ -37,7 +37,8 @@ This skill turns ad hoc web searching into a dated, source-ranked workflow that 
    - open questions or ambiguity
    - the knowledge entry or namespace that now holds the durable report
    - follow-up docs, code, or skills to update
-13. If the same friction appears twice, improve this skill, the knowledge workflow, or the CLI instead of relying on memory.
+13. If the research surfaces future work, deferred implementation, or a later-phase product idea, create or refine a planning work item before closing the task.
+14. If the same friction appears twice, improve this skill, the knowledge workflow, or the CLI instead of relying on memory.
 
 ## Key Rules
 
@@ -48,6 +49,7 @@ This skill turns ad hoc web searching into a dated, source-ranked workflow that 
 - Keep the output scoped to the user's question. Research breadth is not a substitute for a clear answer.
 - Durable research is not complete until it exists in the local knowledge base as a research report or an explicit update to an existing report.
 - Update `docs/research-sources.md` when the research changes repository guidance or adds a major source family.
+- Follow-up recommendations are not durable unless they also exist in planning as backlog items or updates to existing work items.
 
 ## When To Pull More Context
 

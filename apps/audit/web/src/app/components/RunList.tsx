@@ -58,7 +58,7 @@ export function RunList({ onSelect, runs, selectedRunId }: RunListProps) {
           <div>
             <Typography variant="h3">Recent runs</Typography>
             <Typography color="text.secondary" variant="body2">
-              Select a run to inspect its timeline, failure analysis, and typed audit records.
+              Select a run to inspect its event flow, failure analysis, and linked plan or work-item context.
             </Typography>
           </div>
           <Chip label={`${runs.length.toString()} loaded`} variant="outlined" />
@@ -102,6 +102,7 @@ function RunCard({ run }: { readonly run: AuditRunOverview }) {
         <RunCardHeader presentation={presentation} run={run} />
         <RunPreviewRow previewCount={previewCount} previewItems={presentation.previewItems} />
         <RunMetadataRow run={run} />
+        <RunPlanningRow run={run} />
         <RunMetricsRow run={run} />
       </Stack>
     </CardSurface>
@@ -158,15 +159,38 @@ function RunMetadataRow({ run }: { readonly run: AuditRunOverview }) {
     { icon: <RuleFolderOutlinedIcon fontSize="small" />, label: formatRelativePath(run.worktreePath) },
     { icon: <CircleOutlinedIcon fontSize="small" />, label: formatDateTime(run.startedAt) },
     { label: formatDuration(run.durationMs) },
-    { label: run.project ?? "no project" },
-    { label: run.agentName ?? "no agent" },
-    ...(run.workItemId === undefined ? [] : [{ label: run.workItemId }])
+    { label: run.project === undefined ? "No project" : `Project ${run.project}` },
+    { label: run.agentName === undefined ? "No agent" : `Agent ${run.agentName}` }
   ];
 
   return (
     <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
       {metadataLabels.map((item) => (
         <Chip icon={item.icon} key={item.label} label={item.label} size="small" variant="outlined" />
+      ))}
+    </Stack>
+  );
+}
+
+function RunPlanningRow({ run }: { readonly run: AuditRunOverview }) {
+  const planningLabels = [
+    ...(run.workItemId === undefined ? [] : [`Work item ${run.workItemId}`]),
+    ...(run.planRunId === undefined ? [] : [`Plan run ${run.planRunId}`]),
+    ...(run.planStepId === undefined ? [] : [`Plan step ${run.planStepId}`])
+  ];
+
+  if (planningLabels.length === 0) {
+    return (
+      <Typography color="text.secondary" variant="body2">
+        No planning linkage recorded for this run.
+      </Typography>
+    );
+  }
+
+  return (
+    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+      {planningLabels.map((label) => (
+        <Chip key={`${run.runId}-${label}`} label={label} size="small" variant="outlined" />
       ))}
     </Stack>
   );

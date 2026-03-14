@@ -51,6 +51,7 @@ npm run plan:cli -- project create --key reporting --name "Reporting" --descript
    - `ready` only when another agent could start safely
 
 7. If the current request is too large, split it and add the follow-up items now instead of relying on memory.
+8. If any new future ideas appear during planning, convert them into additional work items before ending the session. Do not leave them only in notes, docs, or chat.
 
 ## Command Pattern
 
@@ -96,4 +97,5 @@ Recommended payload shape:
 - Acceptance criteria should describe outcomes, not code edits.
 - Leave dependencies explicit. A blocked item should not masquerade as ready work.
 - If a planning session reveals future work, persist it immediately with separate backlog items.
+- If a task is intentionally deferred, that deferment must point to a real backlog item, not a vague "future work" sentence.
 - Keep planning and audit separate; link them with workflow IDs, not shared persistence assumptions.

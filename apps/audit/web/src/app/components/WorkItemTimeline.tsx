@@ -1,9 +1,9 @@
 import { Chip, Divider, Paper, Stack, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 
-import type { AuditWorkItemTimeline } from "@taxes/shared";
+import type { AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
-import { formatDateTime } from "../time.js";
+import { formatDateTime, formatDuration, formatRelativePath } from "../time.js";
 
 interface WorkItemTimelineProps {
   readonly isLoading: boolean;
@@ -46,6 +46,7 @@ export function WorkItemTimeline({ isLoading, timeline }: WorkItemTimelineProps)
           <Chip color="primary" label={`${String(timeline.summary.runCount)} runs`} size="small" />
         </Stack>
         <TimelineSummary timeline={timeline} />
+        <LinkedRuns timeline={timeline} />
         <RecentHandoffs timeline={timeline} />
       </Stack>
     </Panel>
@@ -58,9 +59,47 @@ function TimelineSummary({ timeline }: { readonly timeline: AuditWorkItemTimelin
       <SummaryCard label="Agents" value={timeline.summary.activeAgents.join(", ") || "Unassigned"} />
       <SummaryCard label="Workflows" value={timeline.summary.workflows.join(", ") || "None"} />
       <SummaryCard label="Events" value={timeline.events.length.toString()} />
+      <SummaryCard label="Decisions" value={timeline.summary.decisionCount.toString()} />
+      <SummaryCard label="Artifacts" value={timeline.summary.artifactCount.toString()} />
       <SummaryCard label="Handoffs" value={timeline.summary.handoffCount.toString()} />
       <SummaryCard label="Failures" value={timeline.summary.failureCount.toString()} />
       <SummaryCard label="Latest event" value={formatDateTime(timeline.summary.latestEventAt)} />
+    </Stack>
+  );
+}
+
+function LinkedRuns({ timeline }: { readonly timeline: AuditWorkItemTimeline }) {
+  const recentRuns = [...timeline.runs]
+    .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
+    .slice(0, 5);
+
+  return (
+    <Stack spacing={1}>
+      <Stack
+        alignItems={{ sm: "center", xs: "flex-start" }}
+        direction={{ sm: "row", xs: "column" }}
+        justifyContent="space-between"
+        spacing={1}
+      >
+        <div>
+          <Typography variant="h3">Linked runs</Typography>
+          <Typography color="text.secondary" variant="body2">
+            Recent runs associated with this work item so you can move from audit output back to plan lineage quickly.
+          </Typography>
+        </div>
+        <Chip label={`${timeline.runs.length.toString()} total`} size="small" variant="outlined" />
+      </Stack>
+      {recentRuns.length === 0 ? (
+        <Typography color="text.secondary" variant="body2">
+          No linked runs were returned for this work item.
+        </Typography>
+      ) : (
+        <Stack spacing={1}>
+          {recentRuns.map((run) => (
+            <LinkedRunCard key={run.runId} run={run} />
+          ))}
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -105,6 +144,53 @@ function RecentHandoffs({ timeline }: { readonly timeline: AuditWorkItemTimeline
   );
 }
 
+function LinkedRunCard({ run }: { readonly run: AuditRunOverview }) {
+  const lineageChips = [
+    run.project ?? "No project",
+    run.agentName ?? "No agent",
+    ...(run.planRunId === undefined ? [] : [run.planRunId]),
+    ...(run.planStepId === undefined ? [] : [run.planStepId]),
+    formatRelativePath(run.worktreePath)
+  ];
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        border: "1px solid var(--mui-palette-divider)",
+        p: 1.5
+      }}
+    >
+      <Stack spacing={0.9}>
+        <Stack
+          alignItems={{ sm: "center", xs: "flex-start" }}
+          direction={{ sm: "row", xs: "column" }}
+          justifyContent="space-between"
+          spacing={1}
+        >
+          <div>
+            <Typography fontWeight={700} variant="body2">
+              {run.workflow}
+            </Typography>
+            <Typography color="text.secondary" variant="body2">
+              {formatDateTime(run.startedAt)} | {formatDuration(run.durationMs)}
+            </Typography>
+          </div>
+          <Stack direction="row" spacing={0.75} useFlexGap>
+            <Chip color={toRunColor(run.status)} label={run.status} size="small" />
+            <Chip label={`${run.executionCount.toString()} executions`} size="small" variant="outlined" />
+          </Stack>
+        </Stack>
+        <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+          {lineageChips.map((label) => (
+            <Chip key={`${run.runId}-${label}`} label={label} size="small" variant="outlined" />
+          ))}
+        </Stack>
+      </Stack>
+    </Paper>
+  );
+}
+
 function SummaryCard({ label, value }: { readonly label: string; readonly value: string }) {
   return (
     <Paper
@@ -137,5 +223,18 @@ function toHandoffColor(status: string): "default" | "error" | "info" | "success
       return "warning";
     default:
       return "default";
+  }
+}
+
+function toRunColor(status: AuditRunOverview["status"]): "default" | "error" | "success" | "warning" {
+  switch (status) {
+    case "failed":
+      return "error";
+    case "running":
+      return "warning";
+    case "skipped":
+      return "default";
+    case "success":
+      return "success";
   }
 }

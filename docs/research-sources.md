@@ -1,6 +1,6 @@
 # Research Sources
 
-Researched on March 13, 2026.
+Updated on March 14, 2026.
 
 ## React
 
@@ -74,6 +74,19 @@ Researched on March 13, 2026.
 - W3C WAI, WCAG 2.2 Understanding SC 1.4.11 Non-text Contrast: https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html
 - W3C WAI, WCAG 2.2 Understanding SC 1.4.1 Use of Color: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
 - W3C WAI, WCAG 2.2 Understanding SC 2.4.13 Focus Appearance: https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html
+
+## Diagrams And Visualization
+
+- Mermaid docs, "About Mermaid": https://mermaid.js.org/intro/
+- Mermaid docs, "Architecture Diagrams Documentation": https://mermaid.js.org/syntax/architecture.html
+- Mermaid docs, "GitGraph Diagrams": https://mermaid.js.org/syntax/gitgraph.html
+- GitHub Docs, "Creating diagrams": https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams
+- D2 documentation: https://d2lang.com/
+- Graphviz docs, "Output Formats": https://graphviz.org/docs/outputs/
+- React Flow docs: https://reactflow.dev/
+- React Flow docs, "Server Side Rendering": https://reactflow.dev/learn/advanced-use/ssr-ssg-configuration
+- Cytoscape.js docs: https://js.cytoscape.org/
+- diff2html docs: https://diff2html.xyz/
 
 ## Observability And Trace Correlation
 

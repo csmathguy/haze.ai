@@ -44,23 +44,31 @@ export const auditTheme = createTheme({
   },
   typography: {
     fontFamily: typographyTokens.bodyFontFamily,
+    body2: {
+      lineHeight: 1.55
+    },
     h1: {
       fontFamily: typographyTokens.headingFontFamily,
-      fontSize: "3rem",
-      fontWeight: 800,
-      letterSpacing: "-0.03em"
+      fontSize: "clamp(2.1rem, 3.4vw, 2.55rem)",
+      fontWeight: 700,
+      letterSpacing: "-0.025em",
+      lineHeight: 1.05
     },
     h2: {
       fontFamily: typographyTokens.headingFontFamily,
-      fontWeight: 700
+      fontSize: "clamp(1.45rem, 2.2vw, 1.8rem)",
+      fontWeight: 700,
+      lineHeight: 1.1
     },
     h3: {
       fontFamily: typographyTokens.headingFontFamily,
-      fontWeight: 700
+      fontSize: "1.08rem",
+      fontWeight: 700,
+      lineHeight: 1.18
     },
     subtitle2: {
       fontFamily: typographyTokens.monoFontFamily,
-      fontSize: "0.76rem",
+      fontSize: "0.74rem",
       letterSpacing: "0.08em",
       textTransform: "uppercase"
     }

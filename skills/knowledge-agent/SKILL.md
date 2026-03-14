@@ -18,7 +18,8 @@ This skill gives agents a repeatable local path into the knowledge system withou
 5. Create entries with `npm run knowledge:cli -- entry create --json-file <file>` when the note is genuinely new.
 6. For durable research, prefer `npm run knowledge:cli -- research-report upsert --json-file <file>` so repeated research updates one report lineage instead of scattering duplicates.
 7. Synchronize repository docs with `npm run knowledge:cli -- repo-docs sync` when docs should be mirrored into knowledge.
-8. Prefer structured JSON content plus optional markdown narrative so agents and humans can both consume the same entry.
+8. If knowledge capture reveals future work, product ideas, or follow-up implementation slices, create or refine the corresponding planning work items instead of leaving the idea only in the knowledge store.
+9. Prefer structured JSON content plus optional markdown narrative so agents and humans can both consume the same entry.
 
 ## Key Rules
 
@@ -27,3 +28,4 @@ This skill gives agents a repeatable local path into the knowledge system withou
 - Preserve namespaces, visibility, and provenance fields so later retrieval stays reliable.
 - Prefer updating existing research reports over creating duplicates when the topic and namespace already match.
 - Prefer updating the knowledge store over leaving durable findings only in chat or docs.
+- The knowledge base is for durable memory, not a substitute for planning. Actionable future work still belongs in planning as work items.

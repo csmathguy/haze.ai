@@ -3,6 +3,17 @@ import { existsSync } from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 
+const DEFAULT_HEALTH_POLL_INTERVAL_MS = 500;
+const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
+
+interface WaitForServiceHealthOptions {
+  fetchFn?: typeof fetch;
+  healthUrl?: string;
+  intervalMs?: number;
+  serviceLabel: string;
+  timeoutMs?: number;
+}
+
 export function createShutdownSignal(): {
   promise: Promise<NodeJS.Signals>;
 } {
@@ -78,10 +89,48 @@ export function sanitizeEnv(environment: NodeJS.ProcessEnv): Record<string, stri
   );
 }
 
+export async function waitForServiceHealth(options: WaitForServiceHealthOptions): Promise<void> {
+  if (options.healthUrl === undefined) {
+    return;
+  }
+
+  const fetchFn = options.fetchFn ?? fetch;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_HEALTH_POLL_INTERVAL_MS;
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "No response received.";
+
+  while (Date.now() <= deadline) {
+    try {
+      const response = await fetchFn(options.healthUrl);
+
+      if (response.ok) {
+        return;
+      }
+
+      lastError = `HTTP ${response.status.toString()}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
+    await wait(intervalMs);
+  }
+
+  throw new Error(
+    `${options.serviceLabel} did not become healthy at ${options.healthUrl} within ${timeoutMs.toString()}ms. Last error: ${lastError}`
+  );
+}
+
 export function stopServices(children: readonly ChildProcess[]): void {
   for (const child of children) {
     stopServiceProcess(child);
   }
+}
+
+function wait(durationMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
 }
 
 function stopServiceProcess(child: ChildProcess): void {

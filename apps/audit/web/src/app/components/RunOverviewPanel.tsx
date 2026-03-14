@@ -1,17 +1,20 @@
-import { Chip, Stack, Typography } from "@mui/material";
+import { Chip, Paper, Stack, Typography } from "@mui/material";
 
-import type { AuditRunDetail } from "@taxes/shared";
+import type { AuditRunDetail, AuditWorkItemTimeline } from "@taxes/shared";
 
+import { summarizePlanningLink } from "../planning-link-presentation.js";
 import { summarizeRunPresentation } from "../run-presentation.js";
 import { formatDateTime, formatDuration, formatRelativePath } from "../time.js";
 import { AuditPanel, DetailGrid } from "./AuditPanel.js";
 
 interface RunOverviewPanelProps {
   readonly detail: AuditRunDetail;
+  readonly timeline: AuditWorkItemTimeline | null;
 }
 
-export function RunOverviewPanel({ detail }: RunOverviewPanelProps) {
+export function RunOverviewPanel({ detail, timeline }: RunOverviewPanelProps) {
   const presentation = summarizeRunPresentation(detail.run);
+  const planningLink = summarizePlanningLink(detail.run, timeline);
   const previewCount = presentation.trailingCount ?? 0;
   const detailItems = [
     { label: "Workflow", value: detail.run.workflow },
@@ -32,6 +35,7 @@ export function RunOverviewPanel({ detail }: RunOverviewPanelProps) {
     <AuditPanel elevation={0}>
       <Stack spacing={1.5}>
         <RunOverviewHeader detail={detail} presentation={presentation} />
+        <PlanningLinkCard detail={detail} planningLink={planningLink} timeline={timeline} />
         <RunOverviewPreview previewCount={previewCount} previewItems={presentation.previewItems} />
         <DetailGrid items={detailItems} />
       </Stack>
@@ -85,6 +89,73 @@ function RunOverviewPreview({ previewCount, previewItems }: { readonly previewCo
       {previewCount === 0 ? null : <Chip label={`+${previewCount.toString()} more`} size="small" variant="outlined" />}
     </Stack>
   );
+}
+
+function PlanningLinkCard({
+  detail,
+  planningLink,
+  timeline
+}: {
+  readonly detail: AuditRunDetail;
+  readonly planningLink: ReturnType<typeof summarizePlanningLink>;
+  readonly timeline: AuditWorkItemTimeline | null;
+}) {
+  const contextChips = buildPlanningContextChips(detail, timeline);
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        border: "1px solid var(--mui-palette-divider)",
+        borderRadius: "calc(var(--mui-shape-borderRadius) * 1.05)",
+        p: 1.75
+      }}
+    >
+      <Stack spacing={1.1}>
+        <Stack
+          alignItems={{ sm: "center", xs: "flex-start" }}
+          direction={{ sm: "row", xs: "column" }}
+          justifyContent="space-between"
+          spacing={1}
+        >
+          <div>
+            <Typography variant="body1">{planningLink.title}</Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.4 }} variant="body2">
+              {planningLink.detail}
+            </Typography>
+          </div>
+          <Chip
+            color={detail.run.workItemId === undefined ? "default" : "primary"}
+            label={detail.run.workItemId === undefined ? "No linked work item" : "Planning linked"}
+            size="small"
+            variant={detail.run.workItemId === undefined ? "outlined" : "filled"}
+          />
+        </Stack>
+        <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+          {planningLink.metrics.map((metric) => (
+            <Chip key={metric} label={metric} size="small" variant="outlined" />
+          ))}
+        </Stack>
+        {contextChips.length === 0 ? null : (
+          <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+            {contextChips.map((label) => (
+              <Chip key={label} label={label} size="small" variant="outlined" />
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
+function buildPlanningContextChips(detail: AuditRunDetail, timeline: AuditWorkItemTimeline | null): string[] {
+  return [
+    ...(detail.run.project === undefined ? [] : [`Project ${detail.run.project}`]),
+    ...(detail.run.workItemId === undefined ? [] : [`Work item ${detail.run.workItemId}`]),
+    ...(detail.run.planRunId === undefined ? [] : [`Plan run ${detail.run.planRunId}`]),
+    ...(detail.run.planStepId === undefined ? [] : [`Plan step ${detail.run.planStepId}`]),
+    ...(timeline?.summary.latestEventAt === undefined ? [] : [`Latest lineage event ${formatDateTime(timeline.summary.latestEventAt)}`])
+  ];
 }
 
 function toChipColor(status: string): "default" | "error" | "success" | "warning" {

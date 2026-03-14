@@ -1,13 +1,16 @@
-import { FormControl, InputLabel, MenuItem, Paper, Select, Stack } from "@mui/material";
+import { Button, Chip, FormControl, InputLabel, MenuItem, Paper, Select, Stack, Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 
 import type { AuditRunFilters } from "../api.js";
+import type { ActiveFilterSummary } from "../filter-presentation.js";
 import { formatRelativePath } from "../time.js";
 
 interface FiltersBarProps {
+  readonly activeFilters: ActiveFilterSummary[];
   readonly agentNames: string[];
   readonly filters: AuditRunFilters;
   readonly onChange: (next: AuditRunFilters) => void;
+  readonly onClear: () => void;
   readonly projects: string[];
   readonly workItemIds: string[];
   readonly workflows: string[];
@@ -23,13 +26,42 @@ const FilterShell = styled(Paper)(({ theme }) => ({
 export function FiltersBar(props: FiltersBarProps) {
   return (
     <FilterShell elevation={0}>
-      <Stack direction={{ md: "row", xs: "column" }} flexWrap="wrap" spacing={2} useFlexGap>
-        <StatusFilterField filters={props.filters} onChange={props.onChange} />
-        <ProjectFilterField filters={props.filters} onChange={props.onChange} projects={props.projects} />
-        <AgentFilterField agentNames={props.agentNames} filters={props.filters} onChange={props.onChange} />
-        <WorkflowFilterField filters={props.filters} onChange={props.onChange} workflows={props.workflows} />
-        <WorkItemFilterField filters={props.filters} onChange={props.onChange} workItemIds={props.workItemIds} />
-        <WorktreeFilterField filters={props.filters} onChange={props.onChange} worktreePaths={props.worktreePaths} />
+      <Stack spacing={1.5}>
+        <Stack
+          alignItems={{ md: "center", xs: "flex-start" }}
+          direction={{ md: "row", xs: "column" }}
+          justifyContent="space-between"
+          spacing={1}
+        >
+          <Typography color="text.secondary" variant="body2">
+            Filters change the visible runs, summary metrics, and linked work-item lineage below.
+          </Typography>
+          {props.activeFilters.length > 0 ? (
+            <Button onClick={props.onClear} size="small" variant="text">
+              Clear filters
+            </Button>
+          ) : null}
+        </Stack>
+        <Stack direction={{ md: "row", xs: "column" }} flexWrap="wrap" spacing={2} useFlexGap>
+          <StatusFilterField filters={props.filters} onChange={props.onChange} />
+          <ProjectFilterField filters={props.filters} onChange={props.onChange} projects={props.projects} />
+          <AgentFilterField agentNames={props.agentNames} filters={props.filters} onChange={props.onChange} />
+          <WorkflowFilterField filters={props.filters} onChange={props.onChange} workflows={props.workflows} />
+          <WorkItemFilterField filters={props.filters} onChange={props.onChange} workItemIds={props.workItemIds} />
+          <WorktreeFilterField filters={props.filters} onChange={props.onChange} worktreePaths={props.worktreePaths} />
+        </Stack>
+        {props.activeFilters.length > 0 ? (
+          <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
+            {props.activeFilters.map((filter) => (
+              <Chip
+                key={filter.key}
+                label={`${filter.label}: ${filter.key === "worktreePath" ? formatRelativePath(filter.value) : filter.value}`}
+                size="small"
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        ) : null}
       </Stack>
     </FilterShell>
   );
@@ -185,7 +217,12 @@ function FilterField({
   readonly value: string;
 }) {
   return (
-    <FormControl fullWidth>
+    <FormControl
+      sx={{
+        flex: "1 1 180px",
+        minWidth: 180
+      }}
+    >
       <InputLabel>{label}</InputLabel>
       <Select
         label={label}

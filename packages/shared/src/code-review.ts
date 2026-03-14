@@ -5,6 +5,7 @@ import { WorkItemIdSchema } from "./planning.js";
 export const ReviewLaneIdSchema = z.enum(["context", "docs", "implementation", "risks", "tests", "validation"]);
 export const CodeReviewPullRequestStateSchema = z.enum(["CLOSED", "MERGED", "OPEN"]);
 export const CodeReviewPlanContextSourceSchema = z.enum(["body", "branch"]);
+export const CodeReviewFileChangeTypeSchema = z.enum(["added", "copied", "deleted", "modified", "renamed", "unknown"]);
 
 export const CodeReviewRepositorySchema = z.object({
   name: z.string().min(1),
@@ -34,11 +35,20 @@ export const CodeReviewCheckSchema = z.object({
   workflowName: z.string().min(1).optional()
 });
 
+export const CodeReviewFileExplanationSchema = z.object({
+  rationale: z.string().min(1),
+  reviewFocus: z.array(z.string().min(1)).min(1),
+  summary: z.string().min(1)
+});
+
 export const CodeReviewChangedFileSchema = z.object({
   additions: z.int().nonnegative(),
   areaLabel: z.string().min(1),
+  changeType: CodeReviewFileChangeTypeSchema,
   deletions: z.int().nonnegative(),
+  explanation: CodeReviewFileExplanationSchema,
   laneId: ReviewLaneIdSchema,
+  patch: z.string().optional(),
   path: z.string().min(1),
   tags: z.array(z.string().min(1))
 });
@@ -115,6 +125,8 @@ export const CodeReviewWorkspaceSchema = z.object({
 export type CodeReviewActor = z.infer<typeof CodeReviewActorSchema>;
 export type CodeReviewChangedFile = z.infer<typeof CodeReviewChangedFileSchema>;
 export type CodeReviewCheck = z.infer<typeof CodeReviewCheckSchema>;
+export type CodeReviewFileChangeType = z.infer<typeof CodeReviewFileChangeTypeSchema>;
+export type CodeReviewFileExplanation = z.infer<typeof CodeReviewFileExplanationSchema>;
 export type CodeReviewNarrative = z.infer<typeof CodeReviewNarrativeSchema>;
 export type CodeReviewNarrativeSection = z.infer<typeof CodeReviewNarrativeSectionSchema>;
 export type CodeReviewPlanContext = z.infer<typeof CodeReviewPlanContextSchema>;

@@ -37,7 +37,7 @@ export function MetricCard({ caption, icon, label, value }: MetricCardProps) {
           </Typography>
           <IconWrap>{icon}</IconWrap>
         </Stack>
-        <Typography variant="h3">{value}</Typography>
+        <Typography variant="h2">{value}</Typography>
         <Typography color="text.secondary" variant="body2">
           {caption}
         </Typography>

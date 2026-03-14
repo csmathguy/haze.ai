@@ -32,6 +32,7 @@ This skill keeps planning data explicit, reviewable, and durable across worktree
 9. Prefer one backlog item per independently shippable change. Split oversized work before implementation.
 10. Keep dependencies explicit so future agents can safely pull the next ready item.
 11. During execution, append newly discovered tasks or criteria instead of leaving scope changes in chat-only notes.
+12. When execution, research, or review uncovers future work that should not be done in the current slice, create a separate backlog item immediately instead of leaving the idea in chat, docs, or a pull request note.
 
 ## Key Rules
 
@@ -39,4 +40,5 @@ This skill keeps planning data explicit, reviewable, and durable across worktree
 - Acceptance criteria should describe observable outcomes, not implementation trivia.
 - Plan steps should be ordered and concise enough that another agent can pick them up without chat history.
 - If a work item cannot be validated yet, leave it `blocked` or `planning` instead of marking it ready.
+- Future ideas, deferred work, and "later" enhancements are planning data. Persist them as separate work items with a truthful status instead of burying them in prose.
 - When the same planning friction repeats, improve this skill or the planning app instead of relying on memory.

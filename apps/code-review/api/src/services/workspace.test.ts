@@ -122,7 +122,8 @@ function createGateway() {
           {
             additions: 12,
             deletions: 1,
-            path: "apps/code-review/api/src/services/workspace.ts"
+            path: "apps/code-review/api/src/services/workspace.ts",
+            status: "modified" as const
           }
         ],
         headRefName: "feature/plan-29-pr-cache",

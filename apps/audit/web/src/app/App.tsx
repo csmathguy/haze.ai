@@ -1,14 +1,12 @@
 import {
   Alert,
   Box,
-  Chip,
   CircularProgress,
   Container,
   Grid,
   Stack,
   Typography
 } from "@mui/material";
-import CableOutlinedIcon from "@mui/icons-material/CableOutlined";
 import ChecklistRtlOutlinedIcon from "@mui/icons-material/ChecklistRtlOutlined";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import PlayCircleOutlineOutlinedIcon from "@mui/icons-material/PlayCircleOutlineOutlined";
@@ -19,13 +17,12 @@ import { alpha, styled } from "@mui/material/styles";
 import type { AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
 import type { AuditRunFilters } from "./api.js";
-import { FiltersBar } from "./components/FiltersBar.js";
 import { MetricCard } from "./components/MetricCard.js";
+import { MonitorHeader } from "./components/MonitorHeader.js";
 import { RunDetail } from "./components/RunDetail.js";
 import { RunDurationChart } from "./components/RunDurationChart.js";
 import { RunList } from "./components/RunList.js";
 import { WorkItemTimeline } from "./components/WorkItemTimeline.js";
-import { formatDateTime } from "./time.js";
 import { useAuditMonitor, type ConnectionState, type RunStats } from "./useAuditMonitor.js";
 
 const Hero = styled(Box)(({ theme }) => ({
@@ -165,6 +162,7 @@ function AuditMonitorLayout({
             lastEventAt={lastEventAt}
             onFilterChange={onFilterChange}
             projects={projects}
+            visibleRunCount={runs.length}
             workflows={workflows}
             workItemIds={workItemIds}
             worktreePaths={worktreePaths}
@@ -187,54 +185,6 @@ function AuditMonitorLayout({
         </Stack>
       </Shell>
     </Hero>
-  );
-}
-
-function MonitorHeader({
-  agentNames,
-  connectionState,
-  filters,
-  lastEventAt,
-  onFilterChange,
-  projects,
-  workflows,
-  workItemIds,
-  worktreePaths
-}: Pick<
-  AuditMonitorLayoutProps,
-  "agentNames" | "connectionState" | "filters" | "lastEventAt" | "onFilterChange" | "projects" | "workflows" | "workItemIds" | "worktreePaths"
->) {
-  return (
-    <Stack spacing={1.5}>
-      <Stack
-        alignItems={{ sm: "center", xs: "flex-start" }}
-        direction={{ sm: "row", xs: "column" }}
-        justifyContent="space-between"
-        spacing={1.5}
-      >
-        <div>
-          <Typography variant="h1">Audit Monitor</Typography>
-          <Typography maxWidth={760} variant="body1">
-            Shared run telemetry for every worktree writing into the central audit database under your user profile.
-          </Typography>
-        </div>
-        <Chip
-          color={toConnectionColor(connectionState)}
-          icon={<CableOutlinedIcon />}
-          label={buildConnectionLabel(connectionState, lastEventAt)}
-          variant="filled"
-        />
-      </Stack>
-      <FiltersBar
-        agentNames={agentNames}
-        filters={filters}
-        onChange={onFilterChange}
-        projects={projects}
-        workflows={workflows}
-        workItemIds={workItemIds}
-        worktreePaths={worktreePaths}
-      />
-    </Stack>
   );
 }
 
@@ -333,7 +283,7 @@ function ContentGrid({
       <Grid size={{ lg: 8, xs: 12 }}>
         <Stack spacing={2}>
           <RunDurationChart runs={runs} />
-          <RunDetail detail={detail} isLoading={isLoadingDetail} />
+          <RunDetail detail={detail} isLoading={isLoadingDetail} timeline={timeline} />
           <WorkItemTimeline isLoading={isLoadingTimeline} timeline={timeline} />
         </Stack>
       </Grid>
@@ -359,26 +309,4 @@ function LoadingPanel({ label }: { readonly label: string }) {
       </Typography>
     </Stack>
   );
-}
-
-function toConnectionColor(state: ConnectionState): "default" | "error" | "success" | "warning" {
-  switch (state) {
-    case "connecting":
-      return "warning";
-    case "live":
-      return "success";
-    case "offline":
-      return "error";
-  }
-}
-
-function buildConnectionLabel(state: ConnectionState, lastEventAt: string | null): string {
-  switch (state) {
-    case "connecting":
-      return "Connecting to live stream";
-    case "live":
-      return lastEventAt === null ? "Live stream connected" : `Live since ${formatDateTime(lastEventAt)}`;
-    case "offline":
-      return "Stream offline";
-  }
 }

@@ -15,12 +15,10 @@ export function PullRequestOverviewPanel({ pullRequest }: PullRequestOverviewPan
       <Stack spacing={2}>
         <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
           <Stack spacing={1}>
-            <Typography variant="subtitle2">
-              PR #{pullRequest.number.toString()} · {formatPullRequestState(pullRequest.state, pullRequest.isDraft)}
-            </Typography>
+            <Typography variant="subtitle2">PR #{pullRequest.number.toString()} | {formatPullRequestState(pullRequest.state, pullRequest.isDraft)}</Typography>
             <Typography variant="h2">{pullRequest.title}</Typography>
             <Typography color="text.secondary" variant="body2">
-              {pullRequest.author.name ?? pullRequest.author.login} · {pullRequest.headRefName} → {pullRequest.baseRefName}
+              {pullRequest.author.name ?? pullRequest.author.login} | {pullRequest.headRefName} -&gt; {pullRequest.baseRefName}
             </Typography>
           </Stack>
           <Stack alignItems={{ md: "flex-end", xs: "flex-start" }} spacing={1}>
