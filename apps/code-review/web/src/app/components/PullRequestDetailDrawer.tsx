@@ -3,7 +3,7 @@ import DragIndicatorOutlinedIcon from "@mui/icons-material/DragIndicatorOutlined
 import OpenInFullOutlinedIcon from "@mui/icons-material/OpenInFullOutlined";
 import { Alert, Box, Chip, Divider, Drawer, IconButton, Stack, Typography, useMediaQuery } from "@mui/material";
 import { alpha, styled, useTheme } from "@mui/material/styles";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type { CodeReviewPullRequestDetail, ReviewLaneId } from "@taxes/shared";
 
 import { PullRequestOverviewPanel } from "./PullRequestOverviewPanel.js";
@@ -13,7 +13,7 @@ interface PullRequestDetailDrawerProps {
   readonly drawerWidth: number;
   readonly isLoading: boolean;
   readonly onClose: () => void;
-  readonly onResizeStart: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
   readonly selectedLaneId: ReviewLaneId;
   readonly selectedPullRequestNumber: number | null;
@@ -157,7 +157,7 @@ function ResizeHandle({
   onResizeStart
 }: {
   readonly drawerWidth: number;
-  readonly onResizeStart: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <Box
@@ -171,7 +171,7 @@ function ResizeHandle({
     >
       <ResizeHandleButton
         aria-label={`Resize drawer currently ${drawerWidth.toString()} pixels wide`}
-        onMouseDown={onResizeStart}
+        onPointerDown={onResizeStart}
       >
         <DragIndicatorOutlinedIcon />
       </ResizeHandleButton>
@@ -189,5 +189,6 @@ const ResizeHandleButton = styled(IconButton)(({ theme }) => ({
   justifyContent: "center",
   pointerEvents: "auto",
   position: "absolute",
+  touchAction: "none",
   width: "100%"
 }));
