@@ -17,6 +17,9 @@ Researched on March 13, 2026.
 ## Node, Vite, And Frontend Tooling
 
 - Vite guide: https://vite.dev/guide/
+- npm CLI workspaces: https://docs.npmjs.com/cli/v11/using-npm/workspaces
+- Node.js child process API: https://nodejs.org/api/child_process.html
+- Node.js process API and signal events: https://nodejs.org/api/process.html
 - Vite features docs, CSS Modules: https://vite.dev/guide/features.html
 - ESLint docs, configuration files: https://eslint.org/docs/latest/use/configure/configuration-files
 - ESLint `no-restricted-syntax`: https://eslint.org/docs/latest/rules/no-restricted-syntax
@@ -133,6 +136,8 @@ Researched on March 13, 2026.
 
 - simple-git-hooks package: https://github.com/toplenboren/simple-git-hooks
 - simple-git-hooks npm package: https://www.npmjs.com/package/simple-git-hooks
+- Docker Compose profiles: https://docs.docker.com/compose/how-tos/profiles/
+- PM2 application declaration: https://pm2.keymetrics.io/docs/usage/application-declaration/
 
 ## Retrospectives And Postmortems
 
