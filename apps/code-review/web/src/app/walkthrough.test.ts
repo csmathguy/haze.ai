@@ -9,11 +9,36 @@ const pullRequest: CodeReviewPullRequestDetail = {
     isBot: false,
     login: "csmathguy"
   },
+  auditEvidence: {
+    activeAgents: ["codex"],
+    artifactCount: 0,
+    decisionCount: 0,
+    failureCount: 0,
+    handoffCount: 0,
+    recentRuns: [
+      {
+        executionCount: 4,
+        failureCount: 0,
+        runId: "2026-03-14T173000-000-implementation-abcd1234",
+        startedAt: "2026-03-14T17:30:00.000Z",
+        status: "success",
+        workflow: "implementation"
+      }
+    ],
+    runCount: 1,
+    workflows: ["implementation"],
+    workItemId: "PLAN-32"
+  },
   baseRefName: "main",
   body: "## Summary\n- Add a walkthrough",
   checks: [],
   headRefName: "feature/plan-32-walkthrough-diff",
   isDraft: false,
+  linkedPlan: {
+    source: "branch",
+    url: "http://127.0.0.1:5175/?workItemId=PLAN-32",
+    workItemId: "PLAN-32"
+  },
   lanes: [
     {
       evidence: ["Narrative summary"],
@@ -86,6 +111,33 @@ const pullRequest: CodeReviewPullRequestDetail = {
     whatChangedSections: []
   },
   number: 32,
+  planningWorkItem: {
+    acceptanceCriteria: {
+      completeCount: 1,
+      pendingCount: 0,
+      totalCount: 1
+    },
+    latestPlanRun: {
+      completedStepCount: 1,
+      currentStepTitle: "Implement the walkthrough",
+      mode: "single-agent",
+      status: "executing",
+      summary: "Build the walkthrough trust gate.",
+      totalStepCount: 2
+    },
+    owner: "codex",
+    priority: "high",
+    projectKey: "code-review",
+    status: "in-progress",
+    summary: "Add an interactive walkthrough.",
+    tasks: {
+      completeCount: 1,
+      pendingCount: 1,
+      totalCount: 2
+    },
+    title: "Interactive walkthrough and trust confirmation flow",
+    workItemId: "PLAN-32"
+  },
   reviewDecision: "",
   state: "OPEN",
   stats: {
@@ -124,7 +176,7 @@ describe("buildLaneSections", () => {
 });
 
 describe("buildTrustSummary", () => {
-  it("uses notebook status and concerns to summarize reviewer confidence", () => {
+  it("combines notebook progress with planning and audit evidence", () => {
     const notebook = createReviewNotebook(pullRequest.lanes);
     const updatedNotebook = {
       ...notebook,
@@ -144,9 +196,37 @@ describe("buildTrustSummary", () => {
     };
 
     expect(buildTrustSummary(pullRequest, updatedNotebook)).toEqual({
-      confidenceLabel: "Needs follow-up",
       confirmedLaneCount: 2,
-      remainingRisk: ["Tests: follow-up requested"],
+      evidenceCheckpoints: [
+        {
+          detail: "2 of 3 walkthrough checkpoints confirmed",
+          label: "Review coverage",
+          status: "attention"
+        },
+        {
+          detail: "PLAN-32 is in-progress",
+          label: "Planning context",
+          status: "complete"
+        },
+        {
+          detail: "1 linked run",
+          label: "Audit lineage",
+          status: "complete"
+        },
+        {
+          detail: "No reported checks",
+          label: "Validation signals",
+          status: "pending"
+        },
+        {
+          detail: "clean",
+          label: "Merge posture",
+          status: "complete"
+        }
+      ],
+      followUpQueue: ["Tests: follow-up requested", "No reported checks were attached to this pull request."],
+      statusLabel: "Hold before decision",
+      statusTone: "warning",
       valueSummary: ["Add a walkthrough", "Keep review state visible"]
     });
   });

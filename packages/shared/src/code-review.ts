@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { WorkItemIdSchema } from "./planning.js";
+import { AuditWorkflowStatusSchema } from "./audit.js";
+import {
+  PlanRunModeSchema,
+  PlanRunStatusSchema,
+  ProjectKeySchema,
+  WorkItemIdSchema,
+  WorkItemPrioritySchema,
+  WorkItemStatusSchema
+} from "./planning.js";
 
 export const ReviewLaneIdSchema = z.enum(["context", "docs", "implementation", "risks", "tests", "validation"]);
 export const CodeReviewPullRequestStateSchema = z.enum(["CLOSED", "MERGED", "OPEN"]);
@@ -22,6 +30,59 @@ export const CodeReviewActorSchema = z.object({
 export const CodeReviewPlanContextSchema = z.object({
   source: CodeReviewPlanContextSourceSchema,
   url: z.url(),
+  workItemId: WorkItemIdSchema
+});
+
+export const CodeReviewChecklistProgressSchema = z.object({
+  completeCount: z.int().nonnegative(),
+  pendingCount: z.int().nonnegative(),
+  totalCount: z.int().nonnegative()
+});
+
+export const CodeReviewPlanRunSummarySchema = z.object({
+  completedStepCount: z.int().nonnegative(),
+  currentStepTitle: z.string().min(1).optional(),
+  mode: PlanRunModeSchema,
+  status: PlanRunStatusSchema,
+  summary: z.string().min(1),
+  totalStepCount: z.int().nonnegative()
+});
+
+export const CodeReviewLinkedWorkItemSchema = z.object({
+  acceptanceCriteria: CodeReviewChecklistProgressSchema,
+  latestPlanRun: CodeReviewPlanRunSummarySchema.optional(),
+  owner: z.string().min(1).optional(),
+  priority: WorkItemPrioritySchema,
+  projectKey: ProjectKeySchema,
+  status: WorkItemStatusSchema,
+  summary: z.string().min(1),
+  targetIteration: z.string().min(1).optional(),
+  tasks: CodeReviewChecklistProgressSchema,
+  title: z.string().min(1),
+  workItemId: WorkItemIdSchema
+});
+
+export const CodeReviewAuditRunSummarySchema = z.object({
+  durationMs: z.number().int().nonnegative().optional(),
+  executionCount: z.number().int().nonnegative(),
+  failureCount: z.number().int().nonnegative(),
+  latestEventAt: z.iso.datetime().optional(),
+  runId: z.string().min(1),
+  startedAt: z.iso.datetime(),
+  status: AuditWorkflowStatusSchema,
+  workflow: z.string().min(1)
+});
+
+export const CodeReviewAuditEvidenceSchema = z.object({
+  activeAgents: z.array(z.string().min(1)),
+  artifactCount: z.number().int().nonnegative(),
+  decisionCount: z.number().int().nonnegative(),
+  failureCount: z.number().int().nonnegative(),
+  handoffCount: z.number().int().nonnegative(),
+  latestEventAt: z.iso.datetime().optional(),
+  recentRuns: z.array(CodeReviewAuditRunSummarySchema),
+  runCount: z.number().int().nonnegative(),
+  workflows: z.array(z.string().min(1)),
   workItemId: WorkItemIdSchema
 });
 
@@ -102,11 +163,14 @@ export const CodeReviewPullRequestSummarySchema = z.object({
 });
 
 export const CodeReviewPullRequestDetailSchema = CodeReviewPullRequestSummarySchema.extend({
+  auditEvidence: CodeReviewAuditEvidenceSchema.optional(),
   body: z.string(),
   checks: z.array(CodeReviewCheckSchema),
+  evidenceWarnings: z.array(z.string().min(1)).optional(),
   lanes: z.array(ReviewLaneSchema).min(1),
   mergeStateStatus: z.string().min(1),
   narrative: CodeReviewNarrativeSchema,
+  planningWorkItem: CodeReviewLinkedWorkItemSchema.optional(),
   stats: CodeReviewPullRequestStatsSchema,
   trustStatement: z.string().min(1)
 });
@@ -123,14 +187,19 @@ export const CodeReviewWorkspaceSchema = z.object({
 });
 
 export type CodeReviewActor = z.infer<typeof CodeReviewActorSchema>;
+export type CodeReviewAuditEvidence = z.infer<typeof CodeReviewAuditEvidenceSchema>;
+export type CodeReviewAuditRunSummary = z.infer<typeof CodeReviewAuditRunSummarySchema>;
 export type CodeReviewChangedFile = z.infer<typeof CodeReviewChangedFileSchema>;
 export type CodeReviewCheck = z.infer<typeof CodeReviewCheckSchema>;
+export type CodeReviewChecklistProgress = z.infer<typeof CodeReviewChecklistProgressSchema>;
 export type CodeReviewFileChangeType = z.infer<typeof CodeReviewFileChangeTypeSchema>;
 export type CodeReviewFileExplanation = z.infer<typeof CodeReviewFileExplanationSchema>;
+export type CodeReviewLinkedWorkItem = z.infer<typeof CodeReviewLinkedWorkItemSchema>;
 export type CodeReviewNarrative = z.infer<typeof CodeReviewNarrativeSchema>;
 export type CodeReviewNarrativeSection = z.infer<typeof CodeReviewNarrativeSectionSchema>;
 export type CodeReviewPlanContext = z.infer<typeof CodeReviewPlanContextSchema>;
 export type CodeReviewPlanContextSource = z.infer<typeof CodeReviewPlanContextSourceSchema>;
+export type CodeReviewPlanRunSummary = z.infer<typeof CodeReviewPlanRunSummarySchema>;
 export type CodeReviewPullRequestDetail = z.infer<typeof CodeReviewPullRequestDetailSchema>;
 export type CodeReviewPullRequestState = z.infer<typeof CodeReviewPullRequestStateSchema>;
 export type CodeReviewPullRequestStats = z.infer<typeof CodeReviewPullRequestStatsSchema>;

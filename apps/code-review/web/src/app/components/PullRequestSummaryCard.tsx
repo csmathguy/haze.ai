@@ -34,7 +34,11 @@ export function PullRequestSummaryCard({ isSelected, onSelect, pullRequest }: Pu
           {pullRequest.author.name ?? pullRequest.author.login} · {pullRequest.headRefName} → {pullRequest.baseRefName}
         </Typography>
         <Stack direction="row" flexWrap="wrap" gap={1}>
-          {pullRequest.linkedPlan === undefined ? null : <Chip label={pullRequest.linkedPlan.workItemId} size="small" variant="outlined" />}
+          {pullRequest.linkedPlan === undefined ? (
+            <Chip color="warning" label="Needs plan link" size="small" variant="outlined" />
+          ) : (
+            <Chip label={pullRequest.linkedPlan.workItemId} size="small" variant="outlined" />
+          )}
           <Chip label={new Date(pullRequest.updatedAt).toLocaleString()} size="small" variant="outlined" />
         </Stack>
         <Button

@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { PlanningWorkspace } from "@taxes/shared";
+import type { PlanningWorkspace, WorkItem } from "@taxes/shared";
 
 import { buildApp } from "./app.js";
 import type { TestPlanningContext } from "./test/database.js";
@@ -9,6 +9,10 @@ import { createTestPlanningContext } from "./test/database.js";
 
 interface PlanningWorkspaceResponse {
   workspace: PlanningWorkspace;
+}
+
+interface WorkItemResponse {
+  workItem: WorkItem;
 }
 
 describe("plan buildApp", () => {
@@ -135,6 +139,42 @@ describe("plan buildApp", () => {
     expect(createdItem?.planRuns[0]?.steps).toHaveLength(3);
     expect(createdItem?.tasks).toHaveLength(3);
     expect(payload.workspace.summary.totalItems).toBe(1);
+
+    await app.close();
+  });
+
+  it("returns a single work item by id", async () => {
+    const workspace = await createTestPlanningContext("plan-build-app-detail");
+    workspaces.push(workspace);
+    const app = await buildApp(workspace);
+    const createResponse = await app.inject({
+      method: "POST",
+      payload: {
+        kind: "feature",
+        priority: "high",
+        projectKey: "code-review",
+        summary: "Add a stronger human trust gate to code review.",
+        tasks: ["Define the trust contract", "Expose the reviewer evidence surface"],
+        title: "Trust gate evidence surface"
+      },
+      url: "/api/planning/work-items"
+    });
+    const createdPayload: WorkItemResponse = createResponse.json();
+
+    const detailResponse = await app.inject({
+      method: "GET",
+      url: `/api/planning/work-items/${createdPayload.workItem.id}`
+    });
+    const detailPayload: WorkItemResponse = detailResponse.json();
+
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailPayload.workItem).toEqual(
+      expect.objectContaining({
+        id: createdPayload.workItem.id,
+        projectKey: "code-review",
+        title: "Trust gate evidence surface"
+      })
+    );
 
     await app.close();
   });

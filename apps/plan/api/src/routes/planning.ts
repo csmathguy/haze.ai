@@ -14,6 +14,7 @@ import {
   createPlanningProject,
   createWorkItem,
   getNextWorkItem,
+  getWorkItemById,
   getPlanningWorkspace,
   PlanningConflictError,
   PlanningNotFoundError,
@@ -23,10 +24,18 @@ import {
 } from "../services/planning.js";
 
 export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPersistenceOptions = {}): void {
+  registerWorkspaceRoute(app, options);
+  registerProjectRoutes(app, options);
+  registerWorkItemRoutes(app, options);
+}
+
+function registerWorkspaceRoute(app: FastifyInstance, options: PlanningPersistenceOptions): void {
   app.get("/api/planning/workspace", async () => ({
     workspace: await getPlanningWorkspace(options)
   }));
+}
 
+function registerProjectRoutes(app: FastifyInstance, options: PlanningPersistenceOptions): void {
   app.post("/api/planning/projects", async (request, reply) => {
     try {
       const input = readBody(request.body, CreatePlanningProjectInputSchema);
@@ -38,7 +47,9 @@ export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPe
       return sendDomainError(reply, error);
     }
   });
+}
 
+function registerWorkItemRoutes(app: FastifyInstance, options: PlanningPersistenceOptions): void {
   app.post("/api/planning/work-items", async (request, reply) => {
     try {
       const input = readBody(request.body, CreateWorkItemInputSchema);
@@ -57,6 +68,23 @@ export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPe
       return {
         workItem: await getNextWorkItem(input, options)
       };
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  app.get("/api/planning/work-items/:workItemId", async (request, reply) => {
+    try {
+      const workItem = await getWorkItemById((request.params as { workItemId: string }).workItemId, options);
+
+      if (workItem === null) {
+        reply.code(404);
+        return {
+          error: "Planning work item not found."
+        };
+      }
+
+      return { workItem };
     } catch (error) {
       return sendDomainError(reply, error);
     }

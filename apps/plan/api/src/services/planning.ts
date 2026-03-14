@@ -68,6 +68,20 @@ export async function getPlanningWorkspace(options: PlanningPersistenceOptions =
   });
 }
 
+export async function getWorkItemById(workItemId: string, options: PlanningPersistenceOptions = {}): Promise<WorkItem | null> {
+  const prisma = await getPrismaClient(options.databaseUrl);
+  await ensureDefaultProjects(prisma);
+
+  const record = await prisma.planWorkItem.findUnique({
+    include: PLAN_WORK_ITEM_INCLUDE,
+    where: {
+      id: workItemId
+    }
+  });
+
+  return record === null ? null : mapWorkItem(record);
+}
+
 export async function createPlanningProject(
   input: CreatePlanningProjectDraftInput,
   options: PlanningPersistenceOptions = {}

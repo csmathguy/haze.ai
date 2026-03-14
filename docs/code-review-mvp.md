@@ -61,6 +61,8 @@ The MVP should not yet:
 - Add a guided walkthrough deck that advances lane by lane and keeps the reviewer anchored on the current checkpoint.
 - Keep tests and validation separate from production-code detail, and split test evidence by unit, integration, and end-to-end slices when possible.
 - Keep PR summary, linked planning context, and changed-file lanes visible without leaving the review surface.
+- Treat the right-rail trust gate as a human decision cockpit: show review coverage, planning lineage, audit evidence, validation posture, and the current follow-up queue in one place.
+- Use lightweight motivational cues such as checkpoint coverage, readiness badges, and evidence milestones, but avoid speed pressure, score chasing, or reviewer-vs-reviewer comparisons.
 - Show inline file diffs with file-level explanation, rationale, and review-focus prompts beside the selected file.
 - Allow a local notebook for confidence notes and follow-up capture, but do not persist those notes beyond the current browser session in the MVP.
 

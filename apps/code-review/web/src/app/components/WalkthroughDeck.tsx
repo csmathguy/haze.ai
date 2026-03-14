@@ -19,6 +19,7 @@ import {
   type ReviewNotebook,
   type ReviewNotebookEntry
 } from "../walkthrough.js";
+import { buildLaneNarrativePresentation } from "../pull-request-story.js";
 import { FileDiffExplorer } from "./FileDiffExplorer.js";
 import { ReviewNotebookPanel } from "./ReviewNotebookPanel.js";
 import { SelectionRail, type SelectionRailItem } from "./SelectionRail.js";
@@ -76,6 +77,7 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
           activeSection={activeSection}
           laneCount={orderedLanes.length}
           onUpdateEntry={updateEntry}
+          pullRequest={pullRequest}
           trustSummary={trustSummary}
         />
       </Stack>
@@ -196,6 +198,7 @@ function WalkthroughBody({
   activeSection,
   laneCount,
   onUpdateEntry,
+  pullRequest,
   trustSummary
 }: {
   readonly activeEntry: ReviewNotebookEntry;
@@ -204,6 +207,7 @@ function WalkthroughBody({
   readonly activeSection: ReturnType<typeof getSelectedSection>;
   readonly laneCount: number;
   readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
+  readonly pullRequest: CodeReviewPullRequestDetail;
   readonly trustSummary: ReturnType<typeof buildTrustSummary>;
 }) {
   const laneSections = buildLaneSections(activeLane);
@@ -216,6 +220,7 @@ function WalkthroughBody({
     <Grid container spacing={2}>
       <Grid size={{ lg: 8, xs: 12 }}>
         <WalkthroughContentColumn
+          pullRequest={pullRequest}
           activeLane={activeLane}
           activeSectionTitle={activeSection.title}
           fileItems={fileItems}
@@ -242,6 +247,7 @@ function WalkthroughBody({
 }
 
 function WalkthroughContentColumn({
+  pullRequest,
   activeLane,
   activeSectionTitle,
   fileItems,
@@ -249,6 +255,7 @@ function WalkthroughContentColumn({
   onUpdateEntry,
   selectedFilePath
 }: {
+  readonly pullRequest: CodeReviewPullRequestDetail;
   readonly activeLane: ReviewLane;
   readonly activeSectionTitle: string;
   readonly fileItems: SelectionRailItem[];
@@ -258,7 +265,7 @@ function WalkthroughContentColumn({
 }) {
   return (
     <Stack spacing={2}>
-      <LaneNarrativePanel lane={activeLane} />
+      <LaneNarrativePanel lane={activeLane} pullRequest={pullRequest} />
       {laneSections.length > 1 ? (
         <SelectionRail
           activeTitle={activeSectionTitle}
@@ -331,7 +338,15 @@ function resolveLaneButtonIcon(status: ReviewCheckpointStatus) {
   return <AutoStoriesOutlinedIcon />;
 }
 
-function LaneNarrativePanel({ lane }: { readonly lane: ReviewLane }) {
+function LaneNarrativePanel({
+  lane,
+  pullRequest
+}: {
+  readonly lane: ReviewLane;
+  readonly pullRequest: CodeReviewPullRequestDetail;
+}) {
+  const narrative = buildLaneNarrativePresentation(pullRequest, lane);
+
   return (
     <Paper
       sx={(theme) => ({
@@ -340,17 +355,26 @@ function LaneNarrativePanel({ lane }: { readonly lane: ReviewLane }) {
       })}
       variant="outlined"
     >
-      <Grid container spacing={2}>
+      <Stack spacing={2}>
+        <Stack spacing={0.75}>
+          <Typography variant="subtitle2">{lane.title} story</Typography>
+          <Typography variant="body2">{lane.summary}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            Reviewer goal: {lane.reviewerGoal}
+          </Typography>
+        </Stack>
+        <Grid container spacing={2}>
         <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={lane.highlights} title="Highlights" />
+          <NarrativeBlock items={narrative.highlights} title="What to notice" />
         </Grid>
         <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={lane.questions} title="Questions" />
+          <NarrativeBlock items={narrative.questions} title="What to confirm" />
         </Grid>
         <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={lane.evidence} title="Evidence" />
+          <NarrativeBlock items={narrative.evidence} title="Signals" />
         </Grid>
-      </Grid>
+        </Grid>
+      </Stack>
     </Paper>
   );
 }
@@ -359,11 +383,17 @@ function NarrativeBlock({ items, title }: { readonly items: string[]; readonly t
   return (
     <Stack spacing={1}>
       <Typography variant="subtitle2">{title}</Typography>
-      {items.map((item) => (
-        <Typography key={item} variant="body2">
-          {item}
+      {items.length === 0 ? (
+        <Typography color="text.secondary" variant="body2">
+          No additional signal has been attached for this area yet.
         </Typography>
-      ))}
+      ) : (
+        items.map((item) => (
+          <Typography key={`${title}-${item}`} variant="body2">
+            {item}
+          </Typography>
+        ))
+      )}
     </Stack>
   );
 }

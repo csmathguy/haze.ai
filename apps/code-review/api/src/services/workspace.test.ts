@@ -74,6 +74,151 @@ describe("createCodeReviewService", () => {
     expect(cachedDetail.title).toBe(firstDetail.title);
   });
 
+  it("enriches linked pull request detail with planning and audit evidence", async () => {
+    const cacheRoot = await createCacheRoot();
+    const gateway = createGateway();
+    const service = createCodeReviewService({
+      auditGateway: {
+        getWorkItemTimeline: () =>
+          Promise.resolve({
+            artifacts: [],
+            decisions: [],
+            events: [],
+            failures: [],
+            handoffs: [],
+            runs: [
+              {
+                actor: "codex",
+                artifactCount: 0,
+                decisionCount: 0,
+                durationMs: 12000,
+                executionCount: 4,
+                failedExecutionCount: 0,
+                failureCount: 0,
+                handoffCount: 0,
+                latestEventAt: "2026-03-14T16:18:00.000Z",
+                runId: "2026-03-14T161700-000-implementation-abcd1234",
+                startedAt: "2026-03-14T16:17:00.000Z",
+                stats: {
+                  byKind: {},
+                  byStatus: {},
+                  executionCount: 4,
+                  failedExecutionCount: 0
+                },
+                status: "success",
+                workflow: "implementation",
+                worktreePath: "C:/Users/csmat/source/repos/Taxes/.worktrees/plan-29-pr-cache"
+              }
+            ],
+            summary: {
+              activeAgents: ["codex"],
+              artifactCount: 0,
+              decisionCount: 0,
+              executionCount: 4,
+              failureCount: 0,
+              handoffCount: 0,
+              latestEventAt: "2026-03-14T16:18:00.000Z",
+              runCount: 1,
+              workflows: ["implementation"]
+            },
+            workItemId: "PLAN-29"
+          })
+      },
+      cacheStore: createFileCodeReviewCacheStore(cacheRoot),
+      gateway,
+      planningGateway: {
+        getWorkItem: () =>
+          Promise.resolve({
+            acceptanceCriteria: [
+              {
+                id: "criterion-1",
+                sequence: 0,
+                status: "passed",
+                title: "PR detail renders plan context."
+              }
+            ],
+            auditWorkflowRunId: "2026-03-14T161700-000-implementation-abcd1234",
+            blockedByWorkItemIds: [],
+            createdAt: "2026-03-14T16:00:00.000Z",
+            id: "PLAN-29",
+            kind: "feature",
+            owner: "codex",
+            planRuns: [
+              {
+                createdAt: "2026-03-14T16:01:00.000Z",
+                id: "plan-run-1",
+                mode: "single-agent",
+                status: "executing",
+                steps: [
+                  {
+                    id: "step-1",
+                    phase: "design",
+                    sequence: 0,
+                    status: "done",
+                    title: "Design the contract"
+                  },
+                  {
+                    id: "step-2",
+                    phase: "implementation",
+                    sequence: 1,
+                    status: "in-progress",
+                    title: "Implement the trust gate"
+                  }
+                ],
+                summary: "Build the trust gate contract.",
+                updatedAt: "2026-03-14T16:05:00.000Z"
+              }
+            ],
+            priority: "high",
+            projectKey: "code-review",
+            status: "in-progress",
+            summary: "Enrich code review with planning and audit evidence.",
+            tasks: [
+              {
+                id: "task-1",
+                sequence: 0,
+                status: "done",
+                title: "Add the planning endpoint"
+              },
+              {
+                id: "task-2",
+                sequence: 1,
+                status: "todo",
+                title: "Add the trust panel"
+              }
+            ],
+            title: "Trust gate workspace with planning and audit evidence",
+            updatedAt: "2026-03-14T16:06:00.000Z"
+          })
+      }
+    });
+
+    const detail = await service.getPullRequestDetail(29);
+
+    expect(detail.planningWorkItem).toEqual(
+      expect.objectContaining({
+        owner: "codex",
+        status: "in-progress",
+        tasks: {
+          completeCount: 1,
+          pendingCount: 1,
+          totalCount: 2
+        },
+        workItemId: "PLAN-29"
+      })
+    );
+    expect(detail.auditEvidence).toEqual(
+      expect.objectContaining({
+        activeAgents: ["codex"],
+        failureCount: 0,
+        runCount: 1,
+        workflows: ["implementation"],
+        workItemId: "PLAN-29"
+      })
+    );
+    expect(detail.evidenceWarnings).toBeUndefined();
+  });
+
   it("raises a refresh error when GitHub fails and no cache exists yet", async () => {
     const cacheRoot = await createCacheRoot();
     const gateway = createGateway();
