@@ -131,25 +131,26 @@ function useCodeReviewController() {
   };
 }
 
+function clampDrawerWidth(width: number): number {
+  if (typeof window === "undefined") {
+    return width;
+  }
+
+  const maxWidth = Math.max(MIN_DRAWER_WIDTH, window.innerWidth - VIEWPORT_MARGIN);
+  return Math.max(MIN_DRAWER_WIDTH, Math.min(maxWidth, width));
+}
+
 function useResizableDrawer(isDesktop: boolean) {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(DEFAULT_DRAWER_WIDTH);
 
-  const clampWidth = useEffectEvent((width: number) => {
-    if (typeof window === "undefined") {
-      return width;
-    }
-
-    const maxWidth = Math.max(MIN_DRAWER_WIDTH, window.innerWidth - VIEWPORT_MARGIN);
-    return Math.max(MIN_DRAWER_WIDTH, Math.min(maxWidth, width));
-  });
   const stopResize = useEffectEvent(() => {
     window.removeEventListener("mousemove", handleResize);
     window.removeEventListener("mouseup", stopResize);
   });
   const handleResize = useEffectEvent((event: MouseEvent) => {
-    setDrawerWidth(clampWidth(resizeStartWidthRef.current + (resizeStartXRef.current - event.clientX)));
+    setDrawerWidth(clampDrawerWidth(resizeStartWidthRef.current + (resizeStartXRef.current - event.clientX)));
   });
 
   useEffect(() => {
@@ -158,7 +159,7 @@ function useResizableDrawer(isDesktop: boolean) {
     }
 
     const handleWindowResize = () => {
-      setDrawerWidth((currentWidth) => clampWidth(currentWidth));
+      setDrawerWidth((currentWidth) => clampDrawerWidth(currentWidth));
     };
 
     handleWindowResize();
@@ -168,7 +169,7 @@ function useResizableDrawer(isDesktop: boolean) {
       window.removeEventListener("resize", handleWindowResize);
       stopResize();
     };
-  }, [clampWidth, isDesktop, stopResize]);
+  }, [isDesktop, stopResize]);
 
   function startResize(event: ReactMouseEvent<HTMLButtonElement>) {
     if (!isDesktop) {
