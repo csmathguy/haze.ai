@@ -18,6 +18,8 @@ async function main(): Promise<void> {
     throw new Error(`Worktree already exists at ${plan.worktreePath}`);
   }
 
+  const freshnessWarnings = checkSharedPackageFreshness(repoRoot, plan.baseRef);
+
   if (!plan.dryRun) {
     execFileSync("git", ["worktree", "add", plan.worktreePath, "-b", plan.branchName, plan.baseRef], {
       cwd: repoRoot,
@@ -30,6 +32,7 @@ async function main(): Promise<void> {
     await writeFile(plan.localBriefPath, `${renderParallelTaskBrief(plan)}\n`, "utf8");
   }
 
+  plan.warnings.push(...freshnessWarnings);
   process.stdout.write(`${formatSummary(plan)}\n`);
 }
 
@@ -82,6 +85,40 @@ function formatSummary(plan: ReturnType<typeof createParallelTaskPlan>): string 
   lines.push("- Use $parallel-work-implementer inside that worktree.");
 
   return lines.join("\n");
+}
+
+function checkSharedPackageFreshness(repoRoot: string, baseRef: string): string[] {
+  try {
+    const baseCommit = execFileSync("git", ["rev-parse", baseRef], {
+      cwd: repoRoot,
+      encoding: "utf8"
+    }).trim();
+
+    const diverged = execFileSync(
+      "git",
+      ["log", `${baseCommit}..origin/main`, "--oneline", "--", "packages/"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8"
+      }
+    )
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (diverged.length > 0) {
+      return [
+        `origin/main has ${String(diverged.length)} commit(s) to packages/ not in ${baseRef}. Merge main before pushing to avoid schema version mismatches:`,
+        ...diverged.map((c) => `  ${c}`),
+        `  Run: git merge origin/main`
+      ];
+    }
+
+    return [];
+  } catch {
+    // Non-fatal: skip freshness check if git commands fail (e.g. no origin)
+    return [];
+  }
 }
 
 void main().catch((error: unknown) => {

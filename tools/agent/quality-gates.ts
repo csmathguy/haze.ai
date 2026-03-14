@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import {
   appendAuditEvent,
   type AuditSummary,
@@ -28,6 +30,7 @@ async function main(): Promise<void> {
 }
 
 async function executeSteps(workflow: string, run: InitializedRun, withCoverage: boolean): Promise<boolean> {
+  warnIfSharedPackagesStale();
   const npmCommand = resolveNpmCommand();
   const steps = [
     { args: ["run", "prisma:check"], command: npmCommand, step: "prisma-check" },
@@ -206,6 +209,33 @@ function parseArgs(rawArgs: string[]): ParsedArgs {
   }
 
   return parsed;
+}
+
+function warnIfSharedPackagesStale(): void {
+  try {
+    const diverged = execFileSync(
+      "git",
+      ["log", "HEAD..origin/main", "--oneline", "--", "packages/"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8"
+      }
+    )
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (diverged.length > 0) {
+      process.stderr.write(
+        `[quality-gates] WARNING: origin/main has ${String(diverged.length)} commit(s) to packages/ not in HEAD.\n` +
+          `[quality-gates] Merge main before pushing to avoid schema version mismatches.\n` +
+          `[quality-gates]   Run: git merge origin/main\n` +
+          diverged.map((c) => `[quality-gates]   ${c}\n`).join("")
+      );
+    }
+  } catch {
+    // Non-fatal: skip freshness check if git commands fail (e.g. no remote)
+  }
 }
 
 void main().catch((error: unknown) => {
