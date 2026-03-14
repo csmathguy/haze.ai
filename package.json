@@ -36,6 +36,7 @@
     "dev:knowledge:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/knowledge-web",
     "dev:env": "node ./node_modules/tsx/dist/cli.mjs tools/agent/dev-environment.ts start",
     "dev:env:list": "node ./node_modules/tsx/dist/cli.mjs tools/agent/dev-environment.ts list",
+    "repo:refresh": "node ./node_modules/tsx/dist/cli.mjs tools/agent/refresh-workspace.ts",
     "dev:plan:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-api",
     "dev:plan:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-web",
     "dev:taxes:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/api",

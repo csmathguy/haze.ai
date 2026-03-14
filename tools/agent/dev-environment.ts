@@ -5,10 +5,12 @@ import * as path from "node:path";
 
 import {
   appendAuditEvent,
+  clearActiveRun,
   createEvent,
   createRunId,
   createWorkflowSummary,
   ensureAuditPaths,
+  setActiveRun,
   slugify,
   writeSummary,
   type AuditPaths,
@@ -91,13 +93,32 @@ async function runDevelopmentEnvironment(plan: DevEnvironmentPlan): Promise<void
     summary,
     workflow
   };
+  const launched: LaunchedService[] = [];
 
   await initializeAuditRun(context, plan);
 
-  const launched = await launchServices(context, plan);
-  const exitCode = await waitForShutdown(context, plan, launched);
+  try {
+    await launchServices(context, plan, launched);
+    const exitCode = await waitForShutdown(context, plan, launched);
 
-  process.exitCode = exitCode;
+    process.exitCode = exitCode;
+  } catch (error) {
+    stopServices(launched.map((service) => service.child));
+    await Promise.allSettled(launched.map((service) => service.completion));
+    await finalizeAuditRun({
+      metadata: {
+        checkout: plan.checkout,
+        environments: plan.environments.map((environment) => environment.id),
+        error: error instanceof Error ? error.message : String(error)
+      },
+      paths: context.paths,
+      runId: context.runId,
+      status: "failed",
+      summary: context.summary,
+      workflow: context.workflow
+    });
+    throw error;
+  }
 }
 
 async function initializeAuditRun(context: AuditRunContext, plan: DevEnvironmentPlan): Promise<void> {
@@ -119,11 +140,16 @@ async function initializeAuditRun(context: AuditRunContext, plan: DevEnvironment
     context.paths,
     startEvent
   );
+  await writeSummary(context.paths, context.summary);
+  await setActiveRun(context.workflow, context.runId, context.summary.task);
 }
 
-async function launchServices(context: AuditRunContext, plan: DevEnvironmentPlan): Promise<LaunchedService[]> {
+async function launchServices(
+  context: AuditRunContext,
+  plan: DevEnvironmentPlan,
+  launched: LaunchedService[]
+): Promise<void> {
   const npmCommand = resolveNpmCommand();
-  const launched: LaunchedService[] = [];
 
   process.stdout.write(`${renderDevEnvironmentPlan(plan)}\n`);
   process.stdout.write(`Audit Run: ${context.runId}\n`);
@@ -170,8 +196,6 @@ async function launchServices(context: AuditRunContext, plan: DevEnvironmentPlan
       service
     });
   }
-
-  return launched;
 }
 
 async function waitForLaunchedService(service: DevServiceLaunchPlan, completion: Promise<ServiceExit>): Promise<void> {
@@ -315,15 +339,19 @@ async function finalizeAuditRun(input: {
   input.summary.durationMs = Date.parse(completedAt) - Date.parse(input.summary.startedAt);
   input.summary.status = input.status;
 
-  await appendAuditEvent(
-    input.paths,
-    createEvent(input.runId, input.workflow, "workflow-end", {
-      metadata: input.metadata,
-      status: input.status
-    })
-  );
+  try {
+    await appendAuditEvent(
+      input.paths,
+      createEvent(input.runId, input.workflow, "workflow-end", {
+        metadata: input.metadata,
+        status: input.status
+      })
+    );
 
-  await writeSummary(input.paths, input.summary);
+    await writeSummary(input.paths, input.summary);
+  } finally {
+    await clearActiveRun(input.workflow);
+  }
 }
 
 function isCommandName(value: string | undefined): value is CommandName {

@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 
 import { PLAN_API_HOST } from "./config.js";
 import { disconnectPrismaClient } from "./db/client.js";
+import { registerHealthRoutes } from "./routes/health.js";
 import { registerPlanningRoutes } from "./routes/planning.js";
 import type { PlanningPersistenceOptions } from "./services/context.js";
 
@@ -17,6 +18,7 @@ export async function buildApp(options: PlanningPersistenceOptions = {}) {
   app.addHook("onClose", async () => {
     await disconnectPrismaClient(options.databaseUrl);
   });
+  registerHealthRoutes(app);
   registerPlanningRoutes(app, options);
 
   return app;

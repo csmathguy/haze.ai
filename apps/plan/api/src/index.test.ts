@@ -18,6 +18,25 @@ describe("plan buildApp", () => {
     await Promise.all(workspaces.splice(0, workspaces.length).map(async (workspace) => workspace.cleanup()));
   });
 
+  it("exposes a local-only health endpoint", async () => {
+    const workspace = await createTestPlanningContext("plan-build-app-health");
+    workspaces.push(workspace);
+    const app = await buildApp(workspace);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/health"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      localOnly: true,
+      service: "plan",
+      status: "ok"
+    });
+
+    await app.close();
+  });
+
   it("returns an empty planning workspace snapshot", async () => {
     const workspace = await createTestPlanningContext("plan-build-app-empty");
     workspaces.push(workspace);

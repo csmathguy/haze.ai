@@ -3,6 +3,7 @@ import Fastify from "fastify";
 
 import { KNOWLEDGE_API_HOST } from "./config.js";
 import { disconnectKnowledgePrismaClient } from "./db/client.js";
+import { registerHealthRoutes } from "./routes/health.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import type { KnowledgePersistenceOptions } from "./services/context.js";
 
@@ -17,6 +18,7 @@ export async function buildApp(options: KnowledgePersistenceOptions = {}) {
   app.addHook("onClose", async () => {
     await disconnectKnowledgePrismaClient(options.databaseUrl);
   });
+  registerHealthRoutes(app);
   registerKnowledgeRoutes(app, options);
 
   return app;
