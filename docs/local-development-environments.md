@@ -71,6 +71,7 @@ PM2 supports declaring multiple applications with per-app `cwd`, `script`, and w
 - The launcher writes service logs into ignored audit artifact paths.
 - The launcher records a structured audit run for each environment session.
 - If the main checkout does not have dependencies installed, the launcher fails fast and tells you to run `npm install` there.
+- Prisma-backed API watch scripts exclude generated Prisma client directories under `node_modules` so `npm install` or `npm run prisma:generate` does not tear down running local APIs during client regeneration.
 - Use `Ctrl+C` to stop the whole environment session.
 
 ## Future Seam
