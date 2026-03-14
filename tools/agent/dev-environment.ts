@@ -22,7 +22,8 @@ import {
   pipePrefixedOutput,
   resolveMainCheckoutRoot,
   sanitizeEnv,
-  stopServices
+  stopServices,
+  waitForServiceHealth
 } from "./lib/dev-environment-runtime.js";
 import {
   createDevEnvironmentPlan,
@@ -159,6 +160,7 @@ async function launchServices(context: AuditRunContext, plan: DevEnvironmentPlan
       output,
       service
     });
+    await waitForLaunchedService(service, completion);
 
     launched.push({
       child,
@@ -170,6 +172,24 @@ async function launchServices(context: AuditRunContext, plan: DevEnvironmentPlan
   }
 
   return launched;
+}
+
+async function waitForLaunchedService(service: DevServiceLaunchPlan, completion: Promise<ServiceExit>): Promise<void> {
+  if (service.healthUrl === undefined) {
+    return;
+  }
+
+  await Promise.race([
+    waitForServiceHealth({
+      healthUrl: service.healthUrl,
+      serviceLabel: service.label
+    }),
+    completion.then((exit) => {
+      throw new Error(
+        `${service.id} exited before it became healthy (code: ${(exit.code ?? "null").toString()}, signal: ${exit.signal ?? "none"}).`
+      );
+    })
+  ]);
 }
 
 async function trackServiceCompletion(
