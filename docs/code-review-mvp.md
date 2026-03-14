@@ -58,8 +58,11 @@ The MVP should not yet:
 ### Web
 
 - Use a master-detail review-lane layout.
+- Add a guided walkthrough deck that advances lane by lane and keeps the reviewer anchored on the current checkpoint.
 - Keep tests and validation separate from production-code detail, and split test evidence by unit, integration, and end-to-end slices when possible.
 - Keep PR summary, linked planning context, and changed-file lanes visible without leaving the review surface.
+- Show inline file diffs with file-level explanation, rationale, and review-focus prompts beside the selected file.
+- Allow a local notebook for confidence notes and follow-up capture, but do not persist those notes beyond the current browser session in the MVP.
 
 ### Freshness
 
@@ -77,8 +80,8 @@ The MVP should not yet:
 
 ### Next
 
-- Interactive walkthrough
 - Freshness and repository context sync
+- Merge and approval workflow actions
 
 ### Later
 

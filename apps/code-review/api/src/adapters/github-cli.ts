@@ -44,7 +44,17 @@ export interface GitHubPullRequestListEntry {
 export interface GitHubPullRequestFile {
   readonly additions: number;
   readonly deletions: number;
+  readonly patch?: string;
   readonly path: string;
+  readonly status: "added" | "copied" | "deleted" | "modified" | "renamed" | "unknown";
+}
+
+interface GitHubPullRequestApiFile {
+  readonly additions: number;
+  readonly deletions: number;
+  readonly filename: string;
+  readonly patch?: string;
+  readonly status?: string;
 }
 
 export interface GitHubPullRequestReview {
@@ -91,7 +101,21 @@ export class GitHubCliPullRequestGateway implements GitHubPullRequestGateway {
   }
 
   async getPullRequest(pullRequestNumber: number): Promise<GitHubPullRequestDetail> {
-    return this.runJson<GitHubPullRequestDetail>(["pr", "view", pullRequestNumber.toString(), "--json", DETAIL_FIELDS]);
+    const [detail, repository] = await Promise.all([
+      this.runJson<GitHubPullRequestDetail>(["pr", "view", pullRequestNumber.toString(), "--json", DETAIL_FIELDS]),
+      this.getRepository()
+    ]);
+    const diffFiles = await this.runJson<GitHubPullRequestApiFile[]>([
+      "api",
+      `repos/${repository.owner}/${repository.name}/pulls/${pullRequestNumber.toString()}/files?per_page=100`,
+      "--header",
+      "Accept: application/vnd.github+json"
+    ]);
+
+    return {
+      ...detail,
+      files: mergePullRequestFiles(detail.files, diffFiles)
+    };
   }
 
   async getRepository(): Promise<GitHubRepositoryRef> {
@@ -149,4 +173,39 @@ function toGitHubCliError(error: unknown): Error {
   const message = error.message.includes("gh") ? error.message : `GitHub CLI request failed: ${error.message}`;
 
   return new Error(message);
+}
+
+function mergePullRequestFiles(files: GitHubPullRequestFile[], diffFiles: GitHubPullRequestApiFile[]): GitHubPullRequestFile[] {
+  const diffFilesByPath = new Map(diffFiles.map((file) => [normalizePath(file.filename), file]));
+
+  return files.map((file) => {
+    const normalizedPath = normalizePath(file.path);
+    const diffFile = diffFilesByPath.get(normalizedPath);
+
+    return {
+      additions: file.additions,
+      deletions: file.deletions,
+      ...(diffFile?.patch === undefined ? {} : { patch: diffFile.patch }),
+      path: normalizedPath,
+      status: normalizeFileStatus(diffFile?.status)
+    };
+  });
+}
+
+function normalizeFileStatus(status: string | undefined): GitHubPullRequestFile["status"] {
+  switch (status) {
+    case undefined:
+    case "added":
+    case "copied":
+    case "deleted":
+    case "modified":
+    case "renamed":
+      return status ?? "unknown";
+    default:
+      return "unknown";
+  }
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replaceAll("\\", "/");
 }

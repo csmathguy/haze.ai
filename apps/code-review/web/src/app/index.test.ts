@@ -61,7 +61,13 @@ describe("summarizeLaneEvidence", () => {
           {
             additions: 3,
             areaLabel: "code-review",
+            changeType: "modified",
             deletions: 1,
+            explanation: {
+              rationale: "Tests changed.",
+              reviewFocus: ["Inspect the assertions."],
+              summary: "Modified unit coverage."
+            },
             laneId: "tests",
             path: "apps/code-review/web/src/app/App.test.tsx",
             tags: ["test", "unit", "web"]

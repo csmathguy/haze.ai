@@ -11,10 +11,12 @@ import {
   formatTestSubtype,
   getTestSubtype,
   isRiskCandidate,
+  normalizeChangeType,
   sortFilesForLane,
   type NonRiskReviewLaneId,
   type TestSubtype
 } from "./pull-request-file-analysis.js";
+import { buildFileExplanation } from "./pull-request-file-explanation.js";
 
 export function classifyFiles(files: GitHubPullRequestDetail["files"]): CodeReviewChangedFile[] {
   return files.map((file) => {
@@ -23,8 +25,19 @@ export function classifyFiles(files: GitHubPullRequestDetail["files"]): CodeRevi
     return {
       additions: file.additions,
       areaLabel: createAreaLabel(normalizedPath),
+      changeType: normalizeChangeType(file.status),
       deletions: file.deletions,
+      explanation: buildFileExplanation({
+        additions: file.additions,
+        areaLabel: createAreaLabel(normalizedPath),
+        changeType: normalizeChangeType(file.status),
+        deletions: file.deletions,
+        laneId: classifyLane(normalizedPath),
+        path: normalizedPath,
+        tags: createTags(normalizedPath)
+      }),
       laneId: classifyLane(normalizedPath),
+      ...(file.patch === undefined ? {} : { patch: file.patch }),
       path: normalizedPath,
       tags: createTags(normalizedPath)
     };
@@ -38,7 +51,19 @@ export function buildReviewLanes(
 ): ReviewLane[] {
   const groupedFiles = groupFilesByLane(files);
   const riskFiles = sortFilesForLane(
-    files.filter(isRiskCandidate).map((file) => ({ ...file, laneId: "risks" as const })),
+    files.filter(isRiskCandidate).map((file) => ({
+      ...file,
+      explanation: buildFileExplanation({
+        additions: file.additions,
+        areaLabel: file.areaLabel,
+        changeType: file.changeType,
+        deletions: file.deletions,
+        laneId: "risks",
+        path: file.path,
+        tags: file.tags
+      }),
+      laneId: "risks" as const
+    })),
     "risks"
   );
 
