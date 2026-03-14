@@ -9,11 +9,10 @@ import { createCodeReviewService } from "./workspace.js";
 
 const cacheDirectories: string[] = [];
 
-afterEach(async () => {
-  await Promise.all(cacheDirectories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })));
-});
-
 describe("createCodeReviewService", () => {
+  afterEach(async () => {
+    await Promise.all(cacheDirectories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })));
+  });
   it("reuses a fresh cached workspace without refetching GitHub data", async () => {
     const cacheRoot = await createCacheRoot();
     const gateway = createGateway();

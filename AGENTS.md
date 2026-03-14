@@ -82,8 +82,8 @@ Copy `.claude/settings.json.example` to `.claude/settings.json` to activate Post
 linting hooks and pre-approved npm permissions. This avoids repeated approval prompts for
 safe commands and keeps formatting automatic.
 
-### Worktree Gap (Known Limitation)
+### Worktree Creation
 
-Fresh worktrees do not have their own `node_modules`. Run npm scripts from the main checkout
-(`/c/Users/csmat/source/repos/Taxes`) while doing file work in the worktree. Document this
-limitation in the nearest workflow doc when it blocks normal execution.
+Always create worktrees via `npm run agent:worktree:create` rather than raw `git worktree add`.
+The script creates the git worktree and then links `node_modules` from the main checkout into
+the worktree so pre-commit hooks and npm scripts work without a separate install step.

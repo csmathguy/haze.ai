@@ -114,7 +114,7 @@
     "vitest": "^4.0.18"
   },
   "simple-git-hooks": {
-    "pre-commit": "node tools/runtime/run-npm.cjs run quality:changed:staged",
+    "pre-commit": "node tools/runtime/pre-commit.cjs",
     "pre-push": "node tools/runtime/run-npm.cjs run quality:logged -- pre-push"
   }
 }

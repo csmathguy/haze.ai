@@ -63,6 +63,12 @@ CLAUDE_CODE_SUBAGENT_MODEL=claude-haiku-4-5-20251001 claude
 - Use `/btw` for side questions that should not accumulate in the main context.
 - Use `context: fork` in skill frontmatter for explorations that should stay isolated.
 
+### Worktree Creation
+
+Always create worktrees via `npm run agent:worktree:create` (not raw `git worktree add`).
+The script links `node_modules` from the main checkout into the new worktree automatically,
+so pre-commit hooks and npm scripts work immediately without a separate install step.
+
 ### Compaction Preservation Note
 
 When auto-compacting, always preserve:

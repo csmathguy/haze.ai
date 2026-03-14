@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, symlinkSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
@@ -24,11 +24,32 @@ async function main(): Promise<void> {
       stdio: "inherit"
     });
 
+    linkNodeModules(repoRoot, plan.worktreePath);
+
     await mkdir(path.dirname(plan.localBriefPath), { recursive: true });
     await writeFile(plan.localBriefPath, `${renderParallelTaskBrief(plan)}\n`, "utf8");
   }
 
   process.stdout.write(`${formatSummary(plan)}\n`);
+}
+
+function linkNodeModules(repoRoot: string, worktreePath: string): void {
+  const source = path.join(repoRoot, "node_modules");
+  const target = path.join(worktreePath, "node_modules");
+
+  if (!existsSync(source)) {
+    process.stderr.write(`[worktree] node_modules not found at ${source} — skipping junction. Run npm install in the main checkout first.\n`);
+    return;
+  }
+
+  if (existsSync(target)) {
+    return;
+  }
+
+  // On Windows, 'junction' links directories without requiring admin rights.
+  // On other platforms, the type argument is ignored and a regular symlink is created.
+  symlinkSync(source, target, "junction");
+  process.stdout.write(`[worktree] Linked node_modules: ${target} -> ${source}\n`);
 }
 
 function resolveRepoRoot(): string {

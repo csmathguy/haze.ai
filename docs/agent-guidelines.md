@@ -122,10 +122,30 @@ fetch results) does not accumulate in the main conversation. Use them for:
 
 Subagents cannot spawn other subagents. Only the main orchestrating thread can invoke them.
 
-## Current Worktree Gap
+## Worktree Creation
 
-- Fresh worktrees may not have their own `node_modules` tree, so git hooks and `npm run` wrappers can fail even when the shared root install exists.
-- Until the repo grows a worktree bootstrap or shared-toolchain wrapper for hooks, run npm scripts from the main checkout while doing file work in the worktree, and record that limitation in the nearest workflow doc when it blocks normal execution.
+Always create worktrees via the repo script rather than raw `git worktree add`:
+
+```bash
+npm run agent:worktree:create -- --task <task-id> --summary "<summary>" --scope <scope> [--base <ref>]
+```
+
+The script calls `git worktree add` and then creates a directory junction (Windows) or
+symlink (other platforms) from `<worktree>/node_modules` to the main checkout's
+`node_modules`. This means pre-commit hooks, `npm run` scripts, and `tsx`-based tools all
+work inside the worktree without a separate `npm install`.
+
+If `node_modules` does not yet exist in the main checkout when the worktree is created,
+the script will warn and skip the link. Run `npm install` in the main checkout and
+re-link manually with:
+
+```bash
+# Windows
+mklink /J <worktree>\node_modules <main-checkout>\node_modules
+
+# Unix
+ln -s <main-checkout>/node_modules <worktree>/node_modules
+```
 
 ## Execution Lifecycle
 
