@@ -46,6 +46,8 @@ tools/arch/   architecture rule configuration
 - `npm run quality`
 - `npm run quality:changed -- <files...>`
 - `npm run agent:worktree:create -- --task <id> --summary "<summary>" --scope <path>`
+- `npm run dev:env:list`
+- `npm run dev:env -- --environment <name>`
 - `node tools/runtime/run-npm.cjs run <script>` when the shell default Node version does not match `.nvmrc`
 - git hooks via `simple-git-hooks`:
   - `pre-commit`: changed-file guardrails

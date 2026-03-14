@@ -28,7 +28,7 @@ This follows the pattern described by `agents.md`: the nearest applicable file s
 
 ## Project Skills
 
-This repository defines nine local skills:
+This repository defines ten local skills:
 
 - `implementation-workflow`
   - use for implementation, refactor, testing, and architecture changes
@@ -46,6 +46,8 @@ This repository defines nine local skills:
   - use for external research, source comparison, documentation drafting input, and tax-law research planning
 - `knowledge-agent`
   - use for reading, writing, and synchronizing the local knowledge and long-term memory store
+- `local-development-environment`
+  - use for starting named repository web and API environments from the main checkout
 - `workflow-retrospective`
   - use for audit-backed retrospectives, workflow debriefs, and follow-up action capture under `artifacts/retrospectives`
 

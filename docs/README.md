@@ -12,6 +12,7 @@
 - `security-and-privacy.md`: local-only handling, storage, and redaction rules
 - `agent-guidelines.md`: AGENTS.md and skill patterns for this repository
 - `agent-observability.md`: audit logging, workflow wrappers, and command traces
+- `local-development-environments.md`: how to start named product environments from the main checkout
 - `parallel-agent-orchestration.md`: multi-agent slicing, worktree, and conflict-management guidance
 - `code-review-mvp.md`: local-first code-review workspace goals, shape, and MVP scope
 - `documentation-standards.md`: writing, organization, and citation rules for repo docs and skills

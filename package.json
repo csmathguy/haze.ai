@@ -34,6 +34,8 @@
     "dev:code-review:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/code-review-web",
     "dev:knowledge:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/knowledge-api",
     "dev:knowledge:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/knowledge-web",
+    "dev:env": "node ./node_modules/tsx/dist/cli.mjs tools/agent/dev-environment.ts start",
+    "dev:env:list": "node ./node_modules/tsx/dist/cli.mjs tools/agent/dev-environment.ts list",
     "dev:plan:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-api",
     "dev:plan:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-web",
     "dev:taxes:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/api",
