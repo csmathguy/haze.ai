@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, ReactElement, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from "react";
 import MergeTypeOutlinedIcon from "@mui/icons-material/MergeTypeOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import { Alert, Box, Chip, Container, Paper, Stack, Typography, useMediaQuery } from "@mui/material";
@@ -142,15 +142,14 @@ function clampDrawerWidth(width: number): number {
 
 function useResizableDrawer(isDesktop: boolean) {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
+  const pointerIdRef = useRef<number | null>(null);
+  const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(DEFAULT_DRAWER_WIDTH);
+  const stopResizeRef = useRef<(() => void) | null>(null);
 
   const stopResize = useEffectEvent(() => {
-    window.removeEventListener("mousemove", handleResize);
-    window.removeEventListener("mouseup", stopResize);
-  });
-  const handleResize = useEffectEvent((event: MouseEvent) => {
-    setDrawerWidth(clampDrawerWidth(resizeStartWidthRef.current + (resizeStartXRef.current - event.clientX)));
+    stopResizeRef.current?.();
   });
 
   useEffect(() => {
@@ -171,16 +170,55 @@ function useResizableDrawer(isDesktop: boolean) {
     };
   }, [isDesktop, stopResize]);
 
-  function startResize(event: ReactMouseEvent<HTMLButtonElement>) {
-    if (!isDesktop) {
+  function startResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!isDesktop || event.button !== 0) {
       return;
     }
 
     event.preventDefault();
+    const resizeHandle = event.currentTarget;
+
+    resizeHandleRef.current = resizeHandle;
+    pointerIdRef.current = event.pointerId;
     resizeStartXRef.current = event.clientX;
     resizeStartWidthRef.current = drawerWidth;
-    window.addEventListener("mousemove", handleResize);
-    window.addEventListener("mouseup", stopResize);
+
+    resizeHandle.setPointerCapture(event.pointerId);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setDrawerWidth(clampDrawerWidth(resizeStartWidthRef.current + (resizeStartXRef.current - moveEvent.clientX)));
+    };
+    const handlePointerUp = () => {
+      stopResizeRef.current?.();
+    };
+
+    stopResizeRef.current = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("blur", handlePointerUp);
+
+      if (
+        resizeHandleRef.current !== null &&
+        pointerIdRef.current !== null &&
+        resizeHandleRef.current.hasPointerCapture(pointerIdRef.current)
+      ) {
+        resizeHandleRef.current.releasePointerCapture(pointerIdRef.current);
+      }
+
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      pointerIdRef.current = null;
+      resizeHandleRef.current = null;
+      stopResizeRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    window.addEventListener("blur", handlePointerUp);
   }
 
   return {
