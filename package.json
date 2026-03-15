@@ -86,6 +86,7 @@
     "quality:logged:coverage": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts --with-coverage",
     "agent:heartbeat": "node ./node_modules/tsx/dist/cli.mjs tools/agent/heartbeat.ts",
     "agent:worktree:create": "node ./node_modules/tsx/dist/cli.mjs tools/agent/parallel-worktree.ts",
+    "agent:worktree:prune": "node ./node_modules/tsx/dist/cli.mjs tools/agent/worktree-prune.ts",
     "audit:progress": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-progress.ts",
     "audit:transcript:view": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-transcript.ts",
     "audit:artifact": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts artifact",
