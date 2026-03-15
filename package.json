@@ -79,7 +79,7 @@
     "test:coverage": "vitest run --coverage",
     "test:arch": "vitest run tools/quality/architecture",
     "quality": "npm run prisma:check && npm run typecheck && npm run lint && npm run stylelint && npm run test",
-    "quality:lint-only": "eslint --max-warnings=0",
+    "quality:lint-only": "node ./node_modules/tsx/dist/cli.mjs tools/agent/lint-only.ts",
     "quality:changed": "node ./node_modules/tsx/dist/cli.mjs tools/agent/changed-quality.ts",
     "quality:changed:staged": "node ./node_modules/tsx/dist/cli.mjs tools/agent/changed-quality.ts --staged --workflow pre-commit",
     "quality:logged": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts",
