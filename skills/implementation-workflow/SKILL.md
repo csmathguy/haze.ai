@@ -14,6 +14,12 @@ This skill keeps code changes aligned with the repository's local-only privacy r
 ## Workflow
 
 1. Read `AGENTS.md`, then the closest docs in `docs/`.
+   **File discovery pre-pass** — when the task scope is unclear or spans many files, run this
+   before reading code to limit context to what matters:
+   ```bash
+   npm run agent:discover-files -- --task "<task description>" --max 10
+   ```
+   Read only the returned file paths first. Skip this step when the task already names exact files.
 2. Read `references/checklist.md` if the change is more than trivial.
 3. For substantial work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
 4. For nested agent phases such as skill execution, tool invocation, or custom validation passes, use `npm run execution:start` and `npm run execution:end` inside the active workflow.

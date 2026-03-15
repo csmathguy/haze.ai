@@ -84,6 +84,7 @@
     "quality:changed:staged": "node ./node_modules/tsx/dist/cli.mjs tools/agent/changed-quality.ts --staged --workflow pre-commit",
     "quality:logged": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts",
     "quality:logged:coverage": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts --with-coverage",
+    "agent:discover-files": "node ./node_modules/tsx/dist/cli.mjs tools/agent/file-discovery.ts",
     "agent:heartbeat": "node ./node_modules/tsx/dist/cli.mjs tools/agent/heartbeat.ts",
     "agent:worktree:create": "node ./node_modules/tsx/dist/cli.mjs tools/agent/parallel-worktree.ts",
     "agent:worktree:prune": "node ./node_modules/tsx/dist/cli.mjs tools/agent/worktree-prune.ts",
