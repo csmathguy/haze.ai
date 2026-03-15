@@ -5,6 +5,7 @@ import * as path from "node:path";
 
 import {
   createParallelTaskPlan,
+  mergeMainIntoWorktree,
   parseParallelTaskArgs,
   renderParallelTaskBrief
 } from "./lib/parallel-worktree.js";
@@ -48,6 +49,10 @@ async function main(): Promise<void> {
     });
 
     linkNodeModules(repoRoot, plan.worktreePath);
+
+    if (plan.mergeMain) {
+      mergeOriginMain(plan);
+    }
 
     await mkdir(path.dirname(plan.localBriefPath), { recursive: true });
     await writeFile(plan.localBriefPath, `${renderParallelTaskBrief(plan)}\n`, "utf8");
@@ -95,6 +100,23 @@ function linkNodeModules(repoRoot: string, worktreePath: string): void {
   // On other platforms, the type argument is ignored and a regular symlink is created.
   symlinkSync(source, target, "junction");
   process.stdout.write(`[worktree] Linked node_modules: ${target} -> ${source}\n`);
+}
+
+function mergeOriginMain(plan: ReturnType<typeof createParallelTaskPlan>): void {
+  const outcome = mergeMainIntoWorktree(plan.worktreePath, (args, cwd) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: "pipe"
+    })
+  );
+
+  if (outcome.status === "merged") {
+    process.stdout.write(`[worktree] Merged origin/main: ${outcome.message}\n`);
+    return;
+  }
+
+  plan.warnings.push(`--merge-main failed (resolve conflicts manually): ${outcome.message}`);
 }
 
 function resolveRepoRoot(): string {

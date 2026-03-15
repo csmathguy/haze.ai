@@ -5,6 +5,7 @@ import {
   parseParallelTaskArgs,
   renderParallelTaskBrief
 } from "./parallel-worktree.js";
+import { mergeMainIntoWorktree } from "./worktree-merge-main.js";
 
 describe("parseParallelTaskArgs", () => {
   it("accepts required fields and repeated scope flags", () => {
@@ -24,10 +25,66 @@ describe("parseParallelTaskArgs", () => {
     expect(parsed.scopes).toEqual(["packages/shared/src/extraction.ts", "apps/api/src/services"]);
     expect(parsed.baseRef).toBe("HEAD");
     expect(parsed.dryRun).toBe(false);
+    expect(parsed.mergeMain).toBe(false);
+  });
+
+  it("accepts the merge-main flag", () => {
+    const parsed = parseParallelTaskArgs([
+      "--task",
+      "api-contract",
+      "--summary",
+      "Define extraction contract",
+      "--scope",
+      "tools/agent/parallel-worktree.ts",
+      "--merge-main"
+    ]);
+
+    expect(parsed.mergeMain).toBe(true);
   });
 
   it("rejects missing required arguments", () => {
     expect(() => parseParallelTaskArgs(["--task", "missing-summary"])).toThrow("Missing required argument --summary");
+  });
+});
+
+describe("mergeMainIntoWorktree", () => {
+  it("returns a merge confirmation message when fetch and merge succeed", () => {
+    const calls: string[] = [];
+    const outcome = mergeMainIntoWorktree("C:/repo/.worktrees/plan-73", (args, cwd) => {
+      calls.push(`${cwd}:${args.join(" ")}`);
+
+      if (args[0] === "merge") {
+        return "Already up to date.\n";
+      }
+
+      return "";
+    });
+
+    expect(calls).toEqual([
+      "C:/repo/.worktrees/plan-73:fetch origin",
+      "C:/repo/.worktrees/plan-73:merge origin/main"
+    ]);
+    expect(outcome).toEqual({
+      message: "Already up to date.",
+      status: "merged"
+    });
+  });
+
+  it("returns a non-fatal warning when merge fails", () => {
+    const outcome = mergeMainIntoWorktree("C:/repo/.worktrees/plan-73", (args) => {
+      if (args[0] === "merge") {
+        const error = new Error("merge failed") as Error & { stderr: string };
+        error.stderr = "CONFLICT (content): Merge conflict in AGENTS.md\nAutomatic merge failed.\n";
+        throw error;
+      }
+
+      return "";
+    });
+
+    expect(outcome).toEqual({
+      message: "CONFLICT (content): Merge conflict in AGENTS.md",
+      status: "warning"
+    });
   });
 });
 
@@ -39,6 +96,7 @@ describe("createParallelTaskPlan", () => {
         dependsOn: [],
         dryRun: false,
         force: false,
+        mergeMain: false,
         owner: "contract-agent",
         scopes: ["packages/shared/src/extraction.ts", "apps/api/src/services/extractor.ts"],
         summary: "Define extraction contract",
@@ -65,6 +123,7 @@ describe("createParallelTaskPlan", () => {
         dependsOn: ["schema-contract"],
         dryRun: true,
         force: false,
+        mergeMain: false,
         scopes: ["prisma/schema.prisma", "apps/web/src/app/App.module.css"],
         summary: "Apply schema state to web review UI",
         taskId: "review-ui-threading",
@@ -90,6 +149,7 @@ describe("renderParallelTaskBrief", () => {
         dependsOn: ["shared-contract"],
         dryRun: false,
         force: false,
+        mergeMain: false,
         owner: "web-agent",
         scopes: ["apps/web/src/features/review"],
         summary: "Thread review task data into the web feature",

@@ -145,11 +145,13 @@ function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>, pool?: str
     });
   }
 
+  // Lint pre-flight: runs before typecheck and tests so errors surface in seconds.
+  // Uses the quality:lint-only script so the same command is available standalone.
   if (plan.lintTargets.length > 0) {
     commands.push({
-      args: ["exec", "eslint", "--", "--max-warnings=0", ...plan.lintTargets],
+      args: ["run", "quality:lint-only", "--", ...plan.lintTargets],
       command: npmCommand,
-      step: "lint-changed"
+      step: "lint-preflight"
     });
   }
 

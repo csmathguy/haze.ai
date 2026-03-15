@@ -1,10 +1,14 @@
 import * as path from "node:path";
 
+export type { MergeMainOutcome } from "./worktree-merge-main.js";
+export { mergeMainIntoWorktree } from "./worktree-merge-main.js";
+
 export interface ParallelTaskArgs {
   baseRef: string;
   dependsOn: string[];
   dryRun: boolean;
   force: boolean;
+  mergeMain: boolean;
   owner?: string;
   scopes: string[];
   summary: string;
@@ -21,6 +25,7 @@ export interface ParallelTaskPlan {
   dryRun: boolean;
   force: boolean;
   localBriefPath: string;
+  mergeMain: boolean;
   owner?: string;
   scopes: string[];
   sliceKind: SliceKind;
@@ -42,6 +47,7 @@ export function parseParallelTaskArgs(rawArgs: string[]): ParallelTaskArgs {
     dependsOn: [],
     dryRun: false,
     force: false,
+    mergeMain: false,
     scopes: [],
     validations: [],
     worktreeRoot: DEFAULT_WORKTREE_ROOT
@@ -108,6 +114,11 @@ function consumeArgument(
     return 0;
   }
 
+  if (current === "--merge-main") {
+    parsed.mergeMain = true;
+    return 0;
+  }
+
   const handler = handlers[current];
 
   if (handler === undefined) {
@@ -128,6 +139,7 @@ function finalizeParsedArgs(parsed: Partial<ParallelTaskArgs>): ParallelTaskArgs
     dependsOn: dedupe(parsed.dependsOn ?? []),
     dryRun: parsed.dryRun ?? false,
     force: parsed.force ?? false,
+    mergeMain: parsed.mergeMain ?? false,
     ...(parsed.owner === undefined ? {} : { owner: parsed.owner }),
     scopes: dedupe(scopes),
     summary,
@@ -169,6 +181,7 @@ export function createParallelTaskPlan(args: ParallelTaskArgs, repoRoot: string)
     dryRun: args.dryRun,
     force: args.force,
     localBriefPath: normalizeRelativePath(path.join(worktreePath, ".codex-local", "parallel-task.md")),
+    mergeMain: args.mergeMain,
     ...(args.owner === undefined ? {} : { owner: args.owner }),
     scopes,
     sliceKind,

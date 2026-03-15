@@ -22,6 +22,7 @@ temp/
 .worktrees/
 .codex-local/
 .agent-session.json
+.audit/transcripts/
 
 apps/web/.vercel/
 apps/api/storage/
