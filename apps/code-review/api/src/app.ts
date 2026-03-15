@@ -7,6 +7,8 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { createCodeReviewService, type CodeReviewService } from "./services/workspace.js";
 
+export type { CodeReviewService };
+
 interface BuildAppOptions {
   readonly auditDatabaseUrl?: string;
   readonly codeReviewService?: CodeReviewService;

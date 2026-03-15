@@ -3,7 +3,7 @@ import Fastify from "fastify";
 
 import { registerTaxesPlugin } from "@taxes/api";
 import { registerAuditPlugin } from "@taxes/audit-api";
-import { registerCodeReviewPlugin } from "@taxes/code-review-api";
+import { registerCodeReviewPlugin, type CodeReviewService } from "@taxes/code-review-api";
 import { registerKnowledgePlugin } from "@taxes/knowledge-api";
 import { registerPlanPlugin } from "@taxes/plan-api";
 
@@ -18,6 +18,7 @@ import {
 
 export interface GatewayOptions {
   readonly auditDatabaseUrl?: string;
+  readonly codeReviewService?: CodeReviewService;
   readonly knowledgeDatabaseUrl?: string;
   readonly knowledgeDocsRoot?: string;
   readonly planningDatabaseUrl?: string;
@@ -47,6 +48,7 @@ export async function buildGatewayApp(options: GatewayOptions = {}) {
   });
   await app.register(registerCodeReviewPlugin, {
     auditDatabaseUrl: options.auditDatabaseUrl ?? AUDIT_DATABASE_URL,
+    ...(options.codeReviewService !== undefined ? { codeReviewService: options.codeReviewService } : {}),
     planningDatabaseUrl: options.planningDatabaseUrl ?? PLANNING_DATABASE_URL
   });
 
