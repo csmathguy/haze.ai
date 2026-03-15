@@ -55,8 +55,19 @@ export function createCodeReviewService(options: CreateCodeReviewServiceOptions 
         cacheReader: () => cacheStore.readWorkspace(),
         cacheWriter: async (workspace) => cacheStore.writeWorkspace(workspace),
         fetchFreshValue: async () => {
-          const [repository, pullRequests] = await Promise.all([gateway.getRepository(), gateway.listPullRequests()]);
-          const normalizedRepository = toRepository(repository);
+          const [repositoryResult, pullRequestsResult] = await Promise.allSettled([
+            gateway.getRepository(),
+            gateway.listPullRequests()
+          ]);
+
+          if (repositoryResult.status === "rejected") {
+            throw repositoryResult.reason instanceof Error
+              ? repositoryResult.reason
+              : new Error("GitHub repository info could not be loaded.");
+          }
+
+          const normalizedRepository = toRepository(repositoryResult.value);
+          const pullRequests = pullRequestsResult.status === "fulfilled" ? pullRequestsResult.value : [];
           const orderedPullRequests = [...pullRequests].sort(comparePullRequests);
 
           return {
