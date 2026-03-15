@@ -21,6 +21,7 @@ tmp/
 temp/
 .worktrees/
 .codex-local/
+.agent-session.json
 
 apps/web/.vercel/
 apps/api/storage/

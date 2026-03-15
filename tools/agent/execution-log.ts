@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
+
 import {
   createWorkflowSummary,
   ensureAuditPaths,
@@ -12,6 +15,32 @@ import {
 } from "./lib/audit.js";
 import { endExecution, startExecution, type StartedExecution } from "./lib/execution.js";
 
+const SESSION_FILE = path.resolve(".agent-session.json");
+
+async function readSessionWorkflow(): Promise<string | undefined> {
+  try {
+    const contents = await readFile(SESSION_FILE, "utf8");
+    const session = JSON.parse(contents) as { workflowName?: unknown };
+    return typeof session.workflowName === "string" ? session.workflowName : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function injectWorkflowIfMissing(rawArgs: string[]): Promise<string[]> {
+  if (rawArgs.includes("--workflow")) {
+    return rawArgs;
+  }
+
+  const workflowName = await readSessionWorkflow();
+
+  if (workflowName === undefined) {
+    return rawArgs;
+  }
+
+  return ["--workflow", workflowName, ...rawArgs];
+}
+
 type CommandName = "end" | "start";
 
 async function main(): Promise<void> {
@@ -21,8 +50,10 @@ async function main(): Promise<void> {
     throw new Error("Expected one of: start, end");
   }
 
+  const enrichedArgs = await injectWorkflowIfMissing(rawArgs);
+
   if (commandName === "start") {
-    const args = parseStartArgs(rawArgs);
+    const args = parseStartArgs(enrichedArgs);
     const context = await resolveRunContext(args.workflow);
     const started = await startExecution(context, args);
 
@@ -30,7 +61,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const args = parseEndArgs(rawArgs);
+  const args = parseEndArgs(enrichedArgs);
   const context = await resolveRunContext(args.workflow);
   const activeExecution = await getActiveExecution(args.workflow, args.executionId);
 
