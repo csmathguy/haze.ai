@@ -209,6 +209,19 @@ Key commands for querying work items:
 
 Invoking an unknown command prints all valid command keys before exiting with code 1.
 
+## Fast Changed-File Validation
+
+Use the scoped preflight when you want lint and TypeScript feedback without waiting on tests:
+
+```bash
+npm run quality:lint-only -- <files...>
+```
+
+The command computes the same changed-file plan as `quality:changed`, runs `prisma:check`
+first when needed, then runs ESLint and only the affected typecheck scopes. `quality:changed`
+uses this preflight automatically before stylelint and vitest, so the git `pre-commit` hook
+benefits as well.
+
 ## Execution Lifecycle
 
 The repository workflow should stay explicit in this order:
