@@ -18,7 +18,7 @@ import {
   PlanningWorkspaceSchema,
   UpdateWorkItemInputSchema
 } from "@taxes/shared";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@taxes/db";
 
 import { getPrismaClient } from "../db/client.js";
 import type { PlanningPersistenceOptions } from "./context.js";

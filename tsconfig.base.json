@@ -20,6 +20,12 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
+      "@taxes/db": [
+        "./packages/db/src/index.ts"
+      ],
+      "@taxes/db/*": [
+        "./packages/db/src/*"
+      ],
       "@taxes/shared": [
         "./packages/shared/src/index.ts"
       ],
