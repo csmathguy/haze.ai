@@ -24,10 +24,10 @@ export default defineConfig({
       ],
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
-      exclude: ["**/*.d.ts", "**/*.test.*", "**/*.spec.*", ".worktrees/**", "artifacts/**", "node_modules/**"]
+      exclude: ["**/*.d.ts", "**/*.test.*", "**/*.spec.*", ".worktrees/**", ".claude/**", "artifacts/**", "node_modules/**"]
     },
     environment: "node",
-    exclude: [".worktrees/**", "artifacts/**", "coverage/**", "dist/**", "node_modules/**"],
+    exclude: [".worktrees/**", ".claude/**", "artifacts/**", "coverage/**", "dist/**", "node_modules/**"],
     globals: true,
     include: ["**/*.{test,spec}.ts"],
     passWithNoTests: false,

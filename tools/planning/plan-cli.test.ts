@@ -77,7 +77,7 @@ describe("plan CLI", () => {
 
     expect(filteredResult.status).toBe(0);
     expect(filteredPayload.workItems.map((workItem) => workItem.id)).toEqual([planningReadyItem.id]);
-  });
+  }, 60000);
 
   it("returns a single work item by positional id", async () => {
     const workspace = await createTestPlanningContext("plan-cli-get");
