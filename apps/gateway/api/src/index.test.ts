@@ -116,7 +116,23 @@ describe("buildGatewayApp", () => {
   it("serves code-review workspace route", async () => {
     const ctx = await createTestGatewayContext("gateway-code-review");
     contexts.push(ctx);
-    const app = await buildGatewayApp(ctx);
+    const stubWorkspace = {
+      generatedAt: new Date().toISOString(),
+      localOnly: true as const,
+      pullRequests: [],
+      purpose: "test",
+      repository: { name: "Taxes", owner: "csmathguy", url: "https://github.com/csmathguy/Taxes" },
+      showingRecentFallback: false,
+      title: "Code Review Studio",
+      trustStatement: "test"
+    };
+    const app = await buildGatewayApp({
+      ...ctx,
+      codeReviewService: {
+        getWorkspace: () => Promise.resolve(stubWorkspace),
+        getPullRequestDetail: () => Promise.reject(new Error("not implemented"))
+      }
+    });
     const response = await app.inject({ method: "GET", url: "/api/code-review/workspace" });
 
     expect(response.statusCode).toBe(200);

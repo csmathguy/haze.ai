@@ -15,18 +15,23 @@ This skill keeps an implementation agent inside its assigned slice so parallel w
 
 1. Read the nearest `AGENTS.md`.
 2. Read `.codex-local/parallel-task.md` if it exists in the worktree.
-3. Read the closest docs for the owned boundary.
-4. Start the audited workflow: `node tools/runtime/run-npm.cjs run workflow:start implementation "<task summary>"`.
+3. **File discovery pre-pass** — if the slice scope covers multiple unknown files, run before reading code:
+   ```bash
+   npm run agent:discover-files -- --task "<slice description>" --max 10
+   ```
+   Limit initial file reads to the returned paths. Skip when the slice brief already lists exact files.
+4. Read the closest docs for the owned boundary.
+5. Start the audited workflow: `node tools/runtime/run-npm.cjs run workflow:start implementation "<task summary>"`.
    Log an initial heartbeat: `npm run agent:heartbeat -- --message 'workflow started'`
-5. Implement only within the allowed scope. Do not edit files outside the declared boundary.
+6. Implement only within the allowed scope. Do not edit files outside the declared boundary.
    Log a heartbeat after each major phase: `npm run agent:heartbeat -- --message '<phase description>'`
-6. Run validation: `node tools/runtime/run-npm.cjs run quality:changed -- <changed files>`.
+7. Run validation: `node tools/runtime/run-npm.cjs run quality:changed -- <changed files>`.
    Log a heartbeat: `npm run agent:heartbeat -- --message 'validation passed'`
-7. Commit changes and push the branch.
-8. Open the PR: `node tools/runtime/run-npm.cjs run pr:sync -- --summary "..." --value "..." --privacy-confirmed`.
+8. Commit changes and push the branch.
+9. Open the PR: `node tools/runtime/run-npm.cjs run pr:sync -- --summary "..." --value "..." --privacy-confirmed`.
    Log a final heartbeat: `npm run agent:heartbeat -- --message 'PR opened, handoff complete'`
-9. End the workflow: `node tools/runtime/run-npm.cjs run workflow:end implementation success`.
-10. Report back to the orchestrator: the PR URL, any warnings, and any residual conflict risks.
+10. End the workflow: `node tools/runtime/run-npm.cjs run workflow:end implementation success`.
+11. Report back to the orchestrator: the PR URL, any warnings, and any residual conflict risks.
 
 ## What the Task Prompt Should Contain
 

@@ -26,6 +26,8 @@ export async function buildApp(options: AuditPersistenceOptions = {}) {
   return app;
 }
 
+export { getAuditWorkItemTimeline } from "./services/audit-work-item-timeline.js";
+
 /** Gateway registration — registers audit domain routes without CORS or health. */
 export function registerAuditPlugin(app: FastifyInstance, opts: AuditPersistenceOptions, done: () => void): void {
   app.addHook("onClose", async () => {
