@@ -21,6 +21,7 @@ import {
   createMissingPullRequestMessage,
   getCompletionRequirements
 } from "./lib/pull-request-publish.js";
+import { exportTranscriptIfAvailable } from "./lib/transcript-capture.js";
 
 type CommandName = "end" | "note" | "start";
 
@@ -140,6 +141,10 @@ async function endWorkflow(workflow: string, status: "failed" | "success", messa
       message === undefined ? { ...getEventContextFields(summary), status } : { ...getEventContextFields(summary), metadata: { message }, status }
     )
   );
+  await exportTranscriptIfAvailable({
+    runId,
+    ...(summary.workItemId === undefined ? {} : { workItemId: summary.workItemId })
+  });
   await clearActiveRun(workflow);
   await clearSessionFile();
 }
