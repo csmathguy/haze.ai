@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, symlinkSync } from "node:fs";
+import { existsSync, rmSync, symlinkSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
@@ -8,14 +8,35 @@ import {
   parseParallelTaskArgs,
   renderParallelTaskBrief
 } from "./lib/parallel-worktree.js";
+import { checkWorktreeExistence } from "./lib/worktree-existence.js";
 
 async function main(): Promise<void> {
   const args = parseParallelTaskArgs(process.argv.slice(2));
   const repoRoot = resolveRepoRoot();
   const plan = createParallelTaskPlan(args, repoRoot);
 
-  if (existsSync(plan.worktreePath)) {
-    throw new Error(`Worktree already exists at ${plan.worktreePath}`);
+  const outcome = checkWorktreeExistence(
+    plan.worktreePath,
+    plan.branchName,
+    {
+      directoryExists: existsSync,
+      force: plan.force,
+      runGit: (gitArgs, cwd) =>
+        execFileSync("git", gitArgs, { cwd, encoding: "utf8" })
+    },
+    repoRoot
+  );
+
+  if (outcome.action === "skip") {
+    process.stdout.write(`[worktree] Skipping creation — ${outcome.reason}\n`);
+    process.stdout.write(`[worktree] Worktree: ${plan.worktreePath}\n`);
+    process.stdout.write(`[worktree] Use --force to destroy and re-create.\n`);
+    return;
+  }
+
+  if (outcome.action === "force-recreate") {
+    process.stdout.write(`[worktree] Removing existing worktree — ${outcome.reason}\n`);
+    removeWorktree(repoRoot, plan.worktreePath, plan.branchName);
   }
 
   const freshnessWarnings = checkSharedPackageFreshness(repoRoot, plan.baseRef);
@@ -34,6 +55,27 @@ async function main(): Promise<void> {
 
   plan.warnings.push(...freshnessWarnings);
   process.stdout.write(`${formatSummary(plan)}\n`);
+}
+
+function removeWorktree(repoRoot: string, worktreePath: string, branchName: string): void {
+  try {
+    execFileSync("git", ["worktree", "remove", "--force", worktreePath], {
+      cwd: repoRoot,
+      stdio: "inherit"
+    });
+  } catch {
+    // If worktree remove fails (e.g. directory is not a registered worktree), fall back to rm
+    rmSync(worktreePath, { force: true, recursive: true });
+  }
+
+  try {
+    execFileSync("git", ["branch", "-D", branchName], {
+      cwd: repoRoot,
+      stdio: "inherit"
+    });
+  } catch {
+    // Branch may not exist — not fatal
+  }
 }
 
 function linkNodeModules(repoRoot: string, worktreePath: string): void {

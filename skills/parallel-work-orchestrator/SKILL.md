@@ -15,7 +15,7 @@ This skill turns a broad task into small parallel slices that fit the repository
 2. Read `docs/architecture.md` and the closest stack guide for the affected area.
 3. Identify contract-first seams such as `packages/shared`, `prisma/schema.prisma`, and root config.
 4. Split the work into slices with one primary boundary each.
-5. Create one worktree per slice with `npm run agent:worktree:create -- ...`.
+5. Create one worktree per slice with `npm run agent:worktree:create -- ...`. Worktree creation is idempotent: re-running the same command with the same task ID skips creation when the worktree already exists, so it is safe to use in retry loops. Pass `--force` to destroy and re-create the worktree (e.g. when the branch is in a bad state).
 6. Assign downstream slices to wait on contract-first slices when they share a seam.
 7. Keep integration work as its own slice when merge or re-threading work is non-trivial.
 
