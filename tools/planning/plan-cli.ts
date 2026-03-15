@@ -1,28 +1,36 @@
-import { readFile } from "node:fs/promises";
-import * as path from "node:path";
-
 import type {
   CreateWorkItemInput,
   PlanningWorkspace,
+  WorkItem,
   WorkItemStatus
 } from "@taxes/shared";
 import {
   CreatePlanningProjectInputSchema,
   CreateWorkItemInputSchema,
   NextWorkItemInputSchema,
+  ProjectKeySchema,
   UpdateAcceptanceCriterionStatusInputSchema,
   UpdateWorkItemInputSchema,
   UpdateWorkItemTaskStatusInputSchema,
-  WorkItemIdSchema
+  WorkItemIdSchema,
+  WorkItemStatusSchema
 } from "@taxes/shared";
 
 import { PLANNING_DATABASE_URL } from "../../apps/plan/api/src/config.js";
 import { applyPendingMigrations } from "../../apps/plan/api/src/db/migrations.js";
 import {
+  formatUnknownCommandError,
+  readJsonFileFlag,
+  readOptionalFlag,
+  readRequiredFlag,
+  readRequiredPositionalOrFlag
+} from "./plan-cli-args.js";
+import {
   createPlanningProject,
   createWorkItem,
   getNextWorkItem,
   getPlanningWorkspace,
+  getWorkItemById,
   updateAcceptanceCriterionStatus,
   updateTaskStatus,
   updateWorkItem
@@ -38,6 +46,8 @@ const commandHandlers = new Map<string, CommandHandler>([
   ["seed:mvp", handleSeedMvp],
   ["task:set-status", handleTaskSetStatus],
   ["work-item:create", handleWorkItemCreate],
+  ["work-item:get", handleWorkItemGet],
+  ["work-item:list", handleWorkItemList],
   ["work-item:next", handleWorkItemNext],
   ["work-item:update", handleWorkItemUpdate],
   ["workspace:get", handleWorkspaceGet]
@@ -202,7 +212,7 @@ async function main(): Promise<void> {
   const handler = commandHandlers.get(commandKey);
 
   if (handler === undefined) {
-    throw new Error(`Unknown command '${commandKey}'. Expected one of: ${[...commandHandlers.keys()].join(", ")}`);
+    throw new Error(formatUnknownCommandError(commandKey, commandHandlers.keys()));
   }
 
   await applyPendingMigrations(PLANNING_DATABASE_URL);
@@ -245,6 +255,28 @@ async function handleWorkItemCreate(args: string[]): Promise<{ workItem: Awaited
   return {
     workItem: await createWorkItem(input)
   };
+}
+
+async function handleWorkItemList(args: string[]): Promise<{ workItems: WorkItem[] }> {
+  const projectKey = ProjectKeySchema.parse(readRequiredFlag(args, "--project"));
+  const statusRaw = readOptionalFlag(args, "--status");
+  const status = statusRaw === undefined ? undefined : WorkItemStatusSchema.parse(statusRaw);
+  const { workItems } = await getPlanningWorkspace();
+
+  return {
+    workItems: workItems.filter((item) => item.projectKey === projectKey && (status === undefined || item.status === status))
+  };
+}
+
+async function handleWorkItemGet(args: string[]): Promise<{ workItem: WorkItem }> {
+  const workItemId = WorkItemIdSchema.parse(readRequiredPositionalOrFlag(args, 0, "--id", "Pass <work-item-id> or --id <work-item-id>."));
+  const workItem = await getWorkItemById(workItemId);
+
+  if (workItem === null) {
+    throw new Error(`Work item ${workItemId} was not found.`);
+  }
+
+  return { workItem };
 }
 
 async function handleWorkItemUpdate(args: string[]): Promise<{ workItem: Awaited<ReturnType<typeof updateWorkItem>> }> {
@@ -324,50 +356,8 @@ function stripSeedStatus(item: SeedWorkItem): CreateWorkItemInput {
 }
 
 async function syncSeedStatus(workItemId: string, currentStatus: WorkItemStatus, targetStatus: WorkItemStatus | undefined): Promise<void> {
-  if (targetStatus === undefined || currentStatus === targetStatus) {
-    return;
-  }
-
-  await updateWorkItem(workItemId, {
-    status: targetStatus
-  });
-}
-
-function readOptionalFlag(args: string[], flagName: string): string | undefined {
-  const index = args.indexOf(flagName);
-
-  if (index === -1) {
-    return undefined;
-  }
-
-  const value = args[index + 1];
-
-  if (value === undefined) {
-    throw new Error(`Missing value after ${flagName}.`);
-  }
-
-  return value;
-}
-
-function readRequiredFlag(args: string[], flagName: string): string {
-  const value = readOptionalFlag(args, flagName);
-
-  if (value === undefined) {
-    throw new Error(`Pass ${flagName}.`);
-  }
-
-  return value;
-}
-
-async function readJsonFileFlag<TSchemaOutput>(
-  args: string[],
-  flagName: string,
-  schema: { parse: (value: unknown) => TSchemaOutput }
-): Promise<TSchemaOutput> {
-  const filePath = readRequiredFlag(args, flagName);
-  const rawContent = await readFile(path.resolve(filePath), "utf8");
-
-  return schema.parse(JSON.parse(rawContent) as unknown);
+  if (targetStatus === undefined || currentStatus === targetStatus) return;
+  await updateWorkItem(workItemId, { status: targetStatus });
 }
 
 void main().catch((error: unknown) => {

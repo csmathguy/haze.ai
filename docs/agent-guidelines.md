@@ -192,6 +192,23 @@ The pre-commit hook now passes `--pool forks` automatically in worktrees (PLAN-6
 See `CLAUDE.md > Troubleshooting > Worktree test failure diagnosis` for the full decision
 tree with commands and branch conditions.
 
+## Planning CLI
+
+`tools/planning/plan-cli.ts` is the local planning CLI. Run commands via:
+
+```bash
+node tools/runtime/run-npm.cjs run plan:cli -- <group> <action> [flags]
+```
+
+Key commands for querying work items:
+
+- `work-item list --project <key>` — list all work items for a project as JSON
+- `work-item list --project <key> --status <status>` — filter by status (`backlog`, `planning`, `ready`, `in-progress`, `blocked`, `done`, `archived`)
+- `work-item get <PLAN-XX>` — fetch full work item detail as JSON, including acceptance criteria, tasks, and plan runs
+- `work-item get --id <PLAN-XX>` — legacy-compatible flag form of the same lookup
+
+Invoking an unknown command prints all valid command keys before exiting with code 1.
+
 ## Execution Lifecycle
 
 The repository workflow should stay explicit in this order:
