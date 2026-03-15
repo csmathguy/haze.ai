@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { rm, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 
 import {
   appendAuditEvent,
@@ -21,6 +23,25 @@ import {
 } from "./lib/pull-request-publish.js";
 
 type CommandName = "end" | "note" | "start";
+
+const SESSION_FILE = path.resolve(".agent-session.json");
+
+interface AgentSession {
+  projectKey?: string;
+  runId: string;
+  startedAt: string;
+  task?: string;
+  workflowName: string;
+  workItemId?: string;
+}
+
+async function writeSessionFile(session: AgentSession): Promise<void> {
+  await writeFile(SESSION_FILE, `${JSON.stringify(session, null, 2)}\n`);
+}
+
+async function clearSessionFile(): Promise<void> {
+  await rm(SESSION_FILE, { force: true });
+}
 
 async function main(): Promise<void> {
   const [commandName, ...rawArgs] = process.argv.slice(2);
@@ -69,6 +90,14 @@ async function startWorkflow(
     )
   );
   await setActiveRun(workflow, runId, task);
+  await writeSessionFile({
+    runId,
+    startedAt: summary.startedAt,
+    workflowName: workflow,
+    ...(context.workItemId === undefined ? {} : { workItemId: context.workItemId }),
+    ...(context.project === undefined ? {} : { projectKey: context.project }),
+    ...(task === undefined ? {} : { task })
+  });
 
   process.stdout.write(`${runId}\n`);
 }
@@ -112,6 +141,7 @@ async function endWorkflow(workflow: string, status: "failed" | "success", messa
     )
   );
   await clearActiveRun(workflow);
+  await clearSessionFile();
 }
 
 function ensureWorkflowCanClose(workflow: string, status: "failed" | "success"): void {

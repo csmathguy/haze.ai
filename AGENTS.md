@@ -21,9 +21,9 @@
 3. Create a dedicated git worktree for the owned slice and do the implementation inside that worktree, not in the shared checkout.
 4. Read the relevant docs in `docs/` before making non-trivial changes.
 5. Work in red-green-refactor order for behavior changes whenever practical.
-6. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`.
+6. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`. The command writes `.agent-session.json` at the repo root with the workflow name and run ID so subsequent commands pick up context automatically.
 7. When the work maps to planning entities, pass `--project`, `--work-item-id`, `--plan-run-id`, and `--plan-step-id` to `workflow:start` so audit runs can be traced back to plan lineage.
-8. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --workflow <name> --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --workflow <name> --execution-id <id> --status success|failed`.
+8. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --execution-id <id> --status success|failed`. The `--workflow` flag is optional when `.agent-session.json` is present.
 9. When work moves from one agent to another, record it with `npm run audit:handoff -- --workflow <name> --source-agent <from> --target-agent <to> --summary "<handoff>" --status pending|accepted|completed|blocked`.
 10. Use `npm run dev:audit:api` and `npm run dev:audit:web` when you need the live shared audit monitor while agents are running.
 11. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
