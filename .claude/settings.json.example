@@ -1,24 +1,107 @@
 {
-  "_comment": "Copy this file to .claude/settings.json to activate hooks and permissions.",
-  "_comment2": ".claude/settings.json is git-ignored so local overrides stay out of the repo.",
+  "_comment": "Copy this file to .claude/settings.json to activate hooks and pre-approved permissions.",
+  "_comment_gitignore": ".claude/settings.json is git-ignored — this .example file is committed and is the canonical source for the project permission policy.",
+  "_comment_local": ".claude/settings.local.json is for user-specific overrides only (e.g. personal WebFetch domains). Do NOT accumulate one-off entries there — add permanent approvals here instead and re-copy to settings.json.",
+  "_comment_precedence": "Deny rules always win over allow rules regardless of order. Ordering within each list does not matter.",
 
   "permissions": {
+
+    "_comment_deny_policy": "Block destructive, irreversible, or high-blast-radius operations. These apply even when an allow rule would otherwise match.",
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(git push --force*)",
+      "Bash(git -C * push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git -C * reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git -C * clean -f*)",
+      "Bash(git branch -D *)",
+      "Bash(git -C * branch -D *)",
+      "Bash(format *:*)"
+    ],
+
+    "_comment_allow_policy": "Pre-approve all commands agents need for the standard workflow: worktree create → implement → commit → push → PR → workflow:end. Adding entries here avoids repeated manual approval prompts during automated agent runs.",
     "allow": [
-      "Bash(npm run:*)",
-      "Bash(git status)",
-      "Bash(git diff*)",
+      "Bash(git status*)",
       "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git remote*)",
+      "Bash(git stash*)",
+      "Bash(git rev-parse*)",
+      "Bash(git ls-files*)",
       "Bash(git add*)",
       "Bash(git commit*)",
+      "Bash(git fetch*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
       "Bash(git push*)",
       "Bash(git worktree*)",
+      "Bash(git checkout*)",
+      "Bash(git restore*)",
+      "Bash(git tag*)",
+      "Bash(git -C * status*)",
+      "Bash(git -C * log*)",
+      "Bash(git -C * diff*)",
+      "Bash(git -C * add*)",
+      "Bash(git -C * commit*)",
+      "Bash(git -C * fetch*)",
+      "Bash(git -C * merge*)",
+      "Bash(git -C * push*)",
+      "Bash(git -C * checkout*)",
+      "Bash(git -C * restore*)",
+      "Bash(git -C * branch*)",
+      "Bash(git -C * rev-parse*)",
+      "Bash(git -C * stash*)",
+      "Bash(git -C * worktree*)",
+      "Bash(npm run *)",
+      "Bash(node tools/runtime/run-npm.cjs run *)",
       "Bash(node tools/*)",
-      "Bash(npx tsx tools/*)"
-    ],
-    "deny": [
-      "Bash(git push --force*)",
-      "Bash(git reset --hard*)",
-      "Bash(rm -rf*)"
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(gh pr *)",
+      "Bash(gh run *)",
+      "Bash(gh issue *)",
+      "Bash(gh repo *)",
+      "Bash(gh auth status*)",
+      "Bash(gh api *)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(pwd*)",
+      "Bash(which *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(sleep *)",
+      "Bash(env *)",
+      "Bash(cmd /c mklink*)",
+      "Bash(cmd /c dir*)",
+      "Bash(cmd /c *)",
+      "Bash(powershell -Command *)",
+      "Bash(powershell.exe *)",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:developer.mozilla.org)",
+      "WebFetch(domain:www.typescriptlang.org)",
+      "WebFetch(domain:www.prisma.io)",
+      "WebFetch(domain:vitest.dev)",
+      "WebFetch(domain:eslint.org)",
+      "WebFetch(domain:nodejs.org)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:mui.com)",
+      "WebFetch(domain:www.humanlayer.dev)",
+      "WebFetch(domain:www.builder.io)",
+      "WebFetch(domain:www.deployhq.com)",
+      "WebFetch(domain:northflank.com)"
     ]
   },
 
@@ -30,7 +113,7 @@
           {
             "type": "command",
             "command": "npm run quality:changed:staged 2>/dev/null || true",
-            "_comment": "Runs lint and type checks on staged files after each edit. Failures are advisory — Claude sees the output and can fix issues."
+            "_comment": "Runs lint and type checks on staged files after each edit. Failures are advisory — Claude sees the output and can fix issues before committing."
           }
         ]
       }
@@ -42,7 +125,7 @@
           {
             "type": "command",
             "command": "node tools/runtime/run-npm.cjs run audit:pre-command 2>/dev/null || true",
-            "_comment": "Optional pre-command audit hook. Logs bash commands to the audit trail when an active workflow exists."
+            "_comment": "Logs bash commands to the audit trail when an active workflow exists. Safe no-op when no workflow is active."
           }
         ]
       }

@@ -1,21 +1,43 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, symlinkSync } from "node:fs";
+import { existsSync, rmSync, symlinkSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import {
   createParallelTaskPlan,
+  mergeMainIntoWorktree,
   parseParallelTaskArgs,
   renderParallelTaskBrief
 } from "./lib/parallel-worktree.js";
+import { checkWorktreeExistence } from "./lib/worktree-existence.js";
 
 async function main(): Promise<void> {
   const args = parseParallelTaskArgs(process.argv.slice(2));
   const repoRoot = resolveRepoRoot();
   const plan = createParallelTaskPlan(args, repoRoot);
 
-  if (existsSync(plan.worktreePath)) {
-    throw new Error(`Worktree already exists at ${plan.worktreePath}`);
+  const outcome = checkWorktreeExistence(
+    plan.worktreePath,
+    plan.branchName,
+    {
+      directoryExists: existsSync,
+      force: plan.force,
+      runGit: (gitArgs, cwd) =>
+        execFileSync("git", gitArgs, { cwd, encoding: "utf8" })
+    },
+    repoRoot
+  );
+
+  if (outcome.action === "skip") {
+    process.stdout.write(`[worktree] Skipping creation — ${outcome.reason}\n`);
+    process.stdout.write(`[worktree] Worktree: ${plan.worktreePath}\n`);
+    process.stdout.write(`[worktree] Use --force to destroy and re-create.\n`);
+    return;
+  }
+
+  if (outcome.action === "force-recreate") {
+    process.stdout.write(`[worktree] Removing existing worktree — ${outcome.reason}\n`);
+    removeWorktree(repoRoot, plan.worktreePath, plan.branchName);
   }
 
   const freshnessWarnings = checkSharedPackageFreshness(repoRoot, plan.baseRef);
@@ -28,12 +50,37 @@ async function main(): Promise<void> {
 
     linkNodeModules(repoRoot, plan.worktreePath);
 
+    if (plan.mergeMain) {
+      mergeOriginMain(plan);
+    }
+
     await mkdir(path.dirname(plan.localBriefPath), { recursive: true });
     await writeFile(plan.localBriefPath, `${renderParallelTaskBrief(plan)}\n`, "utf8");
   }
 
   plan.warnings.push(...freshnessWarnings);
   process.stdout.write(`${formatSummary(plan)}\n`);
+}
+
+function removeWorktree(repoRoot: string, worktreePath: string, branchName: string): void {
+  try {
+    execFileSync("git", ["worktree", "remove", "--force", worktreePath], {
+      cwd: repoRoot,
+      stdio: "inherit"
+    });
+  } catch {
+    // If worktree remove fails (e.g. directory is not a registered worktree), fall back to rm
+    rmSync(worktreePath, { force: true, recursive: true });
+  }
+
+  try {
+    execFileSync("git", ["branch", "-D", branchName], {
+      cwd: repoRoot,
+      stdio: "inherit"
+    });
+  } catch {
+    // Branch may not exist — not fatal
+  }
 }
 
 function linkNodeModules(repoRoot: string, worktreePath: string): void {
@@ -53,6 +100,23 @@ function linkNodeModules(repoRoot: string, worktreePath: string): void {
   // On other platforms, the type argument is ignored and a regular symlink is created.
   symlinkSync(source, target, "junction");
   process.stdout.write(`[worktree] Linked node_modules: ${target} -> ${source}\n`);
+}
+
+function mergeOriginMain(plan: ReturnType<typeof createParallelTaskPlan>): void {
+  const outcome = mergeMainIntoWorktree(plan.worktreePath, (args, cwd) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: "pipe"
+    })
+  );
+
+  if (outcome.status === "merged") {
+    process.stdout.write(`[worktree] Merged origin/main: ${outcome.message}\n`);
+    return;
+  }
+
+  plan.warnings.push(`--merge-main failed (resolve conflicts manually): ${outcome.message}`);
 }
 
 function resolveRepoRoot(): string {

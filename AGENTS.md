@@ -22,8 +22,10 @@
 4. Read the relevant docs in `docs/` before making non-trivial changes.
 5. Work in red-green-refactor order for behavior changes whenever practical.
 6. For substantial implementation work, start an audited workflow with `npm run workflow:start implementation "<summary>"`. The command writes `.agent-session.json` at the repo root with the workflow name and run ID so subsequent commands pick up context automatically.
+   After workflow start, log a heartbeat to confirm the session is live: `npm run agent:heartbeat -- --message 'workflow started'`
 7. When the work maps to planning entities, pass `--project`, `--work-item-id`, `--plan-run-id`, and `--plan-step-id` to `workflow:start` so audit runs can be traced back to plan lineage.
 8. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --execution-id <id> --status success|failed`. The `--workflow` flag is optional when `.agent-session.json` is present.
+   Log heartbeats at each major milestone with `npm run agent:heartbeat -- --message '<progress note>'` so parallel orchestrators can tail live progress via `npm run audit:progress`.
 9. When work moves from one agent to another, record it with `npm run audit:handoff -- --workflow <name> --source-agent <from> --target-agent <to> --summary "<handoff>" --status pending|accepted|completed|blocked`.
 10. Use `npm run dev:audit:api` and `npm run dev:audit:web` when you need the live shared audit monitor while agents are running.
 11. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
@@ -87,3 +89,12 @@ safe commands and keeps formatting automatic.
 Always create worktrees via `npm run agent:worktree:create` rather than raw `git worktree add`.
 The script creates the git worktree and then links `node_modules` from the main checkout into
 the worktree so pre-commit hooks and npm scripts work without a separate install step.
+
+Pass `--merge-main` to automatically fetch `origin` and merge `origin/main` into the new branch
+immediately after creation. This keeps the branch fresh and avoids schema version mismatch
+warnings that arise when shared packages have diverged. Merge conflicts are reported as a
+non-fatal warning so the agent can resolve them manually without aborting the creation step.
+
+```bash
+npm run agent:worktree:create -- --task PLAN-XX --summary "..." --scope tools/ --merge-main
+```

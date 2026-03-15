@@ -1,5 +1,53 @@
 # Agent Guidelines
 
+## Permission Policy
+
+Claude Code permission settings live in `.claude/settings.json` (git-ignored, copied from `.claude/settings.json.example`). The policy has two goals: let agents run the full implementation workflow without manual approval prompts, and block the small set of operations that are irreversible or dangerous.
+
+### Activating the settings
+
+```bash
+cp .claude/settings.json.example .claude/settings.json
+```
+
+Re-copy whenever `settings.json.example` is updated in a PR.
+
+### What is pre-approved (allow list)
+
+All safe commands agents need for the standard `worktree → implement → commit → push → PR → workflow:end` cycle:
+
+| Category | Examples |
+|----------|---------|
+| Git read | `git status`, `git log`, `git diff`, `git show`, `git branch`, `git stash list` |
+| Git write | `git add`, `git commit`, `git push`, `git fetch`, `git merge`, `git worktree` |
+| Git `-C <path>` form | All of the above prefixed with `git -C <worktree-path>` for cross-directory operations |
+| npm / Node | `npm run *`, `node tools/runtime/run-npm.cjs run *`, `node *`, `npx *` |
+| GitHub CLI | `gh pr *`, `gh run *`, `gh issue *`, `gh api *` |
+| Shell utilities | `ls`, `cat`, `head`, `tail`, `grep`, `find`, `wc`, `pwd`, `which`, `echo`, `sleep` |
+| Windows compat | `cmd /c mklink` (junction creation), `cmd /c dir`, `powershell -Command` |
+| Web research | `WebSearch`, `WebFetch` for approved domains (docs.anthropic.com, prisma.io, vitest.dev, etc.) |
+
+### What is blocked (deny list)
+
+These are blocked regardless of any allow rule:
+
+| Command | Why blocked |
+|---------|-------------|
+| `rm -rf *` | Recursive force-delete — can silently wipe the repo or system directories |
+| `git push --force*` | Overwrites remote history, loses teammates' commits |
+| `git reset --hard*` | Destroys all uncommitted local changes immediately |
+| `git clean -f*` | Permanently deletes untracked files without confirmation |
+| `git branch -D *` | Force-deletes branches; use PR merge flow instead |
+| `format *:*` | Windows disk format command |
+
+### Adding new approved commands
+
+1. Edit `.claude/settings.json.example` in a PR.
+2. After the PR is merged, re-copy: `cp .claude/settings.json.example .claude/settings.json`.
+3. Do NOT add commands directly to `settings.local.json` unless they are user-specific (e.g. personal WebFetch domains). The `.local.json` file is not committed and will diverge across machines.
+
+---
+
 ## Repo-Level Pattern
 
 Use `AGENTS.md` for always-on rules that every coding agent should follow in this repository:
@@ -208,6 +256,98 @@ Key commands for querying work items:
 - `work-item get --id <PLAN-XX>` — legacy-compatible flag form of the same lookup
 
 Invoking an unknown command prints all valid command keys before exiting with code 1.
+
+## Fast Changed-File Validation
+
+Use the scoped preflight when you want lint and TypeScript feedback without waiting on tests:
+
+```bash
+npm run quality:lint-only -- <files...>
+```
+
+The command computes the same changed-file plan as `quality:changed`, runs `prisma:check`
+first when needed, then runs ESLint and only the affected typecheck scopes. `quality:changed`
+uses this preflight automatically before stylelint and vitest, so the git `pre-commit` hook
+benefits as well.
+
+## Heartbeat API
+
+Background agents running in parallel worktrees can log progress events to the shared audit database so an orchestrator can tail them live.
+
+### Writing a heartbeat
+
+```bash
+npm run agent:heartbeat -- --message '<progress note>'
+```
+
+The command reads `.agent-session.json` to get the `runId` and optional `workItemId`, then writes a `HeartbeatEvent` row to the audit database. If `.agent-session.json` is absent the command logs a warning to stderr and exits cleanly (graceful no-op).
+
+Call this at every major milestone:
+- After workflow start
+- After each major implementation phase (schema changes, new files, validation pass)
+- Before PR creation
+
+### Tailing progress live
+
+```bash
+npm run audit:progress
+```
+
+Prints all `HeartbeatEvent` records for currently active `AuditRun` rows in chronological order and refreshes every 5 seconds. Exit with Ctrl+C.
+
+### Schema
+
+`HeartbeatEvent` is stored in the shared audit database (`~/.taxes/audit/sqlite/audit.db`):
+
+| Field       | Type     | Notes                           |
+|-------------|----------|---------------------------------|
+| id          | String   | cuid, auto-generated            |
+| runId       | String   | Links to AuditRun.id            |
+| workItemId  | String?  | Optional link to planning item  |
+| message     | String   | Free-form progress note         |
+| createdAt   | DateTime | UTC, millisecond precision      |
+
+### Implementation modules
+
+- `tools/agent/heartbeat.ts` — CLI entry point
+- `tools/agent/audit-progress.ts` — live progress CLI
+- `tools/agent/lib/heartbeat-service.ts` — `writeHeartbeat()` service function
+- `tools/agent/lib/session.ts` — shared `readAgentSession()` used by heartbeat and other tools
+
+## Transcript Capture
+
+Claude Code session transcripts are captured automatically when a workflow ends.
+
+### How it works
+
+1. `npm run workflow:end <workflow> success|failed` triggers transcript capture as part of the
+   normal `endWorkflow` sequence, immediately after the `workflow-end` audit event is written.
+2. The capture code calls `findCurrentSessionFile()` to locate the Claude Code session JSONL:
+   - Checks `CLAUDE_SESSION_FILE` environment variable first.
+   - Falls back to `CLAUDE_SESSION_ID` environment variable.
+   - Falls back to the most recently modified `*.jsonl` in
+     `~/.claude/projects/<encoded-cwd>/`, where the encoded path replaces the drive colon
+     and all path separators with hyphens (e.g. `C--Users-csmat-source-repos-Taxes`).
+3. The JSONL is copied to `.audit/transcripts/<runId>.jsonl`.
+4. A `TranscriptArtifact` row is written to the audit database linking the run ID, optional
+   work item ID, file path, capture timestamp, and line count.
+5. If no session file is found the capture step logs a warning and continues without failing.
+
+### Viewing a transcript
+
+```bash
+npm run audit:transcript:view <runId>
+```
+
+Prints role-labelled turns to stdout. `tool_use` and `tool_result` blocks are truncated to
+200 characters to keep the output readable.
+
+### Storage and privacy
+
+- Transcripts are stored under `.audit/transcripts/` which is excluded from git via
+  `.gitignore`. They are treated as sensitive local operational data and must not be committed.
+- The audit database entry (path, line count, timestamps) is also local-only, stored in
+  `~/.taxes/audit/sqlite/audit.db`.
 
 ## Execution Lifecycle
 

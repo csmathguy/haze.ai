@@ -13,9 +13,10 @@ import {
   type AuditSummary,
   writeSummary
 } from "./lib/audit.js";
+import { buildChangedQualityCommands } from "./lib/changed-quality-commands.js";
 import { buildChangedFilePlan } from "./lib/changed-files.js";
 import { endExecution, startExecution } from "./lib/execution.js";
-import { resolveNpmCommand, runLoggedCommand, type LoggedCommand, type ResolvedCommand } from "./lib/process.js";
+import { resolveNpmCommand, runLoggedCommand, type LoggedCommand } from "./lib/process.js";
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
   }
 
   const plan = buildChangedFilePlan(files);
-  const steps = buildCommands(plan, options.pool);
+  const steps = buildCommands(files, plan, options.pool);
 
   if (steps.length === 0) {
     process.stdout.write("No code validation required for the detected files.\n");
@@ -133,76 +134,8 @@ function getHeadDiffArgs(): string[] {
   }
 }
 
-function buildCommands(plan: ReturnType<typeof buildChangedFilePlan>, pool?: string): LoggedCommand[] {
-  const npmCommand = resolveNpmCommand();
-  const commands: LoggedCommand[] = [];
-
-  if (plan.prismaCheck) {
-    commands.push({
-      args: ["run", "prisma:check"],
-      command: npmCommand,
-      step: "prisma-check"
-    });
-  }
-
-  if (plan.lintTargets.length > 0) {
-    commands.push({
-      args: ["exec", "eslint", "--", "--max-warnings=0", ...plan.lintTargets],
-      command: npmCommand,
-      step: "lint-changed"
-    });
-  }
-
-  if (plan.stylelintTargets.length > 0) {
-    commands.push({
-      args: ["exec", "stylelint", "--", "--allow-empty-input", ...plan.stylelintTargets],
-      command: npmCommand,
-      step: "stylelint-changed"
-    });
-  }
-
-  for (const scope of plan.typecheckScopes) {
-    commands.push({
-      args: ["run", `typecheck:${scope}`],
-      command: npmCommand,
-      step: `typecheck-${scope}`
-    });
-  }
-
-  commands.push(...buildTestCommands(npmCommand, plan, pool));
-
-  return commands;
-}
-
-function buildTestCommands(npmCommand: ResolvedCommand, plan: ReturnType<typeof buildChangedFilePlan>, pool?: string): LoggedCommand[] {
-  switch (plan.testCommand.kind) {
-    case "arch":
-      return [
-        {
-          args: ["run", "test:arch"],
-          command: npmCommand,
-          step: "test-arch"
-        }
-      ];
-    case "full":
-      return [
-        {
-          args: ["run", "test"],
-          command: npmCommand,
-          step: "test"
-        }
-      ];
-    case "related":
-      return [
-        {
-          args: ["exec", "vitest", "--", "related", "--run", ...(pool === undefined ? [] : ["--pool", pool]), ...plan.testCommand.targets],
-          command: npmCommand,
-          step: "test-related"
-        }
-      ];
-    case "none":
-      return [];
-  }
+function buildCommands(files: string[], plan: ReturnType<typeof buildChangedFilePlan>, pool?: string): LoggedCommand[] {
+  return buildChangedQualityCommands(files, resolveNpmCommand(), pool);
 }
 
 async function initializeRun(workflow: string, files: string[]): Promise<InitializedRun> {
