@@ -1,9 +1,9 @@
 import type { CodeReviewPullRequestDetail, CodeReviewWorkspace } from "@taxes/shared";
 
 import { CODE_REVIEW_CACHE_MAX_AGE_MS, CODE_REVIEW_CACHE_ROOT } from "../config.js";
-import { LocalAuditApiGateway, type AuditWorkItemGateway } from "../adapters/audit-api.js";
+import { DirectAuditServiceGateway, type AuditWorkItemGateway } from "../adapters/audit-api.js";
 import { GitHubCliPullRequestGateway, type GitHubPullRequestGateway } from "../adapters/github-cli.js";
-import { LocalPlanningApiGateway, type PlanningWorkItemGateway } from "../adapters/planning-api.js";
+import { DirectPlanningServiceGateway, type PlanningWorkItemGateway } from "../adapters/planning-api.js";
 import { createFileCodeReviewCacheStore, type CodeReviewCacheStore } from "./pull-request-cache.js";
 import { toAuditEvidence, toPlanningWorkItem } from "./pull-request-evidence.js";
 import { toPullRequestDetail, toPullRequestSummary, toRepository } from "./pull-request-review.js";
@@ -19,11 +19,13 @@ export interface CodeReviewService {
 }
 
 interface CreateCodeReviewServiceOptions {
+  readonly auditDatabaseUrl?: string;
   readonly auditGateway?: AuditWorkItemGateway;
   readonly cacheMaxAgeMs?: number;
   readonly cacheStore?: CodeReviewCacheStore;
   readonly gateway?: GitHubPullRequestGateway;
   readonly now?: () => Date;
+  readonly planningDatabaseUrl?: string;
   readonly planningGateway?: PlanningWorkItemGateway;
 }
 
@@ -31,9 +33,9 @@ export function createCodeReviewService(options: CreateCodeReviewServiceOptions 
   const cacheMaxAgeMs = options.cacheMaxAgeMs ?? CODE_REVIEW_CACHE_MAX_AGE_MS;
   const now = options.now ?? (() => new Date());
   const cacheStore = options.cacheStore ?? createFileCodeReviewCacheStore(CODE_REVIEW_CACHE_ROOT, now);
-  const auditGateway = options.auditGateway ?? new LocalAuditApiGateway();
+  const auditGateway = options.auditGateway ?? new DirectAuditServiceGateway(options.auditDatabaseUrl);
   const gateway = options.gateway ?? new GitHubCliPullRequestGateway();
-  const planningGateway = options.planningGateway ?? new LocalPlanningApiGateway();
+  const planningGateway = options.planningGateway ?? new DirectPlanningServiceGateway(options.planningDatabaseUrl);
 
   return {
     getPullRequestDetail: async (pullRequestNumber) =>

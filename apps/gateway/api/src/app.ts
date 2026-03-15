@@ -45,7 +45,10 @@ export async function buildGatewayApp(options: GatewayOptions = {}) {
     databaseUrl: options.knowledgeDatabaseUrl ?? KNOWLEDGE_DATABASE_URL,
     docsRoot: options.knowledgeDocsRoot ?? REPOSITORY_DOCS_ROOT
   });
-  await app.register(registerCodeReviewPlugin, {});
+  await app.register(registerCodeReviewPlugin, {
+    auditDatabaseUrl: options.auditDatabaseUrl ?? AUDIT_DATABASE_URL,
+    planningDatabaseUrl: options.planningDatabaseUrl ?? PLANNING_DATABASE_URL
+  });
 
   return app;
 }
