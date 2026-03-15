@@ -257,6 +257,50 @@ Key commands for querying work items:
 
 Invoking an unknown command prints all valid command keys before exiting with code 1.
 
+## Heartbeat API
+
+Background agents running in parallel worktrees can log progress events to the shared audit database so an orchestrator can tail them live.
+
+### Writing a heartbeat
+
+```bash
+npm run agent:heartbeat -- --message '<progress note>'
+```
+
+The command reads `.agent-session.json` to get the `runId` and optional `workItemId`, then writes a `HeartbeatEvent` row to the audit database. If `.agent-session.json` is absent the command logs a warning to stderr and exits cleanly (graceful no-op).
+
+Call this at every major milestone:
+- After workflow start
+- After each major implementation phase (schema changes, new files, validation pass)
+- Before PR creation
+
+### Tailing progress live
+
+```bash
+npm run audit:progress
+```
+
+Prints all `HeartbeatEvent` records for currently active `AuditRun` rows in chronological order and refreshes every 5 seconds. Exit with Ctrl+C.
+
+### Schema
+
+`HeartbeatEvent` is stored in the shared audit database (`~/.taxes/audit/sqlite/audit.db`):
+
+| Field       | Type     | Notes                           |
+|-------------|----------|---------------------------------|
+| id          | String   | cuid, auto-generated            |
+| runId       | String   | Links to AuditRun.id            |
+| workItemId  | String?  | Optional link to planning item  |
+| message     | String   | Free-form progress note         |
+| createdAt   | DateTime | UTC, millisecond precision      |
+
+### Implementation modules
+
+- `tools/agent/heartbeat.ts` — CLI entry point
+- `tools/agent/audit-progress.ts` — live progress CLI
+- `tools/agent/lib/heartbeat-service.ts` — `writeHeartbeat()` service function
+- `tools/agent/lib/session.ts` — shared `readAgentSession()` used by heartbeat and other tools
+
 ## Transcript Capture
 
 Claude Code session transcripts are captured automatically when a workflow ends.

@@ -467,6 +467,17 @@ model AuditExecutionRecord {
   @@index([parentExecutionId])
 }
 
+model HeartbeatEvent {
+  id         String   @id @default(cuid())
+  runId      String
+  workItemId String?
+  message    String
+  createdAt  DateTime @default(now())
+
+  @@index([runId, createdAt])
+  @@index([workItemId, createdAt])
+}
+
 model TranscriptArtifact {
   id         String   @id @default(cuid())
   runId      String   @unique

@@ -15,10 +15,14 @@ This skill keeps an implementation agent inside its assigned slice so parallel w
 2. Read `.codex-local/parallel-task.md` if it exists in the worktree.
 3. Read the closest docs for the owned boundary.
 4. Start the audited workflow: `node tools/runtime/run-npm.cjs run workflow:start implementation "<task summary>"`.
+   Log an initial heartbeat: `npm run agent:heartbeat -- --message 'workflow started'`
 5. Implement only within the allowed scope. Do not edit files outside the declared boundary.
+   Log a heartbeat after each major phase: `npm run agent:heartbeat -- --message '<phase description>'`
 6. Run validation: `node tools/runtime/run-npm.cjs run quality:changed -- <changed files>`.
+   Log a heartbeat: `npm run agent:heartbeat -- --message 'validation passed'`
 7. Commit changes and push the branch.
 8. Open the PR: `node tools/runtime/run-npm.cjs run pr:sync -- --summary "..." --value "..." --privacy-confirmed`.
+   Log a final heartbeat: `npm run agent:heartbeat -- --message 'PR opened, handoff complete'`
 9. End the workflow: `node tools/runtime/run-npm.cjs run workflow:end implementation success`.
 10. Report back to the orchestrator: the PR URL, any warnings, and any residual conflict risks.
 
