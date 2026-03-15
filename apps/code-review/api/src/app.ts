@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 
 import { CODE_REVIEW_API_HOST } from "./config.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -23,4 +24,10 @@ export async function buildApp(options: BuildAppOptions = {}) {
   registerWorkspaceRoutes(app, options.codeReviewService ?? createCodeReviewService());
 
   return app;
+}
+
+/** Gateway registration — registers code-review domain routes without CORS or health. */
+export function registerCodeReviewPlugin(app: FastifyInstance, opts: BuildAppOptions, done: () => void): void {
+  registerWorkspaceRoutes(app, opts.codeReviewService ?? createCodeReviewService());
+  done();
 }

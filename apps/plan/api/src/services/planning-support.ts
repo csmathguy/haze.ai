@@ -6,7 +6,7 @@ import type {
   UpdateWorkItemInput,
   WorkItem
 } from "@taxes/shared";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@taxes/db";
 
 export class PlanningConflictError extends Error {}
 export class PlanningNotFoundError extends Error {}

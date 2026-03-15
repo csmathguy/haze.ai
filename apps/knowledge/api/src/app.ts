@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 
 import { KNOWLEDGE_API_HOST } from "./config.js";
 import { disconnectKnowledgePrismaClient } from "./db/client.js";
@@ -22,4 +23,13 @@ export async function buildApp(options: KnowledgePersistenceOptions = {}) {
   registerKnowledgeRoutes(app, options);
 
   return app;
+}
+
+/** Gateway registration — registers knowledge domain routes without CORS or health. */
+export function registerKnowledgePlugin(app: FastifyInstance, opts: KnowledgePersistenceOptions, done: () => void): void {
+  app.addHook("onClose", async () => {
+    await disconnectKnowledgePrismaClient(opts.databaseUrl);
+  });
+  registerKnowledgeRoutes(app, opts);
+  done();
 }

@@ -20,6 +20,27 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
+      "@taxes/api": [
+        "./apps/taxes/api/src/app.ts"
+      ],
+      "@taxes/audit-api": [
+        "./apps/audit/api/src/app.ts"
+      ],
+      "@taxes/code-review-api": [
+        "./apps/code-review/api/src/app.ts"
+      ],
+      "@taxes/db": [
+        "./packages/db/src/index.ts"
+      ],
+      "@taxes/db/*": [
+        "./packages/db/src/*"
+      ],
+      "@taxes/knowledge-api": [
+        "./apps/knowledge/api/src/app.ts"
+      ],
+      "@taxes/plan-api": [
+        "./apps/plan/api/src/app.ts"
+      ],
       "@taxes/shared": [
         "./packages/shared/src/index.ts"
       ],

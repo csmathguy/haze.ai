@@ -1,24 +1,23 @@
 {
-  "name": "@taxes/api",
+  "name": "@taxes/gateway-api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/app.ts"
-  },
   "scripts": {
-    "dev": "node ../../../node_modules/tsx/dist/cli.mjs watch --exclude ../../../node_modules/.prisma/** --exclude ../../../node_modules/@prisma/client/** src/index.ts",
+    "dev": "node ../../../node_modules/tsx/dist/cli.mjs watch src/index.ts",
     "start": "node ../../../node_modules/tsx/dist/cli.mjs src/index.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.4.0",
-    "@prisma/adapter-better-sqlite3": "^7.4.2",
-    "@prisma/client": "^7.4.2",
+    "@taxes/api": "^0.1.0",
+    "@taxes/audit-api": "^0.1.0",
+    "@taxes/code-review-api": "^0.1.0",
     "@taxes/db": "^0.1.0",
+    "@taxes/knowledge-api": "^0.1.0",
+    "@taxes/plan-api": "^0.1.0",
     "better-sqlite3": "^12.6.2",
-    "fastify": "^5.8.2",
-    "zod": "^4.3.6"
+    "fastify": "^5.8.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13"

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import * as path from "node:path";
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@taxes/db";
 
 import { buildEntrySlug, serializeJson } from "./knowledge-support.js";
 

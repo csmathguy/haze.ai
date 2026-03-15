@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import type { FastifyInstance } from "fastify";
 
 import { PLAN_API_HOST } from "./config.js";
 import { disconnectPrismaClient } from "./db/client.js";
@@ -22,4 +23,13 @@ export async function buildApp(options: PlanningPersistenceOptions = {}) {
   registerPlanningRoutes(app, options);
 
   return app;
+}
+
+/** Gateway registration — registers plan domain routes without CORS or health. */
+export function registerPlanPlugin(app: FastifyInstance, opts: PlanningPersistenceOptions, done: () => void): void {
+  app.addHook("onClose", async () => {
+    await disconnectPrismaClient(opts.databaseUrl);
+  });
+  registerPlanningRoutes(app, opts);
+  done();
 }

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
   "scripts": {
     "dev": "node ../../../node_modules/tsx/dist/cli.mjs watch src/index.ts",
     "start": "node ../../../node_modules/tsx/dist/cli.mjs src/index.ts"

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { KnowledgeEntry, KnowledgeSubject } from "@taxes/shared";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@taxes/db";
 
 export class KnowledgeConflictError extends Error {}
 export class KnowledgeNotFoundError extends Error {}

@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 
 import { AUDIT_API_HOST } from "./config.js";
 import { disconnectAuditPrismaClient } from "./db/client.js";
@@ -23,4 +24,13 @@ export async function buildApp(options: AuditPersistenceOptions = {}) {
   registerAuditRoutes(app, options);
 
   return app;
+}
+
+/** Gateway registration — registers audit domain routes without CORS or health. */
+export function registerAuditPlugin(app: FastifyInstance, opts: AuditPersistenceOptions, done: () => void): void {
+  app.addHook("onClose", async () => {
+    await disconnectAuditPrismaClient(opts.databaseUrl);
+  });
+  registerAuditRoutes(app, opts);
+  done();
 }

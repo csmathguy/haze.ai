@@ -11,7 +11,7 @@ import {
   type ImportedDocument
 } from "@taxes/shared";
 import type { MultipartFile } from "@fastify/multipart";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@taxes/db";
 
 import { getPrismaClient } from "../db/client.js";
 import type { WorkspacePersistenceOptions } from "./context.js";
