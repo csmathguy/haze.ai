@@ -2,7 +2,7 @@
 name: research
 description: Fetch and summarize external documentation, compare sources, verify dated claims, or turn external guidance into repository documentation input. Use for tax-law questions, tool evaluation, standards review, and any task where source quality and recency matter. Returns a dated, source-ranked summary.
 tools: WebSearch, WebFetch, Read, Grep, Glob
-model: sonnet
+model: haiku
 context: fork
 ---
 

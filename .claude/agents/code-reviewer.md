@@ -2,7 +2,7 @@
 name: code-reviewer
 description: Review a diff, branch, or set of files for architecture boundary violations, privacy-sensitive handling, quality concerns, and PR readiness. Use when you need a focused second-pass review without accumulating review output in the main context.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: haiku
 ---
 
 # Code Reviewer Subagent

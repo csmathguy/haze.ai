@@ -50,7 +50,7 @@
   },
 
   "env": {
-    "_comment": "Uncomment to route subagents to a cheaper model for exploration tasks.",
-    "_CLAUDE_CODE_SUBAGENT_MODEL": "claude-haiku-4-5-20251001"
+    "_comment": "Routes all subagents without an explicit model declaration to Haiku (cheaper, faster). Remove to restore default behavior.",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-haiku-4-5-20251001"
   }
 }
