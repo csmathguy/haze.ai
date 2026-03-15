@@ -84,6 +84,7 @@
     "quality:logged": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts",
     "quality:logged:coverage": "node ./node_modules/tsx/dist/cli.mjs tools/agent/quality-gates.ts --with-coverage",
     "agent:worktree:create": "node ./node_modules/tsx/dist/cli.mjs tools/agent/parallel-worktree.ts",
+    "audit:transcript:view": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-transcript.ts",
     "audit:artifact": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts artifact",
     "audit:decision": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts decision",
     "audit:failure": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts failure",

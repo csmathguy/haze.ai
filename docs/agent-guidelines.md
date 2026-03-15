@@ -209,6 +209,41 @@ Key commands for querying work items:
 
 Invoking an unknown command prints all valid command keys before exiting with code 1.
 
+## Transcript Capture
+
+Claude Code session transcripts are captured automatically when a workflow ends.
+
+### How it works
+
+1. `npm run workflow:end <workflow> success|failed` triggers transcript capture as part of the
+   normal `endWorkflow` sequence, immediately after the `workflow-end` audit event is written.
+2. The capture code calls `findCurrentSessionFile()` to locate the Claude Code session JSONL:
+   - Checks `CLAUDE_SESSION_FILE` environment variable first.
+   - Falls back to `CLAUDE_SESSION_ID` environment variable.
+   - Falls back to the most recently modified `*.jsonl` in
+     `~/.claude/projects/<encoded-cwd>/`, where the encoded path replaces the drive colon
+     and all path separators with hyphens (e.g. `C--Users-csmat-source-repos-Taxes`).
+3. The JSONL is copied to `.audit/transcripts/<runId>.jsonl`.
+4. A `TranscriptArtifact` row is written to the audit database linking the run ID, optional
+   work item ID, file path, capture timestamp, and line count.
+5. If no session file is found the capture step logs a warning and continues without failing.
+
+### Viewing a transcript
+
+```bash
+npm run audit:transcript:view <runId>
+```
+
+Prints role-labelled turns to stdout. `tool_use` and `tool_result` blocks are truncated to
+200 characters to keep the output readable.
+
+### Storage and privacy
+
+- Transcripts are stored under `.audit/transcripts/` which is excluded from git via
+  `.gitignore`. They are treated as sensitive local operational data and must not be committed.
+- The audit database entry (path, line count, timestamps) is also local-only, stored in
+  `~/.taxes/audit/sqlite/audit.db`.
+
 ## Execution Lifecycle
 
 The repository workflow should stay explicit in this order:
