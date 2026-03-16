@@ -113,7 +113,7 @@
     "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-sonarjs": "^4.0.2",
     "globals": "^17.4.0",
-    "prisma": "^7.4.2",
+    "prisma": "^7.5.0",
     "simple-git-hooks": "^2.13.1",
     "stylelint": "^17.4.0",
     "stylelint-config-standard": "^40.0.0",
