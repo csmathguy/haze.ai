@@ -7,6 +7,9 @@ import { disconnectWorkflowPrismaClient } from "./db/client.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerWorkflowRoutes, type WorkflowPersistenceOptions } from "./routes/workflow.js";
 
+// Re-export executor modules for use throughout the application
+export * from "./executor/index.js";
+
 export async function buildApp(options: WorkflowPersistenceOptions = {}) {
   const app = Fastify({
     logger: false
