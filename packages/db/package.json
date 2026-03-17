@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.4.2",
+    "@prisma/adapter-better-sqlite3": "^7.5.0",
     "better-sqlite3": "^12.6.2",
     "prisma": "^7.5.0"
   },
