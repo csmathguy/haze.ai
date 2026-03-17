@@ -38,7 +38,7 @@ export async function executeCommandStep(
     let stderr = "";
     let exitCode = 0;
 
-    const child: ChildProcess = spawn(input.command, input.args, {
+    const child: ChildProcess = spawn(input.command, input.args ?? [], {
       cwd,
       env,
       stdio: ["ignore", "pipe", "pipe"]

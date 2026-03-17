@@ -1,14 +1,16 @@
 import type { PrismaClient, WorkflowStepRun } from "@taxes/db";
 import type { CommandStepResult } from "./command-executor.js";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyPrisma = any;
+
 export async function recordStepStart(
   db: PrismaClient,
   runId: string,
   stepId: string,
   stepType: string
 ): Promise<WorkflowStepRun> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-  const stepRun: WorkflowStepRun = await (db as unknown as Record<string, unknown>).workflowStepRun.create({
+  return (db as AnyPrisma).workflowStepRun.create({
     data: {
       runId,
       stepId,
@@ -18,9 +20,7 @@ export async function recordStepStart(
       retryCount: 0,
       startedAt: new Date()
     }
-  });
-
-  return stepRun;
+  }) as Promise<WorkflowStepRun>;
 }
 
 export async function recordStepComplete(
@@ -28,8 +28,7 @@ export async function recordStepComplete(
   stepRunId: string,
   result: CommandStepResult
 ): Promise<WorkflowStepRun> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-  const stepRun: WorkflowStepRun = await (db as unknown as Record<string, unknown>).workflowStepRun.update({
+  return (db as AnyPrisma).workflowStepRun.update({
     where: { id: stepRunId },
     data: {
       outputJson: JSON.stringify({
@@ -41,9 +40,7 @@ export async function recordStepComplete(
       }),
       completedAt: new Date()
     }
-  });
-
-  return stepRun;
+  }) as Promise<WorkflowStepRun>;
 }
 
 export async function recordStepFailed(
@@ -51,8 +48,7 @@ export async function recordStepFailed(
   stepRunId: string,
   error: string
 ): Promise<WorkflowStepRun> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-  const stepRun: WorkflowStepRun = await (db as unknown as Record<string, unknown>).workflowStepRun.update({
+  return (db as AnyPrisma).workflowStepRun.update({
     where: { id: stepRunId },
     data: {
       errorJson: JSON.stringify({
@@ -61,7 +57,5 @@ export async function recordStepFailed(
       }),
       completedAt: new Date()
     }
-  });
-
-  return stepRun;
+  }) as Promise<WorkflowStepRun>;
 }
