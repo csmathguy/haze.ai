@@ -16,6 +16,7 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
+import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 
 import type { WorkspaceSnapshot } from "@taxes/shared";
 
@@ -26,8 +27,14 @@ import { FilingReadinessChecklistPanel } from "./components/FilingReadinessCheck
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel.js";
 import { StatCard } from "./components/StatCard.js";
 import { buildReviewBanner, summarizeFilingReadiness, summarizeRequiredForms } from "./index.js";
+import { WorkflowDashboard } from "./workflow/pages/WorkflowDashboard.js";
+import { DefinitionList } from "./workflow/pages/DefinitionList.js";
+import { RunList } from "./workflow/pages/RunList.js";
+import { PendingApprovals } from "./workflow/pages/PendingApprovals.js";
 
-type ViewKey = "documents" | "holdings" | "overview" | "scenarios";
+type ViewKey = "documents" | "holdings" | "overview" | "scenarios" | "workflow";
+type WorkflowViewKey = "dashboard" | "definitions" | "runs" | "approvals";
+
 const ScenarioPanel = lazy(async () => {
   const module = await import("./components/ScenarioPanel.js");
 
@@ -36,8 +43,24 @@ const ScenarioPanel = lazy(async () => {
   };
 });
 
-export function App() {
+interface AppState {
+  activeView: ViewKey;
+  activeWorkflowView: WorkflowViewKey;
+  errorMessage: string | null;
+  isBusy: boolean;
+  snapshot: WorkspaceSnapshot | null;
+  uploadMessage: string | null;
+}
+
+interface AppHandlers {
+  handleUpload: (file: File) => Promise<void>;
+  onActiveViewChange: (view: ViewKey) => void;
+  onWorkflowViewChange: (view: WorkflowViewKey) => void;
+}
+
+function useAppState(): [AppState, AppHandlers] {
   const [activeView, setActiveView] = useState<ViewKey>("overview");
+  const [activeWorkflowView, setActiveWorkflowView] = useState<WorkflowViewKey>("dashboard");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(true);
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
@@ -74,7 +97,27 @@ export function App() {
     }
   }
 
-  const banner = buildReviewBanner(snapshot);
+  const state: AppState = {
+    activeView,
+    activeWorkflowView,
+    errorMessage,
+    isBusy,
+    snapshot,
+    uploadMessage
+  };
+
+  const handlers: AppHandlers = {
+    handleUpload,
+    onActiveViewChange: setActiveView,
+    onWorkflowViewChange: setActiveWorkflowView
+  };
+
+  return [state, handlers];
+}
+
+export function App() {
+  const [state, handlers] = useAppState();
+  const banner = buildReviewBanner(state.snapshot);
 
   return (
     <Box
@@ -92,28 +135,35 @@ export function App() {
               A local-only intake and planning desk for tax documents, asset lots, and filing scenarios. Upload source records, find missing data, and prepare the ground for optimized 1040 support.
             </Typography>
           </Stack>
-          <WorkspaceAlerts banner={banner} errorMessage={errorMessage} uploadMessage={uploadMessage} />
+          <WorkspaceAlerts banner={banner} errorMessage={state.errorMessage} uploadMessage={state.uploadMessage} />
 
           <Tabs
             onChange={(_event: SyntheticEvent, value: ViewKey) => {
-              setActiveView(value);
+              handlers.onActiveViewChange(value);
             }}
             textColor="primary"
-            value={activeView}
+            value={state.activeView}
             variant="scrollable"
           >
             <Tab icon={<RuleFolderOutlinedIcon />} iconPosition="start" label="Overview" value="overview" />
             <Tab icon={<DescriptionOutlinedIcon />} iconPosition="start" label="Documents" value="documents" />
             <Tab icon={<AssignmentTurnedInOutlinedIcon />} iconPosition="start" label="Review" value="holdings" />
             <Tab icon={<SavingsOutlinedIcon />} iconPosition="start" label="Scenarios" value="scenarios" />
+            <Tab icon={<TimelineOutlinedIcon />} iconPosition="start" label="Workflow" value="workflow" />
           </Tabs>
 
-          {isBusy || snapshot === null ? (
+          {state.isBusy || state.snapshot === null ? (
             <Stack alignItems="center" minHeight={240} justifyContent="center">
               <CircularProgress />
             </Stack>
           ) : (
-            <WorkspaceContent activeView={activeView} onUpload={handleUpload} snapshot={snapshot} />
+            <WorkspaceContent
+              activeView={state.activeView}
+              activeWorkflowView={state.activeWorkflowView}
+              onUpload={handlers.handleUpload}
+              onWorkflowViewChange={handlers.onWorkflowViewChange}
+              snapshot={state.snapshot}
+            />
           )}
         </Stack>
       </Container>
@@ -207,11 +257,13 @@ function WorkspaceAlerts({ banner, errorMessage, uploadMessage }: WorkspaceAlert
 
 interface WorkspaceContentProps {
   readonly activeView: ViewKey;
+  readonly activeWorkflowView: WorkflowViewKey;
   readonly onUpload: (file: File) => Promise<void>;
+  readonly onWorkflowViewChange: (view: WorkflowViewKey) => void;
   readonly snapshot: WorkspaceSnapshot;
 }
 
-function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentProps) {
+function WorkspaceContent({ activeView, activeWorkflowView, onUpload, onWorkflowViewChange, snapshot }: WorkspaceContentProps) {
   if (activeView === "overview") {
     return <OverviewView onUpload={onUpload} snapshot={snapshot} />;
   }
@@ -224,6 +276,10 @@ function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentPr
     return <ReviewView snapshot={snapshot} />;
   }
 
+  if (activeView === "workflow") {
+    return <WorkflowView activeView={activeWorkflowView} onViewChange={onWorkflowViewChange} />;
+  }
+
   return (
     <Suspense
       fallback={
@@ -234,5 +290,35 @@ function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentPr
     >
       <ScenarioPanel scenarios={snapshot.scenarios} />
     </Suspense>
+  );
+}
+
+interface WorkflowViewProps {
+  readonly activeView: WorkflowViewKey;
+  readonly onViewChange: (view: WorkflowViewKey) => void;
+}
+
+function WorkflowView({ activeView, onViewChange }: WorkflowViewProps) {
+  return (
+    <Stack spacing={3}>
+      <Tabs
+        onChange={(_event: SyntheticEvent, value: WorkflowViewKey) => {
+          onViewChange(value);
+        }}
+        textColor="primary"
+        value={activeView}
+        variant="scrollable"
+      >
+        <Tab label="Dashboard" value="dashboard" />
+        <Tab label="Definitions" value="definitions" />
+        <Tab label="Runs" value="runs" />
+        <Tab label="Approvals" value="approvals" />
+      </Tabs>
+
+      {activeView === "dashboard" && <WorkflowDashboard />}
+      {activeView === "definitions" && <DefinitionList />}
+      {activeView === "runs" && <RunList />}
+      {activeView === "approvals" && <PendingApprovals />}
+    </Stack>
   );
 }
