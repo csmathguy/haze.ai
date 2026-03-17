@@ -2,6 +2,7 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 import { createDevEnvironmentPlan, parseDevEnvironmentArgs, type DevServiceLaunchPlan } from "./lib/dev-environment.js";
+import { ensureMuiDependencyIntegrity } from "./lib/dependency-integrity.js";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(moduleDirectory, "..", "..");
@@ -23,6 +24,13 @@ async function main(): Promise<void> {
     "tools/runtime/run-npm.cjs",
     "install"
   ]);
+  await ensureMuiDependencyIntegrity({
+    log: writeInfo,
+    reinstall: async () => {
+      await runShortCommand("npm install (repair)", "node", ["tools/runtime/run-npm.cjs", "install"]);
+    },
+    repositoryRoot
+  });
 
   if (options.skipDev) {
     writeInfo("Skipping dev environment start (--skip-dev was provided).");
