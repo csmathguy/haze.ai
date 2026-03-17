@@ -13,7 +13,7 @@ That matters more here because a growing share of changes will be produced by ag
 
 PR creation is an agent responsibility for branch-ready work. PR merge is not. Merge remains a human-controlled decision after review, and this repository intends to route that step through the `code-review` project workflow.
 
-Non-draft pull requests targeting `main` are also checked by `.github/workflows/pr-hygiene.yml`, which verifies that the required sections below are still present before review proceeds.
+The required sections below define the repository review standard and align with the pull request template. They are no longer enforced by a dedicated PR-hygiene workflow check.
 
 ## Required Sections
 
@@ -124,4 +124,4 @@ That command pushes the current branch and creates or updates the PR using the g
 ## GitHub Review Automation
 
 - `.github/CODEOWNERS` lets GitHub request the repository owner as a reviewer automatically when a pull request is ready for review.
-- `.github/workflows/pr-hygiene.yml` enforces the required section headings on pull requests so review starts with the expected context.
+- `.github/pull_request_template.md` provides the expected section headings so review starts with consistent context.
