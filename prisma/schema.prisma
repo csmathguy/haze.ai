@@ -530,3 +530,140 @@ model AuditEventRecord {
   @@index([planRunId, timestamp])
   @@index([planStepId, timestamp])
 }
+
+model WorkflowDefinition {
+  id               String   @id @default(cuid())
+  name             String
+  version          String
+  description      String?
+  triggerEvents    String
+  definitionJson   String
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+}
+
+model WorkflowRun {
+  id               String   @id @default(cuid())
+  definitionId     String
+  definitionName   String
+  version          String
+  status           String   @default("pending")
+  currentStep      String?
+  contextJson      String?
+  correlationId    String?
+  parentRunId      String?
+  startedAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  completedAt      DateTime?
+
+  @@index([definitionId])
+  @@index([status])
+  @@index([correlationId])
+  @@index([parentRunId])
+  @@index([startedAt])
+}
+
+model WorkflowStepRun {
+  id               String   @id @default(cuid())
+  runId            String
+  stepId           String
+  stepType         String
+  nodeType         String
+  agentId          String?
+  model            String?
+  skillIds         String?
+  inputJson        String?
+  outputJson       String?
+  errorJson        String?
+  retryCount       Int      @default(0)
+  startedAt        DateTime @default(now())
+  completedAt      DateTime?
+
+  @@index([runId])
+  @@index([stepId])
+  @@index([startedAt])
+}
+
+model WorkflowEvent {
+  id               String   @id @default(cuid())
+  type             String
+  source           String
+  correlationId    String?
+  causationId      String?
+  payload          String
+  metadata         String?
+  occurredAt       DateTime @default(now())
+  processedAt      DateTime?
+
+  @@index([type])
+  @@index([source])
+  @@index([correlationId])
+  @@index([occurredAt])
+}
+
+model WorkflowApproval {
+  id               String   @id @default(cuid())
+  runId            String
+  stepId           String
+  status           String   @default("pending")
+  prompt           String
+  responseJson     String?
+  requestedAt      DateTime @default(now())
+  respondedAt      DateTime?
+
+  @@index([runId])
+  @@index([stepId])
+  @@index([status])
+}
+
+model Agent {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  description      String?
+  model            String
+  tier             String
+  allowedSkillIds  String?
+  version          String   @default("1.0.0")
+  status           String   @default("active")
+  metadata         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([tier])
+}
+
+model Skill {
+  id               String   @id @default(cuid())
+  name             String
+  version          String
+  description      String?
+  category         String?
+  inputSchema      String?
+  outputSchema     String?
+  executionMode    String   @default("agent")
+  permissions      String?
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+
+  @@unique([name, version])
+  @@index([status])
+  @@index([category])
+}
+
+model ExternalEventSource {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  type             String
+  configJson       String?
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+}
