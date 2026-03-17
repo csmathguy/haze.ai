@@ -1,7 +1,11 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
+
+import { getWorkflowPrismaClient } from "../db/client.js";
 
 export interface WorkflowPersistenceOptions {
   readonly databaseUrl?: string;
+  readonly pollIntervalMs?: number;  // default 1000, set to 0 to disable
 }
 
 function notImplemented() {
@@ -46,9 +50,8 @@ export function registerWorkflowRoutes(app: FastifyInstance): void {
   });
 
   // Workflow Events
-  app.get("/api/workflow/events", async (_request, reply) => {
-    reply.code(501);
-    return notImplemented();
+  app.get("/api/workflow/events", async (request: FastifyRequest, reply: FastifyReply) => {
+    return registerWorkflowEventsRoute(request, reply);
   });
 
   // Agents
@@ -88,4 +91,37 @@ export function registerWorkflowRoutes(app: FastifyInstance): void {
     reply.code(501);
     return notImplemented();
   });
+}
+
+// ============================================================================
+// Workflow Events Route Handler
+// ============================================================================
+
+async function registerWorkflowEventsRoute(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const params = z.object({
+      runId: z.string().optional(),
+      limit: z.coerce.number().int().positive().default(50)
+    }).parse(request.query);
+
+    const prisma = await getWorkflowPrismaClient();
+    try {
+      const events = await prisma.workflowEvent.findMany({
+        where: params.runId ? { correlationId: params.runId } : {},
+        orderBy: { occurredAt: "desc" },
+        take: params.limit
+      });
+
+      return { events };
+    } finally {
+      await prisma.$disconnect();
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      reply.code(400);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      return { error: "Invalid query parameters", details: error.errors };
+    }
+    throw error;
+  }
 }
