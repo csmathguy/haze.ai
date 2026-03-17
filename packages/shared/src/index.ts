@@ -8,4 +8,6 @@ export * from "./knowledge.js";
 export * from "./planning.js";
 export * from "./questionnaire.js";
 export * from "./tax-return.js";
+export * from "./workflow.js";
+export * from "./workflow-schemas.js";
 export * from "./workspace.js";
