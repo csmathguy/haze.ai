@@ -3,7 +3,6 @@
 ## Files Added In-Repo
 
 - `.github/workflows/ci.yml`
-- `.github/workflows/pr-hygiene.yml`
 - `.github/dependabot.yml`
 - `.github/ISSUE_TEMPLATE/*`
 - `.github/pull_request_template.md`
@@ -60,7 +59,7 @@ Regardless of GitHub plan, treat secret scanning as a backstop, not the primary 
 
 - CI verifies Prisma validation, type safety, linting, styling, and coverage in separate required checks on pull requests and main-branch pushes.
 - Dependabot keeps action and npm versions moving without manual tracking.
-- The PR hygiene workflow validates the repository's required PR sections before review on non-draft pull requests.
+- The pull request template and review standards document keep PR descriptions consistent without adding a separate required CI check.
 - Templates, Copilot instructions, and CODEOWNERS give GitHub enough structure to request review automatically and keep review quality consistent once the ruleset is enabled.
 
 ## Pull Request Review Quality
