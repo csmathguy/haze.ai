@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
 
-import { API_HOST, MAX_UPLOAD_FILE_BYTES } from "./config.js";
+import { MAX_UPLOAD_FILE_BYTES, WEB_ALLOWED_ORIGINS } from "./config.js";
 import { disconnectPrismaClient } from "./db/client.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -17,7 +17,7 @@ export async function buildApp(options: WorkspacePersistenceOptions = {}) {
   });
 
   await app.register(cors, {
-    origin: [`http://${API_HOST}:5173`, "http://localhost:5173"]
+    origin: WEB_ALLOWED_ORIGINS
   });
   await app.register(multipart, {
     limits: {
