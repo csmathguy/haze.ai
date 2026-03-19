@@ -5,6 +5,7 @@ interface AgentSeedData {
   description: string;
   modelTier: string;
   capabilities: string[];
+  configSourcePath?: string;
 }
 
 const SEED_AGENTS: AgentSeedData[] = [
@@ -12,13 +13,15 @@ const SEED_AGENTS: AgentSeedData[] = [
     name: "code-reviewer",
     description: "Review a diff, branch, or set of files for architecture boundary violations, privacy-sensitive handling, quality concerns, and PR readiness.",
     modelTier: "1",
-    capabilities: ["code-review", "architecture-analysis", "privacy-audit", "quality-check"]
+    capabilities: ["code-review", "architecture-analysis", "privacy-audit", "quality-check"],
+    configSourcePath: ".claude/agents/code-reviewer.md"
   },
   {
     name: "research",
     description: "Fetch and summarize external documentation, compare sources, verify dated claims, or turn external guidance into repository documentation input.",
     modelTier: "1",
-    capabilities: ["web-search", "documentation-review", "source-analysis", "knowledge-synthesis"]
+    capabilities: ["web-search", "documentation-review", "source-analysis", "knowledge-synthesis"],
+    configSourcePath: ".claude/agents/research.md"
   },
   {
     name: "orchestrator",
@@ -47,6 +50,9 @@ export async function seedAgents(prisma: PrismaClient): Promise<void> {
       update: {
         description: agent.description,
         tier: agent.modelTier,
+        providerFamily: "anthropic",
+        runtimeKind: "claude-code-subagent",
+        configSourcePath: agent.configSourcePath ?? null,
         status: "active"
       },
       create: {
@@ -54,6 +60,9 @@ export async function seedAgents(prisma: PrismaClient): Promise<void> {
         description: agent.description,
         model: agent.name,
         tier: agent.modelTier,
+        providerFamily: "anthropic",
+        runtimeKind: "claude-code-subagent",
+        configSourcePath: agent.configSourcePath ?? null,
         status: "active",
         version: "1.0.0",
         metadata: JSON.stringify({
