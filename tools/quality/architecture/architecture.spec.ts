@@ -17,6 +17,26 @@ describe("architecture rules", { timeout: 120_000 }, () => {
     await expect(apiFiles.shouldNot().dependOnFiles().inFolder("apps/**/web/src/**")).toPassAsync();
   });
 
+  it("prevents cross-app API source imports", async () => {
+    // Each app is a bounded context. Apps share types via packages/shared and communicate
+    // at runtime via HTTP — never by importing each other's source files directly.
+    // Files inside apps/X/api/src/** use relative paths like ../service/foo (no /api/src/
+    // in the string). Cross-app imports require paths like ../../../../workflow/api/src/foo
+    // which will always contain /api/src/.
+    await expect(
+      apiFiles.should().adhereTo(
+        (file) => !hasDirectCrossAppApiImport(file.content),
+        "API apps must not import each other's source directly. Use packages/shared or HTTP."
+      )
+    ).toPassAsync();
+    await expect(
+      webFiles.should().adhereTo(
+        (file) => !hasDirectCrossAppApiImport(file.content),
+        "Web apps must not import another app's API source directly. Use packages/shared or HTTP."
+      )
+    ).toPassAsync();
+  });
+
   it("prevents shared code from depending on app layers", async () => {
     await expect(
       allFiles
@@ -97,6 +117,10 @@ describe("architecture rules", { timeout: 120_000 }, () => {
     ).toPassAsync();
   });
 });
+
+function hasDirectCrossAppApiImport(content: string): boolean {
+  return /from\s*["'][^"']*\/api\/src\//u.test(content);
+}
 
 function importsTestFile(content: string): boolean {
   return /(?:from|import)\s*(?:\(|)["'][^"']+\.(?:test|spec)\.[^"']+["']/u.test(content);
