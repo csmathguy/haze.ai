@@ -1,0 +1,76 @@
+# Codex Implementer Agent Profile
+# Role mapping: no Anthropic equivalent (aligns with Claude Code main agent for T2 work)
+# Task: Code changes, refactors, tests, implementation, feature design
+# Model: gpt-4o (Tier 2) — full reasoning capability for implementation tasks
+# Cost: ~$3/M input tokens, ~$15/M output tokens
+# Reasoning effort: medium
+
+[metadata]
+name = "implementer"
+description = "Implement features, write code changes, refactor existing code, add tests, and design solutions. Use for bounded implementation tasks requiring moderate reasoning about edge cases, design tradeoffs, and test-driven development. Supports the full implementation workflow."
+role = "implementer"
+tier = 2
+model = "gpt-4o"
+
+[reasoning]
+effort = "medium"
+extended_thinking = false
+
+[capabilities]
+# Tools available to this agent
+tools = ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "NotebookEdit"]
+
+# File operations
+allow_write = true
+allow_delete = true
+allow_create = true
+sandbox = "full"
+
+# Sandbox configuration
+[sandbox]
+read_only_mode = false
+allow_file_read = true
+allow_file_write = true
+allow_network = false
+allow_external_http = false
+
+[context]
+# Context window expectations for this agent (Tier 2)
+max_context_files = 50
+max_context_size_kb = 200
+target_token_budget = 32000
+
+[implementation_workflow]
+# Recommended workflow for implementer
+# 1. Start audited workflow: npm run workflow:start implementation "<summary>"
+# 2. Read relevant docs in docs/
+# 3. Work in red-green-refactor order for behavior changes
+# 4. Write tests alongside changes (TDD when practical)
+# 5. Validate with: npm run quality:changed -- <files>
+# 6. Create atomic commits with descriptive messages
+# 7. Open PR: npm run pr:sync
+# 8. End workflow: npm run workflow:end implementation success
+
+[code_changes]
+# This agent can:
+# - Modify TypeScript/JavaScript source files
+# - Add and update test files
+# - Edit configuration files (TOML, JSON, YAML)
+# - Create new packages or modules
+# - Refactor existing code with tests
+# - Update documentation
+
+[quality_gates]
+# Enforce quality standards during implementation
+# - Explicit TypeScript types (avoid any)
+# - Tests for new or changed behavior
+# - ESLint and formatting compliance
+# - Prisma migrations for schema changes
+# - Architecture boundary compliance
+
+[examples]
+example_1 = "Implement a new feature with tests in red-green-refactor order"
+example_2 = "Refactor a module to improve code quality"
+example_3 = "Add validation logic to a form component"
+example_4 = "Create a new backend service with proper error handling"
+example_5 = "Write a database migration and update schema"

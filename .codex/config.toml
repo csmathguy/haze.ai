@@ -1,0 +1,22 @@
+# Codex CLI Configuration
+# This configuration enables Codex (OpenAI CLI) to work alongside Claude Code (Anthropic CLI)
+# with feature parity through custom agent profiles. Configuration as of 2026-03-19.
+
+# Global agent settings
+[agents]
+max_threads = 4          # Maximum concurrent agent threads for multi-agent workflows
+max_depth = 3            # Maximum nesting depth for agent-spawned subagents
+model = "gpt-4o-mini"    # Default model for agents not covered by a specific profile
+reasoning_effort = "low" # Reasoning budget for extended thinking where supported
+
+# Optional: logging and observability
+[logging]
+level = "info"
+format = "json"
+
+# Optional: sandbox and security settings
+[sandbox]
+read_only_paths = []
+denied_paths = [".git", "node_modules"]
+allow_file_write = true
+allow_network = false

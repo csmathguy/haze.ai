@@ -88,6 +88,21 @@ Claude Code's skill system supports model selection through environment variable
 
 Codex CLI uses OpenAI models and has similar environment variable support. Codex will eventually support Tier 0 (local models) through Ollama integration.
 
+#### Codex Agent Profile Mapping
+
+Codex uses custom agent profiles stored in `.codex/agents/*.toml` to provide feature parity with Claude Code subagents. Each profile declares model choice, reasoning effort, and sandbox mode:
+
+| Agent Profile | Role | Model | Tier | Task Type |
+|---------------|------|-------|------|-----------|
+| **explorer.toml** | Read-only codebase search | gpt-4o-mini | T1 | File pattern matching, triage, understanding file structure |
+| **reviewer.toml** | Code review, diff analysis | gpt-4o-mini | T2 | Architecture checks, privacy validation, quality gates, PR readiness |
+| **research.toml** | External research, citations | gpt-4o-mini | T1 | Web fetch, source summarization, dated citations, tax law verification |
+| **implementer.toml** | Code changes and refactors | gpt-4o | T2 | Feature implementation, test-driven development, module design |
+
+**Configuration location**: `.codex/config.toml` at the repository root. Global settings for max_threads (4), max_depth (3), default model (gpt-4o-mini), and sandbox rules apply to all profiles unless overridden.
+
+**Usage**: Invoke Codex agents using the `--agent` flag or let Codex auto-select based on task type. Each profile includes examples and constraints in the TOML frontmatter.
+
 ### Choosing Between CLIs
 
 - Use **Claude Code** when you want the maximum capability for complex reasoning (access to Opus).
