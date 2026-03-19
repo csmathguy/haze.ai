@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 const PRISMA_CLI_ENTRYPOINT = path.resolve("node_modules", "prisma", "build", "index.js");
@@ -44,6 +44,7 @@ async function runPrismaGenerate(): Promise<void> {
 async function writeClientShim(): Promise<void> {
   // Prisma 7 with `provider = "prisma-client"` emits TypeScript source files.
   // Runtime tools import `generated/prisma/client.js`, so emit a tiny ESM shim.
+  await mkdir(GENERATED_CLIENT_DIRECTORY, { recursive: true });
   await writeFile(GENERATED_CLIENT_SHIM_PATH, 'export * from "./client.ts";\n', "utf8");
 }
 
