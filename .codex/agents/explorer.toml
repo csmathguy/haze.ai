@@ -10,7 +10,7 @@ name = "explorer"
 description = "Read-only file search, codebase exploration, pattern matching, and triage. Use for finding code patterns, understanding file structure, or triaging issues without making changes."
 role = "explorer"
 tier = 1
-model = "gpt-4o-mini"
+model = "gpt-5.4-mini"
 
 [reasoning]
 effort = "low"

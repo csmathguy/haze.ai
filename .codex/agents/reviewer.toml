@@ -10,7 +10,7 @@ name = "reviewer"
 description = "Review a diff, branch, or set of files for architecture boundary violations, privacy-sensitive handling, quality concerns, and PR readiness. Use when you need a focused second-pass review without accumulating review output in the main context. Mirrors Claude Code code-reviewer subagent."
 role = "reviewer"
 tier = 2
-model = "gpt-4o-mini"
+model = "gpt-5.4-mini"
 
 [reasoning]
 effort = "medium"

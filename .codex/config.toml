@@ -6,7 +6,7 @@
 [agents]
 max_threads = 4          # Maximum concurrent agent threads for multi-agent workflows
 max_depth = 3            # Maximum nesting depth for agent-spawned subagents
-model = "gpt-4o-mini"    # Default model for agents not covered by a specific profile
+model = "gpt-5.4-mini"    # Default model for agents not covered by a specific profile
 reasoning_effort = "low" # Reasoning budget for extended thinking where supported
 
 # Optional: logging and observability
