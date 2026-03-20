@@ -1,8 +1,9 @@
+import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import type { PrismaClient, WorkflowStepRun, Agent, Skill } from "@taxes/db";
 import type { AgentStep, WorkflowRun } from "@taxes/shared";
 import { parseStreamJson } from "./agent-step-stream-parser.js";
 import type { TokenUsage } from "./agent-step-stream-parser.js";
-import { AgentStepSpawner } from "./agent-step-spawner.js";
 
 /**
  * Step execution result emitted by the CLI (stream-json format).
@@ -45,7 +46,6 @@ interface ExecutionContext {
  * Validates output against step's outputSchema (Zod) and records full trace metadata.
  */
 export class AgentStepExecutor {
-  private readonly spawner = new AgentStepSpawner();
   /**
    * Executes an agent step.
    *
@@ -115,7 +115,7 @@ export class AgentStepExecutor {
     }
 
     // Spawn CLI and stream output
-    const cliOutput = await this.spawner.spawnCli(
+    const cliOutput = await this.spawnCli(
       runtimeKind,
       providerFamily,
       prompt,
