@@ -48,6 +48,8 @@ export const AgentStepSchema: z.ZodType = z.lazy(() =>
     label: z.string().min(1),
     agentId: z.string().min(1),
     model: z.string().min(1),
+    providerFamily: z.enum(["anthropic", "openai"]).optional().default("anthropic"),
+    runtimeKind: z.enum(["claude-code-subagent", "codex-subagent", "api"]).optional().default("claude-code-subagent"),
     skillIds: z.array(z.string().min(1)),
     outputSchema: z.custom<z.ZodType>((val) => val instanceof z.ZodType),
     timeoutMs: z.number().int().positive().optional(),
@@ -63,6 +65,8 @@ export interface AgentStep {
   label: string;
   agentId: string;
   model: string;
+  providerFamily?: "anthropic" | "openai";
+  runtimeKind?: "claude-code-subagent" | "codex-subagent" | "api";
   skillIds: string[];
   outputSchema: z.ZodType;
   timeoutMs?: number;

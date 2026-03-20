@@ -5,6 +5,9 @@ export interface AgentCreateInput {
   description?: string | undefined;
   model?: string | undefined;
   tier?: string | undefined;
+  providerFamily?: string | undefined;
+  runtimeKind?: string | undefined;
+  configSourcePath?: string | undefined;
   allowedSkillIds?: string | undefined;
   version?: string | undefined;
   metadata?: string | undefined;
@@ -15,6 +18,9 @@ export interface AgentUpdateInput {
   description?: string | undefined;
   model?: string | undefined;
   tier?: string | undefined;
+  providerFamily?: string | undefined;
+  runtimeKind?: string | undefined;
+  configSourcePath?: string | undefined;
   allowedSkillIds?: string | undefined;
   version?: string | undefined;
   metadata?: string | undefined;
@@ -45,6 +51,9 @@ export async function createAgent(prisma: PrismaClient, data: AgentCreateInput):
       description: data.description ?? null,
       model: data.model ?? data.name,
       tier: data.tier ?? "2",
+      providerFamily: data.providerFamily ?? "anthropic",
+      runtimeKind: data.runtimeKind ?? "claude-code-subagent",
+      configSourcePath: data.configSourcePath ?? null,
       allowedSkillIds: data.allowedSkillIds ?? null,
       version: data.version ?? "1.0.0",
       metadata: data.metadata ?? null,
@@ -58,17 +67,15 @@ export async function updateAgent(
   id: string,
   data: AgentUpdateInput
 ): Promise<Agent> {
+  const updates = Object.entries(data)
+    .filter(([, value]) => value !== undefined)
+    .reduce<Record<string, string | undefined>>((acc, [key, value]) => {
+      acc[key] = value as string | undefined;
+      return acc;
+    }, {});
+
   return prisma.agent.update({
     where: { id },
-    data: {
-      ...(data.name !== undefined ? { name: data.name } : {}),
-      ...(data.description !== undefined ? { description: data.description } : {}),
-      ...(data.model !== undefined ? { model: data.model } : {}),
-      ...(data.tier !== undefined ? { tier: data.tier } : {}),
-      ...(data.allowedSkillIds !== undefined ? { allowedSkillIds: data.allowedSkillIds } : {}),
-      ...(data.version !== undefined ? { version: data.version } : {}),
-      ...(data.metadata !== undefined ? { metadata: data.metadata } : {}),
-      ...(data.status !== undefined ? { status: data.status } : {})
-    }
+    data: updates as Parameters<typeof prisma.agent.update>[0]["data"]
   });
 }
