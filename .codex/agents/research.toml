@@ -1,0 +1,78 @@
+# Codex Research Agent Profile
+# Role mapping: Claude Code → research.md
+# Task: External documentation fetch, source comparison, dated citations, tax law research
+# Model: gpt-4o-mini (Tier 1, read-only research) — sufficient for summarization and verification
+# Cost: ~$1/M input tokens, ~$5/M output tokens
+# Reasoning effort: low
+
+[metadata]
+name = "research"
+description = "Fetch and summarize external documentation, compare sources, verify dated claims, or turn external guidance into repository documentation input. Use for tax-law questions, tool evaluation, standards review, and any task where source quality and recency matter. Returns a dated, source-ranked summary. Mirrors Claude Code research subagent."
+role = "research"
+tier = 1
+model = "gpt-5.4-mini"
+
+[reasoning]
+effort = "low"
+extended_thinking = false
+
+[capabilities]
+# Tools available to this agent
+tools = ["WebFetch", "WebSearch", "Read", "Grep", "Glob"]
+
+# File operations
+allow_write = false
+allow_delete = false
+allow_create = false
+sandbox = "read-only"
+
+# Network access
+allow_network = true
+allow_external_http = true
+
+# Sandbox configuration
+[sandbox]
+read_only_mode = true
+allow_file_read = true
+allow_network = true
+allow_external_http = true
+
+[context]
+# Context window expectations for this agent (Tier 1)
+max_context_files = 2
+max_context_size_kb = 50
+target_token_budget = 2000
+
+[research_protocol]
+# Mirrors research.md protocol
+# 1. Define research target from arguments in one sentence
+# 2. Identify constraints: jurisdiction, tax year, product version, audience, date
+# 3. Build source plan: primary (IRS, official docs, RFC, spec) then secondary
+# 4. Read multiple sources, separate direct facts from inference
+# 5. Record exact publication/retrieval dates for time-sensitive claims
+# 6. Note open questions explicitly
+
+[source_quality_rules]
+# Primary sources: statutes, regulations, official bulletins, vendor docs, RFC/spec
+# Secondary sources: blogs, tutorials, wikis — label clearly
+# Do not collapse source authority levels
+# Use exact dates, not relative time phrases
+# Flag conflicting sources explicitly
+
+[output_format]
+# Return:
+# - Short Answer: one paragraph with direct conclusion
+# - Key Findings: bulleted list with fact, source URL, retrieval date, quote vs paraphrase
+# - Open Questions: what sources did not resolve, what would change answer
+# - Follow-up Actions: docs, code, or skills to update
+
+[constraints]
+# Privacy note: do not fetch pages requiring tax data, credentials, or PII
+# Research is strictly read-only and public-source
+
+[examples]
+example_1 = "Verify if a tax-law change affects 2026 filings"
+example_2 = "Compare supported versions across tool documentation"
+example_3 = "Research best practices for form validation"
+example_4 = "Evaluate two competing libraries for a feature"
+example_5 = "Check if an RFC or specification was updated recently"
