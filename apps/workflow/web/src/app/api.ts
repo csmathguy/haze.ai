@@ -26,6 +26,8 @@ const WorkflowStepRunSchema = z.object({
   inputJson: z.string().nullable(),
   outputJson: z.string().nullable(),
   errorJson: z.string().nullable(),
+  stdout: z.string().nullable(),
+  stderr: z.string().nullable(),
   retryCount: z.number().int(),
   startedAt: z.string(),
   completedAt: z.string().nullable()

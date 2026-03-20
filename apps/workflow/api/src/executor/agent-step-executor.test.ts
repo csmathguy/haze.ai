@@ -25,8 +25,22 @@ describe("AgentStepExecutor", () => {
   it("handles missing agent gracefully", async () => {
     const executor = new AgentStepExecutor();
 
+    // Persist the workflow run to the database for foreign key constraint
+    const persistedRun = await db.workflowRun.create({
+      data: {
+        id: `run_${randomUUID()}`,
+        definitionId: "def_test",
+        definitionName: "test-workflow",
+        version: "1.0.0",
+        status: "running",
+        currentStep: "step_1",
+        startedAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
     const workflowRun: WorkflowRun = {
-      id: `run_${randomUUID()}`,
+      id: persistedRun.id,
       definitionName: "test-workflow",
       version: "1.0.0",
       status: "running",
@@ -76,8 +90,22 @@ describe("AgentStepExecutor", () => {
       }
     });
 
+    // Persist the workflow run to the database for foreign key constraint
+    const persistedRun = await db.workflowRun.create({
+      data: {
+        id: `run_${randomUUID()}`,
+        definitionId: "def_test",
+        definitionName: "test-workflow",
+        version: "1.0.0",
+        status: "running",
+        currentStep: "step_1",
+        startedAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
     const workflowRun: WorkflowRun = {
-      id: `run_${randomUUID()}`,
+      id: persistedRun.id,
       definitionName: "test-workflow",
       version: "1.0.0",
       status: "running",
@@ -129,8 +157,22 @@ describe("AgentStepExecutor", () => {
       }
     });
 
+    // Persist the workflow run to the database for foreign key constraint
+    const persistedRun = await db.workflowRun.create({
+      data: {
+        id: `run_${randomUUID()}`,
+        definitionId: "def_test",
+        definitionName: "test-workflow",
+        version: "1.0.0",
+        status: "running",
+        currentStep: "step_1",
+        startedAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
     const workflowRun: WorkflowRun = {
-      id: `run_${randomUUID()}`,
+      id: persistedRun.id,
       definitionName: "test-workflow",
       version: "1.0.0",
       status: "running",

@@ -580,6 +580,8 @@ model WorkflowStepRun {
   inputJson        String?
   outputJson       String?
   errorJson        String?
+  stdout           String?
+  stderr           String?
   retryCount       Int      @default(0)
   startedAt        DateTime @default(now())
   completedAt      DateTime?

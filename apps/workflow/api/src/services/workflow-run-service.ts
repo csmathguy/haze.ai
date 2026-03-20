@@ -89,6 +89,8 @@ type WorkflowRunWithStepRuns = PrismaWorkflowRun & {
     inputJson: string | null;
     outputJson: string | null;
     errorJson: string | null;
+    stdout: string | null;
+    stderr: string | null;
     retryCount: number;
     startedAt: Date;
     completedAt: Date | null;
@@ -225,6 +227,8 @@ export function formatRunForApi(run: WorkflowRunWithStepRuns): Record<string, un
     inputJson: sr.inputJson,
     outputJson: sr.outputJson,
     errorJson: sr.errorJson,
+    stdout: sr.stdout,
+    stderr: sr.stderr,
     retryCount: sr.retryCount,
     startedAt: sr.startedAt.toISOString(),
     completedAt: sr.completedAt?.toISOString() ?? null
