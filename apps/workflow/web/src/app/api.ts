@@ -27,7 +27,7 @@ export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
   if (!response.ok) {
     throw new Error(`Failed to fetch workflow definitions: ${response.statusText}`);
   }
-  const data = await response.json();
+  const data: unknown = await response.json();
   const parsed = WorkflowDefinitionResponseSchema.parse(data);
   return parsed.definitions;
 }
@@ -37,15 +37,15 @@ export async function getWorkflowDefinition(name: string): Promise<WorkflowDefin
   if (!response.ok) {
     throw new Error(`Failed to fetch workflow definition: ${response.statusText}`);
   }
-  const data = await response.json();
+  const data: unknown = await response.json();
   const parsed = SingleDefinitionResponseSchema.parse(data);
   return parsed.definition;
 }
 
 export function parseDefinitionJson(definition: WorkflowDefinition): Record<string, unknown> {
-  return JSON.parse(definition.definitionJson);
+  return JSON.parse(definition.definitionJson) as Record<string, unknown>;
 }
 
 export function parseTriggers(definition: WorkflowDefinition): string[] {
-  return JSON.parse(definition.triggerEvents);
+  return JSON.parse(definition.triggerEvents) as string[];
 }
