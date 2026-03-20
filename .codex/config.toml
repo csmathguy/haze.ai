@@ -1,22 +1,31 @@
 # Codex CLI Configuration
-# This configuration enables Codex (OpenAI CLI) to work alongside Claude Code (Anthropic CLI)
-# with feature parity through custom agent profiles. Configuration as of 2026-03-19.
+# Configures Codex (OpenAI CLI) for multi-agent workflows with custom agent profiles.
+# Configuration as of 2026-03-19.
 
-# Global agent settings
+# Default model for tasks not covered by a named agent profile
+model = "gpt-5.4-mini"
+
+# Default reasoning effort
+model_reasoning_effort = "low"
+
+# Global agent limits
 [agents]
-max_threads = 4          # Maximum concurrent agent threads for multi-agent workflows
-max_depth = 3            # Maximum nesting depth for agent-spawned subagents
-model = "gpt-5.4-mini"    # Default model for agents not covered by a specific profile
-reasoning_effort = "low" # Reasoning budget for extended thinking where supported
+max_threads = 4
+max_depth = 3
 
-# Optional: logging and observability
-[logging]
-level = "info"
-format = "json"
+# Named agent role registrations — each points to a profile under .codex/agents/
+[agents.explorer]
+description = "Read-only file search, codebase exploration, pattern matching, and triage."
+config_file = "./agents/explorer.toml"
 
-# Optional: sandbox and security settings
-[sandbox]
-read_only_paths = []
-denied_paths = [".git", "node_modules"]
-allow_file_write = true
-allow_network = false
+[agents.reviewer]
+description = "Review diffs and files for architecture violations, privacy issues, quality concerns, and PR readiness."
+config_file = "./agents/reviewer.toml"
+
+[agents.research]
+description = "Fetch and summarize external documentation with dated, source-ranked citations."
+config_file = "./agents/research.toml"
+
+[agents.implementer]
+description = "Implement features, write code changes, refactor existing code, and add tests."
+config_file = "./agents/implementer.toml"
