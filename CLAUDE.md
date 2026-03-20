@@ -113,20 +113,16 @@ npx vitest run --reporter=verbose <test-file>
 
 **Step 2 — Check if your branch is behind main on workspace packages**
 
+The pre-push quality gate (PLAN-162) enforces that `packages/` is in sync with `origin/main` before you push.
+If you see an error message during a push, your branch has missed package updates. Merge main:
+
 ```bash
 # From the worktree
-git log HEAD..origin/main --oneline -- packages/
+git merge origin/main
 ```
 
-- **Output is empty** → packages are in sync. Skip to step 3.
-- **One or more commits listed** → your branch is missing shared package changes. Merge main:
-
-  ```bash
-  git merge origin/main
-  ```
-
-  Re-run the failing test. This resolves schema version mismatches caused by the
-  junction-linked `node_modules` loading a newer schema than your branch expects.
+This resolves schema version mismatches caused by the junction-linked `node_modules` loading a newer schema
+than your branch expects. After merging, retry the push — the gate will pass once packages are current.
 
 **Step 3 — Run with `--pool forks` to eliminate module cache sharing**
 

@@ -1,13 +1,30 @@
 import { execFileSync } from "node:child_process";
+import * as fs from "node:fs/promises";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
-
 import { AUDIT_ROOT, ensureAuditPaths, getActiveRunId, readSummary, type AuditSummary } from "./lib/audit.js";
 import {
   buildPullRequestBody,
   collectValidationCommandsFromSummaries
 } from "./lib/pull-request-publish.js";
 import { buildPullRequestDraft } from "./lib/pull-request-draft.js";
+
+async function closeWorkItem(workItemId: string): Promise<void> {
+  try {
+    const jsonPath = path.resolve("artifacts", `work-item-${workItemId}-done.json`);
+    await fs.mkdir(path.dirname(jsonPath), { recursive: true });
+    await writeFile(jsonPath, JSON.stringify({ status: "done" }), "utf8");
+    execFileSync("npx", ["tsx", "tools/planning/plan-cli.ts", "work-item", "update", "--id", workItemId, "--json-file", jsonPath], { cwd: process.cwd(), stdio: "inherit" });
+    try {
+      await fs.unlink(jsonPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`[pr:sync] WARNING: Failed to auto-close work item ${workItemId}: ${msg}\n`);
+  }
+}
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
@@ -66,6 +83,11 @@ async function main(): Promise<void> {
     ]);
 
     process.stdout.write(`${createdUrl.trim()}\n`);
+
+    // Auto-close linked work item on successful PR creation
+    if (options.workItemId) {
+      await closeWorkItem(options.workItemId);
+    }
     return;
   }
 
@@ -79,6 +101,11 @@ async function main(): Promise<void> {
     bodyPath
   ]);
   process.stdout.write(`${openPullRequest.url}\n`);
+
+  // Auto-close linked work item on successful PR update
+  if (options.workItemId) {
+    await closeWorkItem(options.workItemId);
+  }
 }
 
 interface ParsedArgs {
@@ -90,6 +117,7 @@ interface ParsedArgs {
   title?: string;
   value: string;
   workflow: string;
+  workItemId?: string;
 }
 
 function parseArgs(rawArgs: string[]): ParsedArgs {
@@ -172,13 +200,14 @@ function assignBooleanArg(
 
 function isStringFlag(
   value: string | undefined
-): value is "--base" | "--summary" | "--title" | "--value" | "--workflow" {
+): value is "--base" | "--summary" | "--title" | "--value" | "--workflow" | "--work-item-id" {
   return (
     value === "--base" ||
     value === "--summary" ||
     value === "--title" ||
     value === "--value" ||
-    value === "--workflow"
+    value === "--workflow" ||
+    value === "--work-item-id"
   );
 }
 
@@ -198,6 +227,9 @@ function assignStringArg(parsed: Partial<ParsedArgs>, key: string, value: string
       break;
     case "--workflow":
       parsed.workflow = value;
+      break;
+    case "--work-item-id":
+      parsed.workItemId = value;
       break;
     default:
       throw new Error(`Unknown argument: ${key}`);

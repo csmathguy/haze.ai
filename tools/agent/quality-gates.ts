@@ -30,7 +30,7 @@ async function main(): Promise<void> {
 }
 
 async function executeSteps(workflow: string, run: InitializedRun, withCoverage: boolean): Promise<boolean> {
-  warnIfSharedPackagesStale();
+  const packagesDiverged = checkAndEnforceSharedPackagesMerged(workflow);
   const npmCommand = resolveNpmCommand();
   const steps = [
     { args: ["run", "prisma:check"], command: npmCommand, step: "prisma-check" },
@@ -55,9 +55,14 @@ async function executeSteps(workflow: string, run: InitializedRun, withCoverage:
       name: workflow
     }
   );
-  let failed = false;
+  let failed = packagesDiverged;
 
   try {
+    if (packagesDiverged) {
+      // Exit early since packages are stale; all steps would fail anyway due to schema mismatches
+      return failed;
+    }
+
     for (const step of steps) {
       const result = await runLoggedCommand(
         {
@@ -211,7 +216,10 @@ function parseArgs(rawArgs: string[]): ParsedArgs {
   return parsed;
 }
 
-function warnIfSharedPackagesStale(): void {
+function checkAndEnforceSharedPackagesMerged(workflow: string): boolean {
+  // Only enforce on pre-push; pre-commit and other workflows warn instead
+  const isPrePush = workflow === "pre-push";
+
   try {
     const diverged = execFileSync(
       "git",
@@ -226,16 +234,28 @@ function warnIfSharedPackagesStale(): void {
       .filter((line) => line.length > 0);
 
     if (diverged.length > 0) {
-      process.stderr.write(
-        `[quality-gates] WARNING: origin/main has ${String(diverged.length)} commit(s) to packages/ not in HEAD.\n` +
-          `[quality-gates] Merge main before pushing to avoid schema version mismatches.\n` +
-          `[quality-gates]   Run: git merge origin/main\n` +
-          diverged.map((c) => `[quality-gates]   ${c}\n`).join("")
-      );
+      const message =
+        `[quality-gates] origin/main has ${String(diverged.length)} commit(s) to packages/ not in HEAD.\n` +
+        `[quality-gates] Merge main before pushing to avoid schema version mismatches.\n` +
+        `[quality-gates]   Run: git merge origin/main\n` +
+        diverged.map((c) => `[quality-gates]   ${c}\n`).join("");
+
+      if (isPrePush) {
+        // Hard failure on pre-push
+        process.stderr.write(message);
+        return true;
+      } else {
+        // Warning only on other workflows (pre-commit, quality checks, etc.)
+        const lines = message.split("\n");
+        const warningLine = lines[1] ?? "origin/main has commits to packages/ not in HEAD";
+        process.stderr.write(`[quality-gates] WARNING: ${warningLine}\n`);
+      }
     }
   } catch {
     // Non-fatal: skip freshness check if git commands fail (e.g. no remote)
   }
+
+  return false;
 }
 
 void main().catch((error: unknown) => {
