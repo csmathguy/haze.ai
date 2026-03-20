@@ -559,6 +559,7 @@ model WorkflowRun {
   startedAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   completedAt      DateTime?
+  workflowStepRuns WorkflowStepRun[]
 
   @@index([definitionId])
   @@index([status])
@@ -582,6 +583,7 @@ model WorkflowStepRun {
   retryCount       Int      @default(0)
   startedAt        DateTime @default(now())
   completedAt      DateTime?
+  run              WorkflowRun @relation(fields: [runId], references: [id])
 
   @@index([runId])
   @@index([stepId])

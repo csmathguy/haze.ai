@@ -76,23 +76,44 @@ export async function startRun(
   };
 }
 
+type WorkflowRunWithStepRuns = PrismaWorkflowRun & {
+  workflowStepRuns?: {
+    id: string;
+    runId: string;
+    stepId: string;
+    stepType: string;
+    nodeType: string;
+    agentId: string | null;
+    model: string | null;
+    skillIds: string | null;
+    inputJson: string | null;
+    outputJson: string | null;
+    errorJson: string | null;
+    retryCount: number;
+    startedAt: Date;
+    completedAt: Date | null;
+  }[];
+};
+
 export async function getRun(
   prisma: PrismaClient,
   runId: string
-): Promise<PrismaWorkflowRun | null> {
+): Promise<WorkflowRunWithStepRuns | null> {
   return prisma.workflowRun.findUnique({
-    where: { id: runId }
+    where: { id: runId },
+    include: { workflowStepRuns: true }
   });
 }
 
 export async function listRuns(
   prisma: PrismaClient,
   options?: ListRunsOptions
-): Promise<PrismaWorkflowRun[]> {
+): Promise<WorkflowRunWithStepRuns[]> {
   return prisma.workflowRun.findMany({
     where: options?.status !== undefined ? { status: options.status } : {},
     orderBy: { startedAt: "desc" },
-    take: options?.limit ?? 50
+    take: options?.limit ?? 50,
+    include: { workflowStepRuns: true }
   });
 }
 
@@ -188,5 +209,40 @@ function convertPrismaRunToWorkflowRun(run: PrismaWorkflowRun): WorkflowRun {
     startedAt: run.startedAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
     ...(run.completedAt !== null ? { completedAt: run.completedAt.toISOString() } : {})
+  };
+}
+
+export function formatRunForApi(run: WorkflowRunWithStepRuns): Record<string, unknown> {
+  const stepRuns = run.workflowStepRuns?.map((sr) => ({
+    id: sr.id,
+    runId: sr.runId,
+    stepId: sr.stepId,
+    stepType: sr.stepType,
+    nodeType: sr.nodeType,
+    agentId: sr.agentId,
+    model: sr.model,
+    skillIds: sr.skillIds,
+    inputJson: sr.inputJson,
+    outputJson: sr.outputJson,
+    errorJson: sr.errorJson,
+    retryCount: sr.retryCount,
+    startedAt: sr.startedAt.toISOString(),
+    completedAt: sr.completedAt?.toISOString() ?? null
+  })) ?? [];
+
+  return {
+    id: run.id,
+    definitionId: run.definitionId,
+    definitionName: run.definitionName,
+    version: run.version,
+    status: run.status,
+    currentStep: run.currentStep,
+    contextJson: run.contextJson,
+    correlationId: run.correlationId,
+    parentRunId: run.parentRunId,
+    startedAt: run.startedAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    completedAt: run.completedAt?.toISOString() ?? null,
+    stepRuns
   };
 }

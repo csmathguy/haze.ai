@@ -103,7 +103,7 @@ function registerDefinitionRoutes(app: FastifyInstance, databaseUrl?: string): v
   });
 }
 
-function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
+function registerRunListAndCreateRoutes(app: FastifyInstance, databaseUrl?: string): void {
   app.post("/api/workflow/runs", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = WorkflowRunCreateSchema.parse(request.body);
@@ -125,14 +125,17 @@ function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
       const params = WorkflowRunListParamsSchema.parse(request.query);
       const prisma = await getWorkflowPrismaClient(databaseUrl);
       try {
-        return { runs: await workflowRunService.listRuns(prisma, { ...(params.status !== undefined ? { status: params.status } : {}), limit: params.limit }) };
+        const runs = await workflowRunService.listRuns(prisma, { ...(params.status !== undefined ? { status: params.status } : {}), limit: params.limit });
+        return { runs: runs.map(workflowRunService.formatRunForApi) };
       } finally { await prisma.$disconnect(); }
     } catch (error) {
       if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid query parameters", details: error.issues }; }
       throw error;
     }
   });
+}
 
+function registerRunDetailRoutes(app: FastifyInstance, databaseUrl?: string): void {
   app.get("/api/workflow/runs/:id", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { id } = z.object({ id: z.string() }).parse(request.params);
@@ -140,7 +143,7 @@ function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
       try {
         const run = await workflowRunService.getRun(prisma, id);
         if (!run) { reply.code(404); return { error: "Run not found" }; }
-        return { run };
+        return { run: workflowRunService.formatRunForApi(run) };
       } finally { await prisma.$disconnect(); }
     } catch (error) {
       if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid request params", details: error.issues }; }
@@ -181,6 +184,11 @@ function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
       throw error;
     }
   });
+}
+
+function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
+  registerRunListAndCreateRoutes(app, databaseUrl);
+  registerRunDetailRoutes(app, databaseUrl);
 }
 
 function registerEventRoutes(app: FastifyInstance, databaseUrl?: string): void {

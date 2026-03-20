@@ -1,0 +1,4 @@
+-- Add Prisma-level relation between WorkflowRun and WorkflowStepRun.
+-- No DDL changes required: runId column already exists in WorkflowStepRun.
+-- The relation is tracked at the ORM layer only (SQLite omits FK constraint).
+-- Enables include: { workflowStepRuns: true } queries on WorkflowRun.
