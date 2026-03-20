@@ -51,6 +51,11 @@ const WorkflowRunSchema = z.object({
 
 export type WorkflowRun = z.infer<typeof WorkflowRunSchema>;
 
+export interface WorkflowRunOverlay {
+  stepRuns: WorkflowStepRun[];
+  runStatus: string;
+}
+
 const WorkflowDefinitionResponseSchema = z.object({
   definitions: z.array(WorkflowDefinitionSchema)
 });
@@ -105,6 +110,16 @@ export async function getWorkflowRun(id: string): Promise<WorkflowRun> {
   const data = (await response.json()) as unknown;
   const parsed = WorkflowRunResponseSchema.parse(data);
   return parsed.run;
+}
+
+export async function listWorkflowRunsForDefinition(definitionName: string, limit = 50): Promise<WorkflowRun[]> {
+  const response = await fetch(`/api/workflow/runs?limit=${String(limit)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workflow runs: ${response.statusText}`);
+  }
+  const data = (await response.json()) as unknown;
+  const parsed = WorkflowRunListResponseSchema.parse(data);
+  return parsed.runs.filter((run) => run.definitionName === definitionName);
 }
 
 export function parseDefinitionJson(definition: WorkflowDefinition): Record<string, unknown> {
