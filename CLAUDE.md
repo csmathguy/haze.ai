@@ -68,8 +68,8 @@ Each skill in `skills/*/SKILL.md` declares its recommended tier with a comment n
 ### Context Management
 
 - Use Plan Mode (`Ctrl+Shift+P`) before multi-file changes to read without writing.
-- Use `/compact <instructions>` with explicit preservation instructions when context is large:
-  `/compact preserve the full list of modified files and any test commands that were run`
+- Use `/compact <instructions>` with explicit preservation instructions when context is large.
+  See **Context Management** in `AGENTS.md` for mandatory checkpoint timing and preservation list template.
 - Use `/btw` for side questions that should not accumulate in the main context.
 - Use `context: fork` in skill frontmatter for explorations that should stay isolated.
 
@@ -153,3 +153,34 @@ Before PLAN-66, the pre-commit hook ran `quality:changed` from the **main checko
 staged file paths. Tests passed against main's file versions, not the worktree's. A broken
 test in the worktree could pass pre-commit while failing on push. After PLAN-66 the hook
 runs from the worktree CWD with `--pool forks`, so the staged versions are what is tested.
+
+### Module resolves to wrong version in worktree
+
+TypeCheck or imports fail with errors like "Property X does not exist in type Y" or "Module not found" when your worktree was created before a recent main branch merge that updated shared packages.
+
+**Root cause:** The worktree shares `node_modules` with the main checkout via a directory junction.
+When main has been updated with new fields in Prisma schemas or package exports, the worktree's
+source code imports may reference types that don't exist yet in the junction-linked module.
+
+**Fix:** Merge origin/main into your worktree branch to sync shared package sources:
+
+```bash
+# From the worktree
+git merge origin/main
+npm run prisma:generate
+npm run typecheck
+```
+
+This resyncs the worktree's local `packages/` source with main's latest types. The junction
+automatically resolves those updated sources for the next import.
+
+**If the error persists after merge:** Run the merge from the main checkout directly:
+
+```bash
+cd C:/Users/csmat/source/repos/Taxes
+npm run prisma:generate
+npm run typecheck
+```
+
+If typecheck passes in main but still fails in the worktree, the failure is environment-specific.
+See the **Worktree test failure diagnosis** section above (Step 3: run with `--pool forks`).
