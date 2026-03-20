@@ -1,6 +1,31 @@
+import { createServer } from "node:net";
+
 import { afterEach, describe, expect, it } from "vitest";
 
-import { waitForServiceHealth } from "./dev-environment-runtime.js";
+import { ensureServicePortsAvailable, waitForServiceHealth } from "./dev-environment-runtime.js";
+
+async function listenOnEphemeralPort(): Promise<ReturnType<typeof createServer>> {
+  const server = createServer();
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      resolve();
+    });
+  });
+
+  return server;
+}
+
+function readListeningPort(server: ReturnType<typeof createServer>): number {
+  const address = server.address();
+
+  if (address === null || typeof address === "string") {
+    throw new Error("Expected a TCP server address.");
+  }
+
+  return address.port;
+}
 
 describe("waitForServiceHealth", () => {
   afterEach(() => {
@@ -50,5 +75,58 @@ describe("waitForServiceHealth", () => {
         timeoutMs: 5
       })
     ).rejects.toThrow("Last error: HTTP 503");
+  });
+});
+
+describe("ensureServicePortsAvailable", () => {
+  it("accepts services whose planned ports are free", async () => {
+    const reserved = await listenOnEphemeralPort();
+    const port = readListeningPort(reserved);
+    await new Promise<void>((resolve, reject) => {
+      reserved.close((error) => {
+        if (error === undefined) {
+          resolve();
+          return;
+        }
+
+        reject(error);
+      });
+    });
+
+    await expect(
+      ensureServicePortsAvailable([
+        {
+          label: "Audit API",
+          primaryUrl: `http://127.0.0.1:${port.toString()}`
+        }
+      ])
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails clearly when a planned port is already occupied", async () => {
+    const occupied = await listenOnEphemeralPort();
+    const port = readListeningPort(occupied);
+
+    try {
+      await expect(
+        ensureServicePortsAvailable([
+          {
+            label: "Audit Web",
+            primaryUrl: `http://127.0.0.1:${port.toString()}`
+          }
+        ])
+      ).rejects.toThrow(`Audit Web cannot start because 127.0.0.1:${port.toString()} is already in use.`);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        occupied.close((error) => {
+          if (error === undefined) {
+            resolve();
+            return;
+          }
+
+          reject(error);
+        });
+      });
+    }
   });
 });

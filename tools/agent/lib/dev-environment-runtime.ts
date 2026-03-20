@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createServer } from "node:net";
 import * as path from "node:path";
 import * as readline from "node:readline";
 
@@ -12,6 +13,11 @@ interface WaitForServiceHealthOptions {
   intervalMs?: number;
   serviceLabel: string;
   timeoutMs?: number;
+}
+
+interface PlannedServicePort {
+  label: string;
+  primaryUrl: string;
 }
 
 export function createShutdownSignal(): {
@@ -89,6 +95,25 @@ export function sanitizeEnv(environment: NodeJS.ProcessEnv): Record<string, stri
   );
 }
 
+export async function ensureServicePortsAvailable(
+  services: readonly PlannedServicePort[],
+  options: {
+    createServerFn?: typeof createServer;
+  } = {}
+): Promise<void> {
+  const createServerFn = options.createServerFn ?? createServer;
+
+  for (const service of services) {
+    const endpoint = resolvePortEndpoint(service.primaryUrl);
+
+    if (endpoint === null) {
+      continue;
+    }
+
+    await assertPortAvailable(endpoint, service.label, createServerFn);
+  }
+}
+
 export async function waitForServiceHealth(options: WaitForServiceHealthOptions): Promise<void> {
   if (options.healthUrl === undefined) {
     return;
@@ -131,6 +156,76 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs);
   });
+}
+
+async function assertPortAvailable(
+  endpoint: {
+    host: string;
+    port: number;
+  },
+  serviceLabel: string,
+  createServerFn: typeof createServer
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const server = createServerFn();
+
+    server.unref();
+    server.once("error", (error) => {
+      reject(formatPortAvailabilityError(error, endpoint, serviceLabel));
+    });
+    server.listen(endpoint.port, endpoint.host, () => {
+      server.close((closeError) => {
+        if (closeError === undefined) {
+          resolve();
+          return;
+        }
+
+        reject(closeError);
+      });
+    });
+  });
+}
+
+function formatPortAvailabilityError(
+  error: unknown,
+  endpoint: {
+    host: string;
+    port: number;
+  },
+  serviceLabel: string
+): Error {
+  if (isAddressInUseError(error)) {
+    return new Error(
+      `${serviceLabel} cannot start because ${endpoint.host}:${endpoint.port.toString()} is already in use. ` +
+      "Stop the existing process on that port or choose a different dev port before launching the environment."
+    );
+  }
+
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function isAddressInUseError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && error.code === "EADDRINUSE";
+}
+
+function resolvePortEndpoint(primaryUrl: string): {
+  host: string;
+  port: number;
+} | null {
+  const url = new URL(primaryUrl);
+  const protocol = url.protocol;
+
+  if (protocol !== "http:" && protocol !== "https:") {
+    return null;
+  }
+
+  const defaultPort = protocol === "https:" ? 443 : 80;
+  const port = url.port.length > 0 ? Number(url.port) : defaultPort;
+
+  return {
+    host: url.hostname,
+    port
+  };
 }
 
 function stopServiceProcess(child: ChildProcess): void {

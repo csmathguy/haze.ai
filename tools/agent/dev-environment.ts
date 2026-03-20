@@ -21,6 +21,7 @@ import { resolveNpmCommand } from "./lib/process.js";
 import {
   createShutdownSignal,
   ensureCheckoutPrerequisites,
+  ensureServicePortsAvailable,
   pipePrefixedOutput,
   resolveMainCheckoutRoot,
   sanitizeEnv,
@@ -98,6 +99,7 @@ async function runDevelopmentEnvironment(plan: DevEnvironmentPlan): Promise<void
   await initializeAuditRun(context, plan);
 
   try {
+    await ensureServicePortsAvailable(plan.services);
     await launchServices(context, plan, launched);
     const exitCode = await waitForShutdown(context, plan, launched);
 
