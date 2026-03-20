@@ -41,6 +41,8 @@ export const WORKFLOW_DATABASE_URL =
   process.env.WORKFLOW_DATABASE_URL ??
   buildPrismaSqliteUrl(path.join(os.homedir(), ".taxes", "workflow", "sqlite", "workflow.db"));
 
+export const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+
 export const REPOSITORY_DOCS_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../../docs"

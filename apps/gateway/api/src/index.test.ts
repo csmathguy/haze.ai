@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { buildPrismaSqliteUrl, disconnectAllPrismaClients } from "@taxes/db";
 
+import { getWorkflowPrismaClient } from "./db/client.js";
 import { buildGatewayApp } from "./app.js";
 import { applyPendingMigrations } from "./db/migrations.js";
 
@@ -153,6 +154,194 @@ describe("buildGatewayApp", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toHaveProperty("definitions");
+
+    await app.close();
+  });
+
+  it("accepts GitHub webhook with valid signature and stores PR merged event", async () => {
+    const ctx = await createTestGatewayContext("gateway-webhooks");
+    contexts.push(ctx);
+
+    const secret = "test-secret-123";
+    const app = await buildGatewayApp({ ...ctx, githubWebhookSecret: secret });
+
+    const payload = {
+      action: "merged",
+      pull_request: {
+        number: 42,
+        title: "Add feature",
+        body: "This PR adds a feature",
+        merged: true
+      },
+      repository: {
+        name: "Taxes",
+        owner: { login: "csmathguy" }
+      }
+    };
+
+    const rawBody = JSON.stringify(payload);
+    const crypto = await import("node:crypto");
+    const signature = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-hub-signature-256": signature,
+        "content-type": "application/json"
+      },
+      payload: rawBody
+    });
+
+    expect(response.statusCode).toBe(202);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    const responseBody = response.json() as { id: string; type: string };
+    expect(responseBody.id).toBeDefined();
+    expect(responseBody.type).toBe("github.pull_request.merged");
+
+    // Verify event was persisted
+    const prisma = await getWorkflowPrismaClient(ctx.workflowDatabaseUrl);
+    try {
+      const event = await prisma.workflowEvent.findUnique({
+        where: { id: responseBody.id }
+      });
+      expect(event).toBeDefined();
+      expect(event?.type).toBe("github.pull_request.merged");
+      expect(event?.source).toBe("github");
+      expect(event?.correlationId).toBe("csmathguy/Taxes#42");
+      expect(event?.payload).toBe(rawBody);
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    await app.close();
+  });
+
+  it("rejects GitHub webhook with invalid signature (401)", async () => {
+    const ctx = await createTestGatewayContext("gateway-webhooks-invalid");
+    contexts.push(ctx);
+
+    const secret = "test-secret-123";
+    const app = await buildGatewayApp({ ...ctx, githubWebhookSecret: secret });
+
+    const payload = {
+      action: "opened",
+      pull_request: {
+        number: 43,
+        title: "Bad PR"
+      },
+      repository: {
+        name: "Taxes",
+        owner: { login: "csmathguy" }
+      }
+    };
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-hub-signature-256": "sha256=invalid_signature_here",
+        "content-type": "application/json"
+      },
+      payload: JSON.stringify(payload)
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toHaveProperty("error");
+
+    await app.close();
+  });
+
+  it("stores unknown event types for forward compatibility", async () => {
+    const ctx = await createTestGatewayContext("gateway-webhooks-unknown");
+    contexts.push(ctx);
+
+    const secret = "test-secret-456";
+    const app = await buildGatewayApp({ ...ctx, githubWebhookSecret: secret });
+
+    const payload = {
+      action: "created",
+      data: { someKey: "someValue" }
+    };
+
+    const rawBody = JSON.stringify(payload);
+    const crypto = await import("node:crypto");
+    const signature = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "x-github-event": "workflow_run",
+        "x-hub-signature-256": signature,
+        "content-type": "application/json"
+      },
+      payload: rawBody
+    });
+
+    expect(response.statusCode).toBe(202);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    const responseBody = response.json() as { type: string };
+    expect(responseBody.type).toBe("github.unknown");
+
+    await app.close();
+  });
+
+  it("returns 401 when signature is missing and secret is configured", async () => {
+    const ctx = await createTestGatewayContext("gateway-webhooks-no-sig");
+    contexts.push(ctx);
+
+    const secret = "test-secret-789";
+    const app = await buildGatewayApp({ ...ctx, githubWebhookSecret: secret });
+
+    const payload = { action: "opened" };
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "x-github-event": "pull_request",
+        "content-type": "application/json"
+      },
+      payload: JSON.stringify(payload)
+    });
+
+    expect(response.statusCode).toBe(401);
+
+    await app.close();
+  });
+
+  it("accepts webhook without signature verification when secret is not configured", async () => {
+    const ctx = await createTestGatewayContext("gateway-webhooks-no-secret");
+    contexts.push(ctx);
+
+    const app = await buildGatewayApp(ctx);
+
+    const payload = {
+      action: "closed",
+      pull_request: {
+        number: 44,
+        title: "Closed PR"
+      },
+      repository: {
+        name: "Taxes",
+        owner: { login: "csmathguy" }
+      }
+    };
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "x-github-event": "pull_request",
+        "content-type": "application/json"
+      },
+      payload: JSON.stringify(payload)
+    });
+
+    expect(response.statusCode).toBe(202);
 
     await app.close();
   });
