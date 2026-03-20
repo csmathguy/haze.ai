@@ -38,6 +38,6 @@ export function registerWorkflowPlugin(
     await disconnectWorkflowPrismaClient(opts.databaseUrl);
   });
   registerHealthRoutes(app);
-  registerWorkflowRoutes(app);
+  registerWorkflowRoutes(app, { databaseUrl: opts.databaseUrl });
   done();
 }

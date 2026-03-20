@@ -151,8 +151,8 @@ describe("buildGatewayApp", () => {
     const app = await buildGatewayApp(ctx);
     const response = await app.inject({ method: "GET", url: "/api/workflow/definitions" });
 
-    expect(response.statusCode).toBe(501);
-    expect(response.json()).toEqual({ error: "not implemented" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toHaveProperty("definitions");
 
     await app.close();
   });
