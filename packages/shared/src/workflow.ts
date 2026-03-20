@@ -4,7 +4,9 @@ import type {
   WorkflowRunEffect,
   WorkflowEffect,
   StepResult,
-  WorkflowEvent
+  WorkflowEvent,
+  ParallelStep,
+  WorkflowStep
 } from "./workflow-schemas.js";
 
 /**
@@ -176,6 +178,161 @@ export class WorkflowEngine {
   }
 
   /**
+   * Executes a parallel step by forking all branches.
+   * Returns effects to execute the first step of each branch concurrently.
+   * The parallel step remains in "running" state until all branches complete.
+   */
+  executeParallelStep(run: WorkflowRun, parallelStep: ParallelStep): WorkflowRunEffect {
+    const now = new Date().toISOString();
+    const nextRun: WorkflowRun = {
+      ...run,
+      updatedAt: now
+    };
+    const effects: WorkflowEffect[] = [];
+
+    // Handle edge case: no branches
+    if (parallelStep.branches.length === 0) {
+      nextRun.status = "completed";
+      nextRun.completedAt = now;
+      effects.push({
+        type: "complete-run",
+        output: nextRun.contextJson
+      });
+      return { nextRun, effects };
+    }
+
+    // Initialize branch tracking in context
+    const branchStates: Record<string, { status: "running" | "success" | "failure"; error?: { message: string; code?: string } }> = {};
+    for (let i = 0; i < parallelStep.branches.length; i++) {
+      branchStates[`branch_${i}`] = { status: "running" };
+    }
+
+    nextRun.contextJson = {
+      ...nextRun.contextJson,
+      [this.getParallelStepKey(parallelStep.id)]: {
+        totalBranches: parallelStep.branches.length,
+        completedBranches: 0,
+        failedBranch: null,
+        branchStates
+      }
+    };
+
+    // Generate execute-step effects for the first step of each branch
+    for (let i = 0; i < parallelStep.branches.length; i++) {
+      const branch = parallelStep.branches[i];
+      if (branch && branch.length > 0) {
+        const firstStepInBranch = branch[0];
+        effects.push({
+          type: "execute-step",
+          step: {
+            ...firstStepInBranch,
+            // Store branch index for tracking (this is metadata, not part of the step itself)
+            // We'll use a wrapper or context key instead
+          }
+        });
+      }
+    }
+
+    return { nextRun, effects };
+  }
+
+  /**
+   * Handles the completion of a branch within a parallel step.
+   * Updates branch status and checks if all branches are complete.
+   */
+  completeBranchInParallelStep(
+    run: WorkflowRun,
+    parallelStepId: string,
+    branchIndex: number,
+    result: StepResult
+  ): WorkflowRunEffect {
+    const now = new Date().toISOString();
+    const nextRun: WorkflowRun = {
+      ...run,
+      updatedAt: now
+    };
+    const effects: WorkflowEffect[] = [];
+
+    const parallelStepKey = this.getParallelStepKey(parallelStepId);
+    const parallelState = nextRun.contextJson[parallelStepKey] as Record<string, unknown>;
+
+    if (!parallelState) {
+      // Parallel step not found in context - this shouldn't happen
+      nextRun.status = "failed";
+      nextRun.completedAt = now;
+      effects.push({
+        type: "fail-run",
+        error: {
+          message: "Parallel step context not found",
+          code: "INVALID_STATE"
+        }
+      });
+      return { nextRun, effects };
+    }
+
+    const branchStates = parallelState.branchStates as Record<string, Record<string, unknown>>;
+    const branchKey = `branch_${branchIndex}`;
+    const totalBranches = parallelState.totalBranches as number;
+
+    if (result.type === "failure") {
+      // Mark this branch as failed
+      branchStates[branchKey] = {
+        status: "failure",
+        error: result.error
+      };
+
+      // Entire parallel step fails on first branch failure
+      nextRun.status = "failed";
+      nextRun.completedAt = now;
+
+      parallelState.failedBranch = {
+        index: branchIndex,
+        error: result.error
+      };
+
+      effects.push({
+        type: "fail-run",
+        error: {
+          message: `Branch ${branchIndex} failed: ${result.error.message}`,
+          code: result.error.code ?? "BRANCH_FAILED"
+        }
+      });
+
+      return { nextRun, effects };
+    }
+
+    // Mark branch as success and update completed count
+    branchStates[branchKey] = {
+      status: "success"
+    };
+
+    const completedBranches = (parallelState.completedBranches as number) + 1;
+    parallelState.completedBranches = completedBranches;
+
+    // Store branch output
+    if (result.output) {
+      nextRun.contextJson = {
+        ...nextRun.contextJson,
+        [this.getBranchOutputKey(parallelStepId, branchIndex)]: result.output
+      };
+    }
+
+    // Check if all branches are complete
+    if (completedBranches === totalBranches) {
+      // All branches succeeded - complete the parallel step
+      nextRun.status = "completed";
+      nextRun.completedAt = now;
+      effects.push({
+        type: "complete-run",
+        output: nextRun.contextJson
+      });
+    }
+    // If not all branches are complete, stay in running state (no effect)
+
+    return { nextRun, effects };
+  }
+
+  /**
    * Generate a deterministic ID for a workflow run.
    * In production, this would use UUID or similar.
    * @note - Using Math.random() for non-cryptographic ID generation is safe here
@@ -186,5 +343,19 @@ export class WorkflowEngine {
     // eslint-disable-next-line sonarjs/pseudo-random
     const randomStr = Math.random().toString(36).substring(2, 11);
     return `run_${timestamp}_${randomStr}`;
+  }
+
+  /**
+   * Get the key for storing parallel step state in context.
+   */
+  private getParallelStepKey(stepId: string): string {
+    return `parallel_${stepId}`;
+  }
+
+  /**
+   * Get the key for storing branch output in context.
+   */
+  private getBranchOutputKey(parallelStepId: string, branchIndex: number): string {
+    return `branch_${parallelStepId}_${branchIndex}_output`;
   }
 }
