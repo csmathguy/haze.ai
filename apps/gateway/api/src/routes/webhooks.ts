@@ -113,7 +113,9 @@ function parseGitHubEvent(eventType: string, payload: unknown): WebhookEventData
     }
   }
 
-  return { type: workflowEventType, correlationId };
+  return correlationId
+    ? { type: workflowEventType, correlationId }
+    : { type: workflowEventType };
 }
 
 async function handleWebhookPayload(
@@ -132,7 +134,7 @@ async function handleWebhookPayload(
       data: {
         type: eventData.type,
         source: "github",
-        correlationId: eventData.correlationId,
+        ...(eventData.correlationId ? { correlationId: eventData.correlationId } : {}),
         payload: JSON.stringify(payload)
       }
     });
@@ -162,17 +164,15 @@ export function registerWebhooksRoutes(
       chunks.push(chunk as Buffer);
     }
     const rawBody = Buffer.concat(chunks).toString("utf-8");
-    request.rawBody = rawBody;
+    (request as unknown as { rawBody?: string }).rawBody = rawBody;
     return JSON.parse(rawBody) as unknown;
   });
 
-  app.post<never, never, unknown>("/webhooks/github", async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post("/webhooks/github", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       if (secret) {
         const signature = request.headers["x-hub-signature-256"] as string | undefined;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const rawBody = request.rawBody ?? "";
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        const rawBody = (request as unknown as { rawBody?: string }).rawBody ?? "";
         const verifyResult = verifySignature(secret, signature, rawBody);
         if (!verifyResult.valid) {
           reply.code(401);

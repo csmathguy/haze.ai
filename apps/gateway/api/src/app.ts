@@ -11,7 +11,6 @@ import { registerWorkflowPlugin } from "@taxes/workflow-api";
 import {
   AUDIT_DATABASE_URL,
   GATEWAY_CORS_ORIGINS,
-  GITHUB_WEBHOOK_SECRET,
   KNOWLEDGE_DATABASE_URL,
   PLANNING_DATABASE_URL,
   REPOSITORY_DOCS_ROOT,
@@ -38,7 +37,6 @@ export async function buildGatewayApp(options: GatewayOptions = {}) {
   const taxesDb = options.taxesDatabaseUrl ?? TAXES_DATABASE_URL;
   const workflowDb = options.workflowDatabaseUrl ?? WORKFLOW_DATABASE_URL;
   const docsRoot = options.knowledgeDocsRoot ?? REPOSITORY_DOCS_ROOT;
-  const githubSecret = options.githubWebhookSecret ?? GITHUB_WEBHOOK_SECRET;
 
   const app = Fastify({ logger: false });
 
@@ -47,7 +45,10 @@ export async function buildGatewayApp(options: GatewayOptions = {}) {
   // Single health endpoint covers all domains.
   app.get("/api/health", () => ({ localOnly: true, service: "gateway", status: "ok" }));
 
-  await registerWebhooksRoutes(app, { databaseUrl: workflowDb, githubWebhookSecret: githubSecret });
+  registerWebhooksRoutes(app, {
+    databaseUrl: workflowDb,
+    ...(options.githubWebhookSecret ? { githubWebhookSecret: options.githubWebhookSecret } : {})
+  });
   await app.register(registerTaxesPlugin, { databaseUrl: taxesDb });
   await app.register(registerAuditPlugin, { databaseUrl: auditDb });
   await app.register(registerPlanPlugin, { databaseUrl: planningDb });
