@@ -121,7 +121,13 @@ function useRunData(
       const loadedRuns = await fetchAuditRuns(nextFilters);
 
       setRuns(loadedRuns);
-      setSelectedRunId((currentSelectedRunId) => selectRunId(currentSelectedRunId, loadedRuns));
+      setSelectedRunId((currentSelectedRunId) => {
+        if (currentSelectedRunId === null) {
+          return null;
+        }
+
+        return loadedRuns.some((run) => run.runId === currentSelectedRunId) ? currentSelectedRunId : null;
+      });
       if (loadedRuns[0]?.latestEventAt !== undefined) {
         setLastEventAt(loadedRuns[0].latestEventAt);
       }
@@ -308,14 +314,6 @@ function deriveWorkItemIds(runs: AuditRunOverview[]): string[] {
 
 function deriveWorktreePaths(runs: AuditRunOverview[]): string[] {
   return Array.from(new Set(runs.map((run) => run.worktreePath))).sort((left, right) => left.localeCompare(right));
-}
-
-function selectRunId(currentSelectedRunId: string | null, runs: AuditRunOverview[]): string | null {
-  if (currentSelectedRunId !== null && runs.some((run) => run.runId === currentSelectedRunId)) {
-    return currentSelectedRunId;
-  }
-
-  return runs[0]?.runId ?? null;
 }
 
 function summarizeRuns(runs: AuditRunOverview[], analytics: AuditAnalyticsSnapshot | null): RunStats {

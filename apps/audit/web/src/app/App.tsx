@@ -19,7 +19,6 @@ import type { AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@t
 import type { AuditRunFilters } from "./api.js";
 import { MetricCard } from "./components/MetricCard.js";
 import { MonitorHeader } from "./components/MonitorHeader.js";
-import { RunDetail } from "./components/RunDetail.js";
 import { RunDurationChart } from "./components/RunDurationChart.js";
 import { RunList } from "./components/RunList.js";
 import { WorkItemTimeline } from "./components/WorkItemTimeline.js";
@@ -174,6 +173,7 @@ function AuditMonitorLayout({
           <MetricGrid isLoadingAnalytics={isLoadingAnalytics} runStats={runStats} />
           <ContentGrid
             detail={detail}
+            detailError={detailError}
             isLoadingDetail={isLoadingDetail}
             isLoadingRuns={isLoadingRuns}
             isLoadingTimeline={isLoadingTimeline}
@@ -254,6 +254,7 @@ function MetricGrid({
 
 function ContentGrid({
   detail,
+  detailError,
   isLoadingDetail,
   isLoadingRuns,
   isLoadingTimeline,
@@ -263,6 +264,7 @@ function ContentGrid({
   timeline
 }: {
   readonly detail: AuditRunDetail | null;
+  readonly detailError: string | null;
   readonly isLoadingDetail: boolean;
   readonly isLoadingRuns: boolean;
   readonly isLoadingTimeline: boolean;
@@ -273,17 +275,24 @@ function ContentGrid({
 }) {
   return (
     <Grid container spacing={2}>
-      <Grid size={{ lg: 4, xs: 12 }}>
+      <Grid size={12}>
         {isLoadingRuns && runs.length === 0 ? (
           <LoadingPanel label="Loading audit runs..." />
         ) : (
-          <RunList onSelect={onSelectRun} runs={runs} selectedRunId={selectedRunId} />
+          <RunList
+            detail={detail}
+            detailError={detailError}
+            isLoadingDetail={isLoadingDetail}
+            onSelect={onSelectRun}
+            runs={runs}
+            selectedRunId={selectedRunId}
+            timeline={timeline}
+          />
         )}
       </Grid>
-      <Grid size={{ lg: 8, xs: 12 }}>
+      <Grid size={12}>
         <Stack spacing={2}>
           <RunDurationChart runs={runs} />
-          <RunDetail detail={detail} isLoading={isLoadingDetail} timeline={timeline} />
           <WorkItemTimeline isLoading={isLoadingTimeline} timeline={timeline} />
         </Stack>
       </Grid>

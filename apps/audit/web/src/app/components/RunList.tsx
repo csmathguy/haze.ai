@@ -1,217 +1,280 @@
-import { Chip, Divider, List, ListItemButton, Paper, Stack, Typography } from "@mui/material";
-import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
-import ErrorOutlineOutlinedIcon from "@mui/icons-material/ErrorOutlineOutlined";
-import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
-import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
+import {
+  Chip,
+  Divider,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TablePagination,
+  TableRow,
+  Typography
+} from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
+import { useEffect, useMemo, useState } from "react";
 
-import type { AuditRunOverview } from "@taxes/shared";
+import type { AuditRunDetail, AuditRunOverview, AuditWorkItemTimeline } from "@taxes/shared";
 
 import { summarizeRunPresentation } from "../run-presentation.js";
 import { formatDateTime, formatDuration, formatRelativePath } from "../time.js";
+import { useResizableDrawer } from "../use-resizable-drawer.js";
+import { RunDetailDrawer } from "./RunDetailDrawer.js";
 
 interface RunListProps {
-  readonly onSelect: (runId: string) => void;
+  readonly detailError: string | null;
+  readonly isLoadingDetail: boolean;
+  readonly onSelect: (runId: string | null) => void;
   readonly runs: AuditRunOverview[];
   readonly selectedRunId: string | null;
+  readonly detail: AuditRunDetail | null;
+  readonly timeline: AuditWorkItemTimeline | null;
 }
 
-const ListShell = styled(Paper)(({ theme }) => ({
+const DEFAULT_ROWS_PER_PAGE = 25;
+const TableShell = styled(Paper)(({ theme }) => ({
   border: `1px solid var(--mui-palette-divider)`,
   borderRadius: Number(theme.shape.borderRadius) * 1.15,
   overflow: "hidden"
 }));
 
-const RunCardButton = styled(ListItemButton)(({ theme }) => ({
+const TableRowButton = styled(TableRow)(({ theme }) => ({
+  cursor: "pointer",
   "&.Mui-selected": {
     backgroundColor: alpha(theme.palette.secondary.main, 0.1)
   },
   "&.Mui-selected:hover": {
     backgroundColor: alpha(theme.palette.secondary.main, 0.16)
   },
-  alignItems: "stretch",
-  borderBottom: "1px solid var(--mui-palette-divider)",
-  padding: theme.spacing(2.25)
-}));
-
-const CardSurface = styled("article")(({ theme }) => ({
-  background: `
-    linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.4)} 0%, transparent 100%),
-    color-mix(in srgb, var(--mui-palette-background-paper) 92%, var(--mui-palette-secondary-main) 8%)
-  `,
-  border: `1px solid ${alpha(theme.palette.secondary.main, 0.12)}`,
-  borderRadius: Number(theme.shape.borderRadius) * 1.05,
-  padding: theme.spacing(2),
-  width: "100%"
-}));
-
-const PreviewChip = styled(Chip)(() => ({
-  justifyContent: "flex-start",
-  maxWidth: "100%"
-}));
-
-export function RunList({ onSelect, runs, selectedRunId }: RunListProps) {
-  return (
-    <ListShell elevation={0}>
-      <Stack spacing={0}>
-        <Stack direction="row" justifyContent="space-between" px={2.5} py={2}>
-          <div>
-            <Typography variant="h3">Recent runs</Typography>
-            <Typography color="text.secondary" variant="body2">
-              Select a run to inspect its event flow, failure analysis, and linked plan or work-item context.
-            </Typography>
-          </div>
-          <Chip label={`${runs.length.toString()} loaded`} variant="outlined" />
-        </Stack>
-        <Divider />
-        <List disablePadding>
-          {runs.length === 0 ? (
-            <Stack minHeight={220} px={2.5} py={3} spacing={1}>
-              <Typography variant="body1">No runs match the current filters.</Typography>
-              <Typography color="text.secondary" variant="body2">
-                Start a workflow or clear one of the filters above.
-              </Typography>
-            </Stack>
-          ) : (
-            runs.map((run, index) => (
-              <RunCardButton
-                key={run.runId}
-                onClick={() => {
-                  onSelect(run.runId);
-                }}
-                selected={run.runId === selectedRunId}
-                sx={index === runs.length - 1 ? { borderBottom: "none" } : undefined}
-              >
-                <RunCard run={run} />
-              </RunCardButton>
-            ))
-          )}
-        </List>
-      </Stack>
-    </ListShell>
-  );
-}
-
-function RunCard({ run }: { readonly run: AuditRunOverview }) {
-  const presentation = summarizeRunPresentation(run);
-  const previewCount = presentation.trailingCount ?? 0;
-
-  return (
-    <CardSurface>
-      <Stack spacing={1.5}>
-        <RunCardHeader presentation={presentation} run={run} />
-        <RunPreviewRow previewCount={previewCount} previewItems={presentation.previewItems} />
-        <RunMetadataRow run={run} />
-        <RunPlanningRow run={run} />
-        <RunMetricsRow run={run} />
-      </Stack>
-    </CardSurface>
-  );
-}
-
-function RunCardHeader({
-  presentation,
-  run
-}: {
-  readonly presentation: ReturnType<typeof summarizeRunPresentation>;
-  readonly run: AuditRunOverview;
-}) {
-  return (
-    <Stack
-      alignItems={{ sm: "center", xs: "flex-start" }}
-      direction={{ sm: "row", xs: "column" }}
-      justifyContent="space-between"
-      spacing={1}
-    >
-      <div>
-        <Typography variant="h3">{presentation.title}</Typography>
-        {presentation.secondaryText === undefined ? null : (
-          <Typography color="text.secondary" sx={{ mt: 0.4 }} variant="body2">
-            {presentation.secondaryText}
-          </Typography>
-        )}
-      </div>
-      <Stack direction="row" spacing={0.75} useFlexGap>
-        <Chip label={run.workflow} size="small" variant="outlined" />
-        <Chip color={toChipColor(run.status)} label={run.status} size="small" />
-      </Stack>
-    </Stack>
-  );
-}
-
-function RunPreviewRow({ previewCount, previewItems }: { readonly previewCount: number; readonly previewItems: string[] }) {
-  if (previewItems.length === 0) {
-    return null;
+  "&:hover": {
+    backgroundColor: alpha(theme.palette.secondary.main, 0.06)
   }
+}));
+
+export function RunList({ detail, detailError, isLoadingDetail, onSelect, runs, selectedRunId, timeline }: RunListProps) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
+  const isDrawerOpen = detail !== null;
+  const { drawerWidth, startResize } = useResizableDrawer(true);
+
+  useEffect(() => {
+    setPage(0);
+  }, [runs]);
+
+  const visibleRuns = useMemo(() => runs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [page, rowsPerPage, runs]);
 
   return (
-    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-      {previewItems.map((item) => (
-        <PreviewChip icon={<FolderOutlinedIcon fontSize="small" />} key={item} label={formatRelativePath(item)} size="small" variant="filled" />
-      ))}
-      {previewCount === 0 ? null : <Chip label={`+${previewCount.toString()} more`} size="small" variant="outlined" />}
-    </Stack>
-  );
-}
-
-function RunMetadataRow({ run }: { readonly run: AuditRunOverview }) {
-  const metadataLabels = [
-    { icon: <RuleFolderOutlinedIcon fontSize="small" />, label: formatRelativePath(run.worktreePath) },
-    { icon: <CircleOutlinedIcon fontSize="small" />, label: formatDateTime(run.startedAt) },
-    { label: formatDuration(run.durationMs) },
-    { label: run.project === undefined ? "No project" : `Project ${run.project}` },
-    { label: run.agentName === undefined ? "No agent" : `Agent ${run.agentName}` }
-  ];
-
-  return (
-    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-      {metadataLabels.map((item) => (
-        <Chip icon={item.icon} key={item.label} label={item.label} size="small" variant="outlined" />
-      ))}
-    </Stack>
-  );
-}
-
-function RunPlanningRow({ run }: { readonly run: AuditRunOverview }) {
-  const planningLabels = [
-    ...(run.workItemId === undefined ? [] : [`Work item ${run.workItemId}`]),
-    ...(run.planRunId === undefined ? [] : [`Plan run ${run.planRunId}`]),
-    ...(run.planStepId === undefined ? [] : [`Plan step ${run.planStepId}`])
-  ];
-
-  if (planningLabels.length === 0) {
-    return (
-      <Typography color="text.secondary" variant="body2">
-        No planning linkage recorded for this run.
-      </Typography>
-    );
-  }
-
-  return (
-    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-      {planningLabels.map((label) => (
-        <Chip key={`${run.runId}-${label}`} label={label} size="small" variant="outlined" />
-      ))}
-    </Stack>
-  );
-}
-
-function RunMetricsRow({ run }: { readonly run: AuditRunOverview }) {
-  const failureVariant = run.failureCount > 0 ? "filled" : "outlined";
-  const failureColor = run.failureCount > 0 ? "error" : "default";
-
-  return (
-    <Stack direction="row" flexWrap="wrap" spacing={0.75} useFlexGap>
-      <Chip label={`${run.executionCount.toString()} executions`} size="small" variant="outlined" />
-      <Chip label={`${run.decisionCount.toString()} decisions`} size="small" variant="outlined" />
-      <Chip
-        color={failureColor}
-        icon={run.failureCount > 0 ? <ErrorOutlineOutlinedIcon fontSize="small" /> : undefined}
-        label={`${run.failureCount.toString()} failures`}
-        size="small"
-        variant={failureVariant}
+    <Stack spacing={2}>
+      <RunTable
+        onSelect={onSelect}
+        page={page}
+        runs={runs}
+        rowsPerPage={rowsPerPage}
+        selectedRunId={selectedRunId}
+        setPage={setPage}
+        setRowsPerPage={setRowsPerPage}
+        visibleRuns={visibleRuns}
+      />
+      <RunDetailDrawer
+        detail={detail}
+        detailError={detailError}
+        drawerWidth={drawerWidth}
+        isDrawerOpen={isDrawerOpen}
+        isLoadingDetail={isLoadingDetail}
+        onClose={() => {
+          onSelect(null);
+        }}
+        onResize={startResize}
+        timeline={timeline}
       />
     </Stack>
+  );
+}
+
+function RunTable({
+  onSelect,
+  page,
+  runs,
+  rowsPerPage,
+  selectedRunId,
+  setPage,
+  setRowsPerPage,
+  visibleRuns
+}: {
+  readonly onSelect: (runId: string | null) => void;
+  readonly page: number;
+  readonly runs: AuditRunOverview[];
+  readonly rowsPerPage: number;
+  readonly selectedRunId: string | null;
+  readonly setPage: (page: number) => void;
+  readonly setRowsPerPage: (rowsPerPage: number) => void;
+  readonly visibleRuns: AuditRunOverview[];
+}) {
+  return (
+    <TableShell elevation={0}>
+      <Stack spacing={0}>
+        <RunTableHeader page={page} rowsPerPage={rowsPerPage} runCount={runs.length} />
+        <Divider />
+        <RunTableGrid
+          onSelect={onSelect}
+          selectedRunId={selectedRunId}
+          setPage={setPage}
+          setRowsPerPage={setRowsPerPage}
+          visibleRuns={visibleRuns}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          runCount={runs.length}
+        />
+      </Stack>
+    </TableShell>
+  );
+}
+
+function RunTableHeader({
+  page,
+  rowsPerPage,
+  runCount
+}: {
+  readonly page: number;
+  readonly rowsPerPage: number;
+  readonly runCount: number;
+}) {
+  return (
+    <Stack direction={{ sm: "row", xs: "column" }} justifyContent="space-between" px={2.5} py={2} spacing={1}>
+      <div>
+        <Typography variant="h3">Audit runs</Typography>
+        <Typography color="text.secondary" variant="body2">
+          Showing the latest {Math.min(rowsPerPage, runCount).toString()} runs per page. Select a row to inspect the drawer.
+        </Typography>
+      </div>
+      <Stack alignItems={{ sm: "flex-end", xs: "flex-start" }} spacing={0.5}>
+        <Chip label={`${runCount.toString()} loaded`} variant="outlined" />
+        <Typography color="text.secondary" variant="caption">
+          Page {page + 1} of {Math.max(1, Math.ceil(runCount / rowsPerPage))}
+        </Typography>
+      </Stack>
+    </Stack>
+  );
+}
+
+function RunTableGrid({
+  onSelect,
+  page,
+  selectedRunId,
+  setPage,
+  setRowsPerPage,
+  visibleRuns,
+  rowsPerPage,
+  runCount
+}: {
+  readonly onSelect: (runId: string | null) => void;
+  readonly page: number;
+  readonly selectedRunId: string | null;
+  readonly setPage: (page: number) => void;
+  readonly setRowsPerPage: (rowsPerPage: number) => void;
+  readonly visibleRuns: AuditRunOverview[];
+  readonly rowsPerPage: number;
+  readonly runCount: number;
+}) {
+  return (
+    <>
+      <Table size="small" aria-label="Audit runs">
+        <TableHead>
+          <TableRow>
+            <TableCell>Run</TableCell>
+            <TableCell>Workflow</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Started</TableCell>
+            <TableCell>Duration</TableCell>
+            <TableCell>Worktree</TableCell>
+            <TableCell align="right">Signals</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {visibleRuns.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7}>
+                <Stack minHeight={220} justifyContent="center" spacing={1}>
+                  <Typography variant="body1">No runs match the current filters.</Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Start a workflow or clear one of the filters above.
+                  </Typography>
+                </Stack>
+              </TableCell>
+            </TableRow>
+          ) : (
+            visibleRuns.map((run) => (
+              <RunTableRow key={run.runId} onSelect={onSelect} run={run} selected={run.runId === selectedRunId} />
+            ))
+          )}
+        </TableBody>
+      </Table>
+      <TablePagination
+        component="div"
+        count={runCount}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        rowsPerPageOptions={[25, 50, 100]}
+        onPageChange={(_, nextPage) => {
+          setPage(nextPage);
+        }}
+        onRowsPerPageChange={(event) => {
+          setRowsPerPage(Number(event.target.value));
+          setPage(0);
+        }}
+      />
+    </>
+  );
+}
+
+function RunTableRow({
+  onSelect,
+  run,
+  selected
+}: {
+  readonly onSelect: (runId: string | null) => void;
+  readonly run: AuditRunOverview;
+  readonly selected: boolean;
+}) {
+  const presentation = summarizeRunPresentation(run);
+
+  return (
+    <TableRowButton
+      hover
+      onClick={() => {
+        onSelect(run.runId);
+      }}
+      selected={selected}
+    >
+      <TableCell>
+        <Stack spacing={0.3}>
+          <Typography variant="body2">{presentation.title}</Typography>
+          <Typography color="text.secondary" variant="caption">
+            {run.runId}
+          </Typography>
+        </Stack>
+      </TableCell>
+      <TableCell>
+        <Stack spacing={0.6}>
+          <Chip label={run.workflow} size="small" variant="outlined" />
+          <Typography color="text.secondary" variant="caption">
+            {run.agentName ?? "No agent"}
+          </Typography>
+        </Stack>
+      </TableCell>
+      <TableCell>
+        <Chip color={toChipColor(run.status)} label={run.status} size="small" />
+      </TableCell>
+      <TableCell>{formatDateTime(run.startedAt)}</TableCell>
+      <TableCell>{formatDuration(run.durationMs)}</TableCell>
+      <TableCell>{formatRelativePath(run.worktreePath)}</TableCell>
+      <TableCell align="right">
+        <Stack alignItems="flex-end" spacing={0.5}>
+          <Chip label={`${run.executionCount.toString()} exec`} size="small" variant="outlined" />
+          <Chip label={`${run.failureCount.toString()} fail`} size="small" variant={run.failureCount > 0 ? "filled" : "outlined"} />
+        </Stack>
+      </TableCell>
+    </TableRowButton>
   );
 }
 
@@ -225,5 +288,7 @@ function toChipColor(status: AuditRunOverview["status"]): "default" | "error" | 
       return "default";
     case "success":
       return "success";
+    default:
+      return "default";
   }
 }
