@@ -35,7 +35,7 @@ export const WorkflowDefinitionListPage: React.FC = () => {
       }
     };
 
-    fetchDefinitions();
+    void fetchDefinitions();
   }, []);
 
   const handleSelectDefinition = (name: string) => {
@@ -71,14 +71,14 @@ export const WorkflowDefinitionListPage: React.FC = () => {
             {definitions.map((definition, index) => (
               <React.Fragment key={definition.id}>
                 <ListItem disablePadding>
-                  <ListItemButton onClick={() => handleSelectDefinition(definition.name)}>
+                  <ListItemButton onClick={() => { handleSelectDefinition(definition.name); }}>
                     <ListItemText
                       primary={definition.name}
-                      secondary={`v${definition.version} • ${definition.description || "No description"}`}
+                      secondary={`v${definition.version} • ${definition.description ?? "No description"}`}
                     />
                   </ListItemButton>
                 </ListItem>
-                {index < definitions.length - 1 && <Box sx={{ borderBottom: "1px solid #e0e0e0" }} />}
+                {index < definitions.length - 1 && <Box sx={{ borderBottom: "1px solid", borderColor: "divider" }} />}
               </React.Fragment>
             ))}
           </List>

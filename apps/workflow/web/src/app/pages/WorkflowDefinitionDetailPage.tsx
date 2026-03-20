@@ -42,7 +42,7 @@ export const WorkflowDefinitionDetailPage: React.FC = () => {
       }
     };
 
-    fetchDefinition();
+    void fetchDefinition();
   }, [name]);
 
   const handleBack = () => {
@@ -57,7 +57,7 @@ export const WorkflowDefinitionDetailPage: React.FC = () => {
             <ArrowBackIcon />
           </IconButton>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="h6">{definition?.name || "Workflow Definition"}</Typography>
+            <Typography variant="h6">{definition?.name ?? "Workflow Definition"}</Typography>
             {definition && (
               <Typography variant="caption" color="inherit" sx={{ opacity: 0.8 }}>
                 v{definition.version}
