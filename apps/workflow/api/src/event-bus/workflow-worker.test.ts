@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+/* eslint-disable @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access */
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { PrismaClient } from "@taxes/db";
 import { getPrismaClient } from "@taxes/db";
 import { tmpdir } from "node:os";
@@ -8,6 +9,11 @@ import { randomUUID } from "node:crypto";
 import { applyPendingMigrations } from "../db/migrations.js";
 import { WorkflowWorker } from "./workflow-worker.js";
 import { EventBus } from "./event-bus.js";
+
+// Mock the planning client
+vi.mock("@taxes/plan-api", () => ({
+  getPrismaClient: vi.fn()
+}));
 
 describe("WorkflowWorker", () => {
   let prisma: PrismaClient;
@@ -225,5 +231,56 @@ describe("WorkflowWorker", () => {
         r();
       }, 100);
     });
+  });
+
+  it("processBatch() handles github.pull_request.merged events", async () => {
+    const { getPrismaClient: getMockPlanClient } = await import("@taxes/plan-api");
+
+    // Mock planning client
+    const mockPlanningDb = {
+      planWorkItem: {
+        updateMany: vi.fn(() => Promise.resolve({ count: 1 } as unknown))
+      },
+      $disconnect: vi.fn(() => Promise.resolve(undefined))
+    };
+
+    vi.mocked(getMockPlanClient).mockResolvedValue(mockPlanningDb as never);
+
+    // Clear any pending events
+    await prisma.workflowEvent.deleteMany({});
+
+    // Create a GitHub PR merged event (no correlationId needed)
+    const event = await prisma.workflowEvent.create({
+      data: {
+        type: "github.pull_request.merged",
+        source: "github",
+        payload: JSON.stringify({
+          pull_request: {
+            number: 123,
+            title: "Implement feature",
+            body: "Closes PLAN-167 and PLAN-166",
+            merged: true
+          }
+        })
+      }
+    });
+
+    const worker = new WorkflowWorker({
+      pollIntervalMs: 100,
+      batchSize: 10,
+      db: prisma
+    });
+
+    const count = await worker.processBatch();
+    expect(count).toBe(1);
+
+    // Verify event is marked processed
+    const processedEvent = await prisma.workflowEvent.findUnique({
+      where: { id: event.id }
+    });
+    expect(processedEvent?.processedAt).toBeDefined();
+
+    // Verify planning client was called
+    expect(mockPlanningDb.planWorkItem.updateMany).toHaveBeenCalledTimes(2);
   });
 });

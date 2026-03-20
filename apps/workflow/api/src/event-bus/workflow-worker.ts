@@ -2,11 +2,13 @@ import type { PrismaClient } from "@taxes/db";
 import { WorkflowEngine } from "@taxes/shared";
 
 import { EventBus } from "./event-bus.js";
+import { GitHubPrMergedHandler } from "../services/github-pr-merged-handler.js";
 
 export interface WorkerConfig {
   readonly pollIntervalMs: number;   // default 1000
   readonly batchSize: number;        // default 10
   readonly db: PrismaClient;
+  readonly planningDatabaseUrl?: string;
 }
 
 export class WorkflowWorker {
@@ -14,6 +16,7 @@ export class WorkflowWorker {
   private batchSize: number;
   private db: PrismaClient;
   private eventBus: EventBus;
+  private planningDatabaseUrl?: string;
   private pollHandle: NodeJS.Timeout | null = null;
   private running = false;
 
@@ -22,6 +25,7 @@ export class WorkflowWorker {
     this.batchSize = config.batchSize;
     this.db = config.db;
     this.eventBus = new EventBus(config.db);
+    this.planningDatabaseUrl = config.planningDatabaseUrl;
   }
 
   /** Start the polling loop (non-blocking, runs in background) */
@@ -71,6 +75,13 @@ export class WorkflowWorker {
 
   private async processEvent(event: { id: string; type: string; correlationId: string | null; payload: string }): Promise<void> {
     try {
+      // Handle external system events (e.g., GitHub PR merged) that don't require a workflow run
+      if (event.type === "github.pull_request.merged") {
+        await this.handleGitHubPrMergedEvent(event);
+        return;
+      }
+
+      // Handle standard workflow events
       const correlationId = event.correlationId;
       if (!correlationId) {
         await this.eventBus.markFailed(event.id, "No correlationId (workflowRunId) in event");
@@ -105,6 +116,23 @@ export class WorkflowWorker {
       await this.eventBus.markProcessed(event.id);
     } catch (error) {
       await this.eventBus.markFailed(event.id, `Processing error: ${String(error)}`);
+    }
+  }
+
+  private async handleGitHubPrMergedEvent(event: { id: string; type: string; payload: string }): Promise<void> {
+    try {
+      const fullEvent = await this.db.workflowEvent.findUnique({
+        where: { id: event.id }
+      });
+
+      if (!fullEvent) {
+        throw new Error(`Event not found: ${event.id}`);
+      }
+
+      const handler = new GitHubPrMergedHandler(this.db, this.planningDatabaseUrl);
+      await handler.handleEvent(fullEvent);
+    } catch (error) {
+      await this.eventBus.markFailed(event.id, `GitHub PR merged handler error: ${String(error)}`);
     }
   }
 
