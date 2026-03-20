@@ -25,7 +25,7 @@ describe("parseDevEnvironmentArgs", () => {
       requireEnvironmentSelection: true
     });
 
-    expect(parsed.environmentIds).toEqual(["taxes", "plan", "audit", "knowledge", "code-review"]);
+    expect(parsed.environmentIds).toEqual(["taxes", "plan", "audit", "knowledge", "code-review", "gateway", "workflow"]);
   });
 
   it("rejects missing environment selection for start flows", () => {
