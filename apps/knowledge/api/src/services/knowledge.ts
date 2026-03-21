@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import type {
   CreateKnowledgeEntryDraftInput,
   CreateKnowledgeSubjectDraftInput,
+  KnowledgeEntry,
+  KnowledgeMemorySourceType,
+  KnowledgeMemoryTier,
   KnowledgeWorkspace,
   UpdateKnowledgeEntryPatchInput,
   UpdateKnowledgeSubjectPatchInput
@@ -31,6 +34,11 @@ import {
   serializeJson
 } from "./knowledge-support.js";
 import { syncRepositoryDocs, type RepositoryDocSyncResult } from "./repository-docs.js";
+import {
+  buildKnowledgeMemoryContextPack,
+  promoteArchivedKnowledgeMemory,
+  selectKnowledgeMemoryEntries
+} from "./memory-workflow.js";
 
 export { KnowledgeConflictError, KnowledgeNotFoundError } from "./knowledge-support.js";
 
@@ -195,6 +203,57 @@ export async function importRepositoryKnowledge(options: KnowledgePersistenceOpt
   const docsRoot = options.docsRoot ?? REPOSITORY_DOCS_ROOT;
 
   return prisma.$transaction(async (transaction) => syncRepositoryDocs(transaction, docsRoot));
+}
+
+export function getKnowledgeMemoryContextPack(
+  entries: KnowledgeEntry[],
+  options: {
+    readonly agentRole: string;
+    readonly namespace?: string;
+    readonly tier?: KnowledgeMemoryTier;
+    readonly limit?: number;
+  }
+) {
+  return buildKnowledgeMemoryContextPack(entries, options);
+}
+
+export function findKnowledgeMemoryEntries(
+  entries: KnowledgeEntry[],
+  options: {
+    readonly agentRole?: string;
+    readonly namespace?: string;
+    readonly sourceType?: KnowledgeMemorySourceType;
+    readonly tier?: KnowledgeMemoryTier;
+  }
+) {
+  return selectKnowledgeMemoryEntries(entries, options);
+}
+
+export function promoteKnowledgeMemoryEntry(
+  entry: KnowledgeEntry,
+  promotedAt: string,
+  options: {
+    readonly agentRoles?: string[];
+    readonly sharedAcrossAgents?: boolean;
+    readonly sourceType?: KnowledgeMemorySourceType;
+    readonly tier?: KnowledgeMemoryTier;
+  } = {}
+) {
+  return {
+    ...entry,
+    content: {
+      ...entry.content,
+      memory: promoteArchivedKnowledgeMemory({
+        ...(options.agentRoles === undefined ? {} : { agentRoles: options.agentRoles }),
+        archiveEntry: entry,
+        promotedAt,
+        ...(options.sharedAcrossAgents === undefined ? {} : { sharedAcrossAgents: options.sharedAcrossAgents }),
+        ...(options.sourceType === undefined ? {} : { sourceType: options.sourceType }),
+        ...(options.tier === undefined ? {} : { tier: options.tier })
+      })
+    },
+    lastReviewedAt: promotedAt
+  };
 }
 
 function buildKnowledgeSubjectUpdateData(

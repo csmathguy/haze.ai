@@ -10,6 +10,9 @@ import {
   createKnowledgeSubject,
   getKnowledgeWorkspace,
   importRepositoryKnowledge,
+  promoteKnowledgeMemoryEntry,
+  findKnowledgeMemoryEntries,
+  getKnowledgeMemoryContextPack,
   updateKnowledgeEntry,
   updateKnowledgeSubject
 } from "./knowledge.js";
@@ -147,5 +150,52 @@ describe("knowledge service", () => {
     expect(snapshot.summary.repositoryDocs).toBe(1);
     expect(snapshot.entries.some((knowledgeEntry) => knowledgeEntry.kind === "doc-mirror")).toBe(true);
     expect(snapshot.entries.find((knowledgeEntry) => knowledgeEntry.id === entry.id)?.status).toBe("review-needed");
+  });
+
+  it("filters, promotes, and packages memory entries by role and tier", async () => {
+    const workspace = await createTestKnowledgeContext("knowledge-service-memory");
+    workspaces.push(workspace);
+
+    const entry = await createKnowledgeEntry(
+      {
+        content: {
+          abstract: "TypeScript and React are preferred for frontend work.",
+          format: "hybrid",
+          memory: {
+            agentRoles: ["orchestrator", "coder"],
+            confidence: "high",
+            reactivationCount: 2,
+            reviewState: "approved",
+            sharedAcrossAgents: true,
+            sourceType: "user-stated",
+            tier: "archive"
+          },
+          markdown: "Prefer TypeScript/React and keep branches low-conflict.",
+          sections: [],
+          sources: []
+        },
+        createdByKind: "agent",
+        kind: "agent-memory",
+        namespace: "human:primary",
+        tags: ["preferences"],
+        title: "Frontend stack preference"
+      },
+      workspace
+    );
+
+    const memoryEntries = findKnowledgeMemoryEntries([entry], { agentRole: "coder", tier: "archive" });
+    const contextPack = getKnowledgeMemoryContextPack([entry], { agentRole: "coder", tier: "archive" });
+    const promoted = promoteKnowledgeMemoryEntry(entry, "2026-03-21T01:00:00.000Z", {
+      agentRoles: ["coder", "orchestrator"],
+      sharedAcrossAgents: true,
+      tier: "medium-term"
+    });
+
+    expect(memoryEntries).toHaveLength(1);
+    expect(contextPack.entries).toHaveLength(1);
+    expect(contextPack.tier).toBe("archive");
+    expect(promoted.content.memory.tier).toBe("medium-term");
+    expect(promoted.content.memory.reactivationCount).toBe(3);
+    expect(promoted.lastReviewedAt).toBe("2026-03-21T01:00:00.000Z");
   });
 });
