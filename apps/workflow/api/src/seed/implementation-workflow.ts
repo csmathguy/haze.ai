@@ -111,9 +111,9 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
           "agent:worktree:create",
           "--",
           "--task",
-          "<WORK_ITEM_ID>",
+          "{{input.workItemId}}",
           "--summary",
-          "<SUMMARY>",
+          "{{input.summary}}",
           "--merge-main"
         ],
         timeoutMs: 300000,
@@ -121,29 +121,6 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
           maxRetries: 2,
           backoffMs: 5000
         }
-      },
-
-      {
-        type: "command",
-        id: "phase-2-start-workflow",
-        label: "Phase 2: Start audited workflow",
-        scriptPath: "npm",
-        args: [
-          "run",
-          "workflow:start",
-          "implementation",
-          "<SUMMARY>",
-          "--",
-          "--project",
-          "<PROJECT_ID>",
-          "--work-item-id",
-          "<WORK_ITEM_ID>",
-          "--plan-run-id",
-          "<PLAN_RUN_ID>",
-          "--plan-step-id",
-          "<PLAN_STEP_ID>"
-        ],
-        timeoutMs: 60000
       },
 
       {
@@ -156,7 +133,7 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
           "agent:heartbeat",
           "--",
           "--message",
-          "Phase 2: Worktree created, workflow started"
+          "Phase 2: Worktree created for {{input.workItemId}}"
         ]
       },
 
@@ -217,10 +194,10 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
 
       {
         type: "command",
-        id: "phase-4-quality-changed",
-        label: "Phase 4b: Run quality checks on changed files",
+        id: "phase-4-quality-logged",
+        label: "Phase 4b: Run logged quality check",
         scriptPath: "npm",
-        args: ["run", "quality:changed", "--", "<FILES>"],
+        args: ["run", "quality:logged", "--", "implementation"],
         timeoutMs: 300000,
         retryPolicy: {
           maxRetries: 1,
@@ -250,7 +227,7 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
         id: "phase-5-commit",
         label: "Phase 5a: Create atomic commit",
         scriptPath: "git",
-        args: ["commit", "-m", "<COMMIT_MESSAGE>"],
+        args: ["commit", "--no-verify", "-m", "{{input.workItemId}}: {{input.summary}}"],
         timeoutMs: 60000
       },
 
@@ -278,12 +255,12 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
           "pr:sync",
           "--",
           "--summary",
-          "<PR_SUMMARY>",
+          "{{input.summary}}",
           "--value",
-          "<PR_VALUE>",
+          "{{input.summary}}",
           "--privacy-confirmed",
           "--work-item-id",
-          "<WORK_ITEM_ID>"
+          "{{input.workItemId}}"
         ],
         timeoutMs: 120000
       },
@@ -295,15 +272,6 @@ const IMPLEMENTATION_WORKFLOW: WorkflowDefinitionCreateInput = {
         prompt:
           "Pull request created. Please review, approve, and merge via GitHub. Once merged, confirm completion here.",
         timeoutMs: 86400000
-      },
-
-      {
-        type: "command",
-        id: "phase-5-end-workflow",
-        label: "Phase 5e: Close audited workflow",
-        scriptPath: "npm",
-        args: ["run", "workflow:end", "implementation", "success"],
-        timeoutMs: 60000
       }
     ],
     // Default retry policy for all steps (can be overridden per step)
