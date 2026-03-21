@@ -16,6 +16,13 @@ interface MigrationEntry {
   sql: string;
 }
 
+interface MigrationObject {
+  column?: string;
+  name: string;
+  table?: string;
+  type: "column" | "index" | "table";
+}
+
 export async function applyPendingMigrations(databaseUrl: string): Promise<number> {
   const databaseFilePath = resolveDatabaseFilePath(databaseUrl);
   const migrations = await readMigrationEntries();
@@ -57,7 +64,7 @@ function applyMigration(database: Database.Database, migration: MigrationEntry):
   database.exec("BEGIN");
 
   try {
-    database.exec(migration.sql);
+    executeMigrationStatements(database, migration.sql);
     insertMigration.run({
       appliedAt: new Date().toISOString(),
       checksum: migration.checksum,
@@ -121,25 +128,56 @@ function canTreatMigrationAsAlreadyApplied(
   return createdObjects.length > 0 && createdObjects.every((object) => objectExists(database, object));
 }
 
+function executeMigrationStatements(database: Database.Database, sql: string): void {
+  for (const statement of splitSqlStatements(sql)) {
+    if (statement.length === 0) {
+      continue;
+    }
+
+    try {
+      database.exec(statement);
+    } catch (error) {
+      if (!canSkipStatement(error, statement)) {
+        throw error;
+      }
+    }
+  }
+}
+
+function canSkipStatement(error: unknown, statement: string): boolean {
+  if (!isAlreadyExistsError(error)) {
+    return false;
+  }
+
+  const normalizedStatement = stripLeadingSqlComments(statement);
+
+  return (
+    normalizedStatement.startsWith("CREATE TABLE") ||
+    /^CREATE\s+(?:UNIQUE\s+)?INDEX\b/i.test(normalizedStatement) ||
+    normalizedStatement.startsWith("ALTER TABLE")
+  );
+}
+
 function isAlreadyExistsError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("already exists");
 }
 
 function objectExists(
   database: Database.Database,
-  object: {
-    name: string;
-    type: "index" | "table";
-  }
+  object: MigrationObject
 ): boolean {
+  if (object.type === "column") {
+    return columnExists(database, object.table ?? object.name, object.column ?? object.name);
+  }
+
   const statement = database.prepare(`
     SELECT 1
     FROM "sqlite_master"
-    WHERE "type" = 'table'
+    WHERE "type" = @objectType
       AND "name" = @tableName
     LIMIT 1
   `);
-  const row = statement.get({ tableName: object.name }) as { 1: number } | undefined;
+  const row = statement.get({ objectType: object.type, tableName: object.name }) as { 1: number } | undefined;
 
   if (row !== undefined) {
     return object.type === "table";
@@ -161,30 +199,83 @@ function objectExists(
   return indexRow !== undefined;
 }
 
-function getCreatedObjects(sql: string): { name: string; type: "index" | "table" }[] {
-  const objects: { name: string; type: "index" | "table" }[] = [];
-  const createTablePattern = /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"([^"]+)"/gi;
-  const createIndexPattern = /CREATE (?:UNIQUE\s+)?INDEX\s+"([^"]+)"/gi;
-  let match: RegExpExecArray | null = createTablePattern.exec(sql);
+function columnExists(database: Database.Database, tableName: string, columnName: string): boolean {
+  const columns = database.prepare(`PRAGMA table_info("${tableName}")`).all() as { name: string }[];
 
-  while (match !== null) {
+  return columns.some((column) => column.name === columnName);
+}
+
+function getCreatedObjects(sql: string): MigrationObject[] {
+  return [
+    ...collectCreatedTables(sql),
+    ...collectCreatedIndexes(sql),
+    ...collectAddedColumns(sql)
+  ];
+}
+
+function collectCreatedTables(sql: string): MigrationObject[] {
+  return collectMatches(sql, /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"([^"]+)"/gi, (match) => {
     const tableName = match[1];
-    if (tableName !== undefined && tableName.length > 0 && !tableName.startsWith("new_")) {
-      objects.push({ name: tableName, type: "table" });
-    }
-    match = createTablePattern.exec(sql);
-  }
 
-  match = createIndexPattern.exec(sql);
-  while (match !== null) {
+    return tableName !== undefined && tableName.length > 0 && !tableName.startsWith("new_")
+      ? [{ name: tableName, type: "table" }]
+      : [];
+  });
+}
+
+function collectCreatedIndexes(sql: string): MigrationObject[] {
+  return collectMatches(sql, /CREATE (?:UNIQUE\s+)?INDEX\s+"([^"]+)"/gi, (match) => {
     const indexName = match[1];
-    if (indexName !== undefined && indexName.length > 0) {
-      objects.push({ name: indexName, type: "index" });
-    }
-    match = createIndexPattern.exec(sql);
+
+    return indexName !== undefined && indexName.length > 0 ? [{ name: indexName, type: "index" }] : [];
+  });
+}
+
+function collectAddedColumns(sql: string): MigrationObject[] {
+  return collectMatches(sql, /ALTER TABLE\s+"([^"]+)"\s+ADD COLUMN\s+"([^"]+)"/gi, (match) => {
+    const tableName = match[1];
+    const columnName = match[2];
+
+    return tableName !== undefined && columnName !== undefined && tableName.length > 0 && columnName.length > 0
+      ? [
+          {
+            column: columnName,
+            name: `${tableName}.${columnName}`,
+            table: tableName,
+            type: "column"
+          }
+        ]
+      : [];
+  });
+}
+
+function collectMatches(
+  sql: string,
+  pattern: RegExp,
+  mapMatch: (match: RegExpExecArray) => MigrationObject[]
+): MigrationObject[] {
+  const objects: MigrationObject[] = [];
+  let match: RegExpExecArray | null = pattern.exec(sql);
+
+  while (match !== null) {
+    objects.push(...mapMatch(match));
+    match = pattern.exec(sql);
   }
 
   return objects;
+}
+
+function splitSqlStatements(sql: string): string[] {
+  return sql
+    .split(/;\s*(?:\r?\n|$)/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
+function stripLeadingSqlComments(statement: string): string {
+  return statement
+    .replace(/^(?:--.*(?:\r?\n|$)\s*)+/g, "")
+    .trimStart();
 }
 
 async function readMigrationEntries(): Promise<MigrationEntry[]> {
