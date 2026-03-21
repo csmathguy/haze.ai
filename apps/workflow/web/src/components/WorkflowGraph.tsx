@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ReactFlow,
   Controls,
@@ -211,7 +211,6 @@ const nodeTypes: NodeTypes = {
 };
 
 export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({ definition, runOverlay }) => {
-  const graphContainerRef = useRef<HTMLDivElement | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
   const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
@@ -223,39 +222,6 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({ definition, runOve
     setNodes(newNodes);
     setEdges(newEdges);
   }, [definition, runOverlay, setNodes, setEdges]);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-
-    const element = graphContainerRef.current;
-    console.warn("[workflow-graph]", "render", {
-      definitionName: definition.name,
-      nodeCount: nodes.length,
-      edgeCount: edges.length,
-      hasOverlay: runOverlay !== undefined
-    });
-
-    if (!element) return;
-
-    const logSize = (label: string) => {
-      console.warn("[workflow-graph]", label, {
-        height: element.offsetHeight,
-        width: element.offsetWidth
-      });
-    };
-
-    logSize("container-mounted");
-
-    const observer = new ResizeObserver(() => {
-      logSize("container-resized");
-    });
-
-    observer.observe(element);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [definition.name, edges.length, nodes.length, runOverlay]);
 
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -273,8 +239,20 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({ definition, runOve
   };
 
   return (
-    <Box ref={graphContainerRef} sx={{ display: "flex", height: "100%", minHeight: 600, width: "100%" }}>
-      <Box sx={{ flex: 1, height: "100%", minHeight: 600, position: "relative" }}>
+    <Box sx={{ display: "flex", height: "100%", minHeight: 600, width: "100%" }}>
+      <Box
+        sx={{
+          flex: 1,
+          height: "100%",
+          minHeight: 600,
+          position: "relative",
+          "& > .react-flow": {
+            height: "600px !important",
+            minHeight: "600px !important",
+            width: "100%"
+          }
+        }}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
