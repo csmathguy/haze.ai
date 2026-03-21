@@ -10,7 +10,6 @@ import { resolveDatabaseFilePath } from "@taxes/db";
 const MIGRATIONS_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../prisma/migrations");
 const MIGRATIONS_TABLE_NAME = "_taxes_migrations";
 const INITIAL_MIGRATION_NAME = "20260311000000_init";
-const INITIAL_SCHEMA_TABLES = ["HouseholdProfile", "ImportedDocument", "MissingFact", "AssetLot"];
 
 interface MigrationEntry {
   checksum: string;
@@ -122,7 +121,7 @@ function canTreatMigrationAsAlreadyApplied(
     return false;
   }
 
-  return INITIAL_SCHEMA_TABLES.every((tableName) => tableExists(database, tableName));
+  return getCreatedTableNames(migration.sql).every((tableName) => tableExists(database, tableName));
 }
 
 function isAlreadyExistsError(error: unknown): boolean {
@@ -140,6 +139,19 @@ function tableExists(database: Database.Database, tableName: string): boolean {
   const row = statement.get({ tableName }) as { 1: number } | undefined;
 
   return row !== undefined;
+}
+
+function getCreatedTableNames(sql: string): string[] {
+  const tableNames = new Set<string>();
+  const createTablePattern = /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"([^"]+)"/gi;
+  let match: RegExpExecArray | null = createTablePattern.exec(sql);
+
+  while (match !== null) {
+    tableNames.add(match[1] ?? "");
+    match = createTablePattern.exec(sql);
+  }
+
+  return [...tableNames].filter((tableName) => tableName.length > 0);
 }
 
 async function readMigrationEntries(): Promise<MigrationEntry[]> {
