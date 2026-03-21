@@ -9,7 +9,6 @@ import { resolveDatabaseFilePath } from "@taxes/db";
 
 const MIGRATIONS_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../prisma/migrations");
 const MIGRATIONS_TABLE_NAME = "_taxes_migrations";
-const INITIAL_MIGRATION_NAME = "20260311000000_init";
 
 interface MigrationEntry {
   checksum: string;
@@ -113,22 +112,26 @@ function canTreatMigrationAsAlreadyApplied(
   migration: MigrationEntry,
   error: unknown
 ): boolean {
-  if (migration.name !== INITIAL_MIGRATION_NAME) {
-    return false;
-  }
-
   if (!isAlreadyExistsError(error)) {
     return false;
   }
 
-  return getCreatedTableNames(migration.sql).every((tableName) => tableExists(database, tableName));
+  const createdObjects = getCreatedObjects(migration.sql);
+
+  return createdObjects.length > 0 && createdObjects.every((object) => objectExists(database, object));
 }
 
 function isAlreadyExistsError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("already exists");
 }
 
-function tableExists(database: Database.Database, tableName: string): boolean {
+function objectExists(
+  database: Database.Database,
+  object: {
+    name: string;
+    type: "index" | "table";
+  }
+): boolean {
   const statement = database.prepare(`
     SELECT 1
     FROM "sqlite_master"
@@ -136,22 +139,52 @@ function tableExists(database: Database.Database, tableName: string): boolean {
       AND "name" = @tableName
     LIMIT 1
   `);
-  const row = statement.get({ tableName }) as { 1: number } | undefined;
+  const row = statement.get({ tableName: object.name }) as { 1: number } | undefined;
 
-  return row !== undefined;
+  if (row !== undefined) {
+    return object.type === "table";
+  }
+
+  if (object.type !== "index") {
+    return false;
+  }
+
+  const indexStatement = database.prepare(`
+    SELECT 1
+    FROM "sqlite_master"
+    WHERE "type" = 'index'
+      AND "name" = @indexName
+    LIMIT 1
+  `);
+  const indexRow = indexStatement.get({ indexName: object.name }) as { 1: number } | undefined;
+
+  return indexRow !== undefined;
 }
 
-function getCreatedTableNames(sql: string): string[] {
-  const tableNames = new Set<string>();
+function getCreatedObjects(sql: string): { name: string; type: "index" | "table" }[] {
+  const objects: { name: string; type: "index" | "table" }[] = [];
   const createTablePattern = /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"([^"]+)"/gi;
+  const createIndexPattern = /CREATE (?:UNIQUE\s+)?INDEX\s+"([^"]+)"/gi;
   let match: RegExpExecArray | null = createTablePattern.exec(sql);
 
   while (match !== null) {
-    tableNames.add(match[1] ?? "");
+    const tableName = match[1];
+    if (tableName !== undefined && tableName.length > 0) {
+      objects.push({ name: tableName, type: "table" });
+    }
     match = createTablePattern.exec(sql);
   }
 
-  return [...tableNames].filter((tableName) => tableName.length > 0);
+  match = createIndexPattern.exec(sql);
+  while (match !== null) {
+    const indexName = match[1];
+    if (indexName !== undefined && indexName.length > 0) {
+      objects.push({ name: indexName, type: "index" });
+    }
+    match = createIndexPattern.exec(sql);
+  }
+
+  return objects;
 }
 
 async function readMigrationEntries(): Promise<MigrationEntry[]> {
