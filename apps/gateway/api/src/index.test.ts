@@ -274,7 +274,7 @@ describe("buildGatewayApp", () => {
       method: "POST",
       url: "/webhooks/github",
       headers: {
-        "x-github-event": "workflow_run",
+        "x-github-event": "repository",
         "x-hub-signature-256": signature,
         "content-type": "application/json"
       },
@@ -345,4 +345,5 @@ describe("buildGatewayApp", () => {
 
     await app.close();
   });
+
 });
