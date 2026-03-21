@@ -22,6 +22,7 @@ async function main(): Promise<void> {
   writeInfo("Refreshing the Taxes repository and services...");
   writeInfo(`Using checkout: ${checkoutRoot}`);
   assertCheckoutClean(checkoutRoot);
+  ensureOnBranch(checkoutRoot, options.branch);
   await runShortCommand(checkoutRoot, "git fetch", "git", ["fetch", options.remote, options.branch]);
   await runShortCommand(checkoutRoot, "git pull --ff-only", "git", ["pull", "--ff-only", options.remote, options.branch]);
   await runShortCommand(checkoutRoot, "npm install", "node", [
@@ -129,6 +130,17 @@ Options:
   --skip-dev, --skip-de      Only refresh the repository/deps and skip starting services
   --help, -h                 Show this help message
 `);
+}
+
+export function ensureOnBranch(checkoutRoot: string, branch: string): void {
+  const show = spawnSync("git", ["branch", "--show-current"], { cwd: checkoutRoot, encoding: "utf8", windowsHide: true });
+  if (show.error !== undefined) throw show.error;
+  const currentBranch = show.stdout.trim();
+  if (currentBranch === branch) return;
+  writeInfo(`Checkout is on '${currentBranch}'; switching to '${branch}'...`);
+  const checkout = spawnSync("git", ["checkout", branch], { cwd: checkoutRoot, encoding: "utf8", windowsHide: true });
+  if (checkout.error !== undefined) throw checkout.error;
+  if (checkout.status !== 0) throw new Error(`Failed to switch to '${branch}': ${checkout.stderr.trim()}`);
 }
 
 function assertCheckoutClean(checkoutRoot: string): void {
@@ -454,11 +466,7 @@ function writeInfo(message: string): void {
 }
 
 function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
+  return error instanceof Error ? error.message : String(error);
 }
 
 if (isMainModule()) {
