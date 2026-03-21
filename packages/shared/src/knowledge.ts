@@ -16,6 +16,9 @@ export const KnowledgeContentFormatSchema = z.enum(["json", "markdown", "hybrid"
 export const KnowledgeOriginSchema = z.enum(["manual", "agent", "research-agent", "repo-doc-sync"]);
 export const KnowledgeImportanceSchema = z.enum(["critical", "high", "medium", "low"]);
 export const KnowledgeFactConfidenceSchema = z.enum(["high", "medium", "low"]);
+export const KnowledgeMemoryTierSchema = z.enum(["short-term", "medium-term", "long-term", "archive"]);
+export const KnowledgeMemorySourceTypeSchema = z.enum(["user-stated", "agent-inferred", "workflow-observed", "repo-doc", "research-report"]);
+export const KnowledgeMemoryReviewStateSchema = z.enum(["auto", "needs-human-review", "approved", "rejected"]);
 
 export const KnowledgeFactSchema = z.object({
   confidence: KnowledgeFactConfidenceSchema,
@@ -38,6 +41,17 @@ export const KnowledgeContentSectionSchema = z.object({
   items: z.array(z.string().min(1)).default([]),
   title: z.string().min(1)
 });
+export const KnowledgeMemoryMetadataSchema = z.object({
+  agentRoles: z.array(z.string().min(1)).default([]),
+  confidence: KnowledgeFactConfidenceSchema.default("medium"),
+  lastReactivatedAt: z.iso.datetime().optional(),
+  promotedAt: z.iso.datetime().optional(),
+  reactivationCount: z.int().nonnegative().default(0),
+  reviewState: KnowledgeMemoryReviewStateSchema.default("auto"),
+  sharedAcrossAgents: z.boolean().default(false),
+  sourceType: KnowledgeMemorySourceTypeSchema,
+  tier: KnowledgeMemoryTierSchema
+});
 export const KnowledgeSourceLinkSchema = z.object({
   authority: z.enum(["maintainer-docs", "official-docs", "peer-reviewed", "repo-doc", "user-note"]).optional(),
   title: z.string().min(1),
@@ -46,6 +60,7 @@ export const KnowledgeSourceLinkSchema = z.object({
 export const KnowledgeEntryContentSchema = z.object({
   abstract: z.string().min(1),
   format: KnowledgeContentFormatSchema,
+  memory: KnowledgeMemoryMetadataSchema.optional(),
   json: z.record(z.string(), z.unknown()).optional(),
   markdown: z.string().min(1).optional(),
   sections: z.array(KnowledgeContentSectionSchema).default([]),
@@ -160,6 +175,10 @@ export type CreateKnowledgeSubjectDraftInput = z.input<typeof CreateKnowledgeSub
 export type CreateKnowledgeSubjectInput = z.infer<typeof CreateKnowledgeSubjectInputSchema>;
 export type KnowledgeEntry = z.infer<typeof KnowledgeEntrySchema>;
 export type KnowledgeEntryContent = z.infer<typeof KnowledgeEntryContentSchema>;
+export type KnowledgeMemoryMetadata = z.infer<typeof KnowledgeMemoryMetadataSchema>;
+export type KnowledgeMemoryReviewState = z.infer<typeof KnowledgeMemoryReviewStateSchema>;
+export type KnowledgeMemorySourceType = z.infer<typeof KnowledgeMemorySourceTypeSchema>;
+export type KnowledgeMemoryTier = z.infer<typeof KnowledgeMemoryTierSchema>;
 export type KnowledgeEntryKind = z.infer<typeof KnowledgeEntryKindSchema>;
 export type KnowledgeEntryStatus = z.infer<typeof KnowledgeEntryStatusSchema>;
 export type KnowledgeImportance = z.infer<typeof KnowledgeImportanceSchema>;
