@@ -94,6 +94,8 @@
     "agent:worktree:create": "node ./node_modules/tsx/dist/cli.mjs tools/agent/parallel-worktree.ts",
     "agent:worktree:prune": "node ./node_modules/tsx/dist/cli.mjs tools/agent/worktree-prune.ts",
     "worktree:ensure-junction": "node ./node_modules/tsx/dist/cli.mjs tools/agent/worktree-ensure-junction.ts",
+    "db:check-migrations": "node ./node_modules/tsx/dist/cli.mjs tools/agent/check-migrations.ts",
+    "quality:preflight": "npm run typecheck && npm run lint",
     "audit:progress": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-progress.ts",
     "audit:transcript:view": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-transcript.ts",
     "audit:artifact": "node ./node_modules/tsx/dist/cli.mjs tools/agent/audit-record.ts artifact",

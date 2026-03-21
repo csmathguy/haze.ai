@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 import { createDevEnvironmentPlan, parseDevEnvironmentArgs, type DevServiceLaunchPlan } from "./lib/dev-environment.js";
 import { ensureMuiDependencyIntegrity } from "./lib/dependency-integrity.js";
+import { parseGitWorktreePorcelain } from "./lib/git-worktree.js";
+import { hasPendingCheckoutChanges, selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(moduleDirectory, "..", "..");
@@ -17,7 +19,7 @@ interface RefreshOptions {
 
 async function main(): Promise<void> {
   const options = parseArgs();
-  const checkoutRoot = resolveCheckoutRoot(options.checkout);
+  const checkoutRoot = resolveCheckoutRoot(options.checkout, options.branch);
 
   writeInfo("Refreshing the Taxes repository and services...");
   writeInfo(`Using checkout: ${checkoutRoot}`);
@@ -163,10 +165,6 @@ function assertCheckoutClean(checkoutRoot: string): void {
       "The main checkout has local changes or staged files, so refusing to pull. " +
       "Finish or discard the pending changes first, or run the refresh flow against a clean worktree once support is added."
   );
-}
-
-export function hasPendingCheckoutChanges(statusOutput: string): boolean {
-  return statusOutput.trim().length > 0;
 }
 
 async function runShortCommand(checkoutRoot: string, label: string, command: string, args: string[]): Promise<void> {
@@ -340,7 +338,7 @@ function stopProcess(processId: number): void {
   }
 }
 
-function resolveCheckoutRoot(checkoutMode: RefreshOptions["checkout"]): string {
+export function resolveCheckoutRoot(checkoutMode: RefreshOptions["checkout"], branch: string): string {
   if (checkoutMode === "main") {
     return repositoryRoot;
   }
@@ -349,18 +347,18 @@ function resolveCheckoutRoot(checkoutMode: RefreshOptions["checkout"]): string {
     return process.cwd();
   }
 
-  if (!hasPendingCheckoutChanges(readGitStatus(repositoryRoot))) {
-    return repositoryRoot;
-  }
+  const rootStatus = readGitStatus(repositoryRoot);
+  const worktrees = listWorktrees(repositoryRoot).map((worktree) => ({
+    ...worktree,
+    statusOutput: readGitStatus(worktree.worktreePath)
+  }));
 
-  const worktrees = listWorktrees(repositoryRoot);
-  const cleanWorktree = worktrees.find((worktree) => worktree.worktreePath !== repositoryRoot && !hasPendingCheckoutChanges(readGitStatus(worktree.worktreePath)));
-
-  if (cleanWorktree !== undefined) {
-    return cleanWorktree.worktreePath;
-  }
-
-  return repositoryRoot;
+  return selectAutoCheckoutRoot({
+    branch,
+    repositoryRoot,
+    rootStatusOutput: rootStatus,
+    worktrees
+  });
 }
 
 function readGitStatus(cwd: string): string {
@@ -377,30 +375,13 @@ function readGitStatus(cwd: string): string {
   return status.stdout;
 }
 
-function listWorktrees(repoRoot: string): { worktreePath: string }[] {
+function listWorktrees(repoRoot: string): { branch: string | null; worktreePath: string }[] {
   const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"]
   });
-  const worktrees: { worktreePath: string }[] = [];
-  let current: { worktreePath?: string } = {};
-
-  for (const line of output.split(/\r?\n/u)) {
-    if (line.startsWith("worktree ")) {
-      if (current.worktreePath !== undefined) {
-        worktrees.push({ worktreePath: current.worktreePath });
-      }
-
-      current = { worktreePath: line.slice("worktree ".length).trim() };
-    }
-  }
-
-  if (current.worktreePath !== undefined) {
-    worktrees.push({ worktreePath: current.worktreePath });
-  }
-
-  return worktrees;
+  return parseGitWorktreePorcelain(output);
 }
 
 async function runLongRunningCommand(command: string, args: string[], checkoutRoot: string): Promise<void> {

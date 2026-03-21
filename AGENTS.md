@@ -31,6 +31,7 @@
 11. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
 12. Regenerate and validate Prisma after schema changes with `npm run prisma:check`.
 13. Before finishing, run the strongest available validation for the touched area:
+   - Pre-push sanity check: `npm run quality:preflight` (typecheck + lint only, ~30s) — run this before pushing to catch failures fast
    - Fast iteration: `npm run quality:changed -- <files...>` or let the git `pre-commit` hook run `npm run quality:changed:staged`
    - Database changes: `npm run prisma:check` and `npm run prisma:migrate:deploy`
    - Full compile checks with `npm run typecheck`
@@ -52,6 +53,7 @@ These three habits prevent the most common sources of wasted tokens and CI failu
    `origin/main` into your worktree branch first. This syncs shared package types and avoids chasing
    phantom type errors:
    ```bash
+   npm run db:check-migrations   # detect untracked migration conflicts before merging
    git merge origin/main
    npm run prisma:generate
    ```
