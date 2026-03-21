@@ -76,6 +76,11 @@ async function startWorkflow(
   task: string | undefined,
   context: AuditRunContextFields
 ): Promise<void> {
+  await warnIfSessionAlreadyActive(workflow);
+  if (context.workItemId !== undefined) {
+    warnIfOpenPrExistsForWorkItem(context.workItemId);
+  }
+
   const runId = createRunId(workflow);
   const paths = await ensureAuditPaths(runId);
   const summary = createWorkflowSummary(runId, workflow, task, context);
@@ -164,6 +169,45 @@ function ensureWorkflowCanClose(workflow: string, status: "failed" | "success"):
 
   if (completionRequirements.requiresPullRequest && !hasOpenPullRequestForCurrentBranch()) {
     throw new Error(createMissingPullRequestMessage());
+  }
+}
+
+async function warnIfSessionAlreadyActive(workflow: string): Promise<void> {
+  const { readAgentSession } = await import("./lib/session.js");
+  const session = await readAgentSession();
+
+  if (session === undefined) return;
+
+  const ageMin = Math.round((Date.now() - Date.parse(session.startedAt)) / 60000);
+  const idLabel = session.workItemId !== undefined ? ` (${session.workItemId})` : "";
+  process.stderr.write(
+    `[workflow:start] WARNING: An active session already exists:\n` +
+    `  workflow: ${session.workflowName}${idLabel}\n` +
+    `  run ID:   ${session.runId}\n` +
+    `  started:  ${String(ageMin)}m ago\n` +
+    `  To resume it: npm run workflow:note ${workflow} "resuming"\n` +
+    `  To close it:  npm run workflow:end ${session.workflowName} success|failed\n`
+  );
+}
+
+function warnIfOpenPrExistsForWorkItem(workItemId: string): void {
+  try {
+    const stdout = execFileSync(
+      "gh",
+      ["pr", "list", "--state", "open", "--search", workItemId, "--json", "number,title,headRefName"],
+      { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+    );
+    const prs = JSON.parse(stdout) as { number: number; title: string; headRefName: string }[];
+
+    if (prs.length > 0) {
+      const list = prs.map((pr) => `  #${String(pr.number)} — ${pr.headRefName}: ${pr.title}`).join("\n");
+      process.stderr.write(
+        `[workflow:start] WARNING: Open PR(s) already exist for ${workItemId}:\n${list}\n` +
+        `  Review before starting duplicate work.\n`
+      );
+    }
+  } catch {
+    // gh not available or not in a GitHub repo — skip silently
   }
 }
 

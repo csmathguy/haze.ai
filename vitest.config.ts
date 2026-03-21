@@ -44,6 +44,7 @@ export default defineConfig({
     environment: "node",
     exclude: [".worktrees/**", ".claude/**", "artifacts/**", "coverage/**", "dist/**", "node_modules/**"],
     globals: true,
+    pool: "forks",
     include: ["**/*.{test,spec}.ts"],
     passWithNoTests: false,
     testTimeout: 30000
