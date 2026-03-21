@@ -206,8 +206,9 @@ interface StepDefinitionSectionProps {
   step: WorkflowStep;
 }
 
-const StepDefinitionSection: React.FC<StepDefinitionSectionProps> = ({ step }) => (
-  <Stack spacing={2}>
+const StepDefinitionSection: React.FC<StepDefinitionSectionProps> = ({ step }) => {
+  return (
+    <Stack spacing={2}>
     <Box>
       <Typography variant="overline" color="textSecondary">Label</Typography>
       <Typography variant="body2">{step.label}</Typography>
@@ -274,8 +275,9 @@ const StepDefinitionSection: React.FC<StepDefinitionSectionProps> = ({ step }) =
         </Stack>
       </Box>
     )}
-  </Stack>
-);
+    </Stack>
+  );
+};
 
 export const StepDetailDrawer: React.FC<StepDetailDrawerProps> = ({
   open,

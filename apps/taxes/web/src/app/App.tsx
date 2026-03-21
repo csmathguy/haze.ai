@@ -12,6 +12,7 @@ import {
   Typography
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { MemoryRouter } from "react-router-dom";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
@@ -27,13 +28,8 @@ import { FilingReadinessChecklistPanel } from "./components/FilingReadinessCheck
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel.js";
 import { StatCard } from "./components/StatCard.js";
 import { buildReviewBanner, summarizeFilingReadiness, summarizeRequiredForms } from "./index.js";
-import { WorkflowDashboard } from "./workflow/pages/WorkflowDashboard.js";
-import { DefinitionList } from "./workflow/pages/DefinitionList.js";
-import { RunList } from "./workflow/pages/RunList.js";
-import { PendingApprovals } from "./workflow/pages/PendingApprovals.js";
 
 type ViewKey = "documents" | "holdings" | "overview" | "scenarios" | "workflow";
-type WorkflowViewKey = "dashboard" | "definitions" | "runs" | "approvals";
 
 const ScenarioPanel = lazy(async () => {
   const module = await import("./components/ScenarioPanel.js");
@@ -43,9 +39,16 @@ const ScenarioPanel = lazy(async () => {
   };
 });
 
+const WorkflowApp = lazy(async () => {
+  const module = await import("@taxes/workflow-web");
+
+  return {
+    default: module.WorkflowRoutes
+  };
+});
+
 interface AppState {
   activeView: ViewKey;
-  activeWorkflowView: WorkflowViewKey;
   errorMessage: string | null;
   isBusy: boolean;
   snapshot: WorkspaceSnapshot | null;
@@ -55,12 +58,10 @@ interface AppState {
 interface AppHandlers {
   handleUpload: (file: File) => Promise<void>;
   onActiveViewChange: (view: ViewKey) => void;
-  onWorkflowViewChange: (view: WorkflowViewKey) => void;
 }
 
 function useAppState(): [AppState, AppHandlers] {
   const [activeView, setActiveView] = useState<ViewKey>("overview");
-  const [activeWorkflowView, setActiveWorkflowView] = useState<WorkflowViewKey>("dashboard");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(true);
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
@@ -99,7 +100,6 @@ function useAppState(): [AppState, AppHandlers] {
 
   const state: AppState = {
     activeView,
-    activeWorkflowView,
     errorMessage,
     isBusy,
     snapshot,
@@ -108,8 +108,7 @@ function useAppState(): [AppState, AppHandlers] {
 
   const handlers: AppHandlers = {
     handleUpload,
-    onActiveViewChange: setActiveView,
-    onWorkflowViewChange: setActiveWorkflowView
+    onActiveViewChange: setActiveView
   };
 
   return [state, handlers];
@@ -159,9 +158,7 @@ export function App() {
           ) : (
             <WorkspaceContent
               activeView={state.activeView}
-              activeWorkflowView={state.activeWorkflowView}
               onUpload={handlers.handleUpload}
-              onWorkflowViewChange={handlers.onWorkflowViewChange}
               snapshot={state.snapshot}
             />
           )}
@@ -257,13 +254,11 @@ function WorkspaceAlerts({ banner, errorMessage, uploadMessage }: WorkspaceAlert
 
 interface WorkspaceContentProps {
   readonly activeView: ViewKey;
-  readonly activeWorkflowView: WorkflowViewKey;
   readonly onUpload: (file: File) => Promise<void>;
-  readonly onWorkflowViewChange: (view: WorkflowViewKey) => void;
   readonly snapshot: WorkspaceSnapshot;
 }
 
-function WorkspaceContent({ activeView, activeWorkflowView, onUpload, onWorkflowViewChange, snapshot }: WorkspaceContentProps) {
+function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentProps) {
   if (activeView === "overview") {
     return <OverviewView onUpload={onUpload} snapshot={snapshot} />;
   }
@@ -277,7 +272,7 @@ function WorkspaceContent({ activeView, activeWorkflowView, onUpload, onWorkflow
   }
 
   if (activeView === "workflow") {
-    return <WorkflowView activeView={activeWorkflowView} onViewChange={onWorkflowViewChange} />;
+    return <WorkflowView />;
   }
 
   return (
@@ -293,32 +288,18 @@ function WorkspaceContent({ activeView, activeWorkflowView, onUpload, onWorkflow
   );
 }
 
-interface WorkflowViewProps {
-  readonly activeView: WorkflowViewKey;
-  readonly onViewChange: (view: WorkflowViewKey) => void;
-}
-
-function WorkflowView({ activeView, onViewChange }: WorkflowViewProps) {
+function WorkflowView() {
   return (
-    <Stack spacing={3}>
-      <Tabs
-        onChange={(_event: SyntheticEvent, value: WorkflowViewKey) => {
-          onViewChange(value);
-        }}
-        textColor="primary"
-        value={activeView}
-        variant="scrollable"
-      >
-        <Tab label="Dashboard" value="dashboard" />
-        <Tab label="Definitions" value="definitions" />
-        <Tab label="Runs" value="runs" />
-        <Tab label="Approvals" value="approvals" />
-      </Tabs>
-
-      {activeView === "dashboard" && <WorkflowDashboard />}
-      {activeView === "definitions" && <DefinitionList />}
-      {activeView === "runs" && <RunList />}
-      {activeView === "approvals" && <PendingApprovals />}
-    </Stack>
+    <Suspense
+      fallback={
+        <Stack alignItems="center" minHeight={240} justifyContent="center">
+          <CircularProgress />
+        </Stack>
+      }
+    >
+      <MemoryRouter initialEntries={["/runs"]}>
+        <WorkflowApp />
+      </MemoryRouter>
+    </Suspense>
   );
 }

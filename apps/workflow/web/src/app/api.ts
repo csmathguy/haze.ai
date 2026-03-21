@@ -99,6 +99,19 @@ export async function listWorkflowRuns(limit = 50): Promise<WorkflowRun[]> {
   return parsed.runs;
 }
 
+export async function listWorkflowRunsByDefinition(definitionName: string, limit = 50): Promise<WorkflowRun[]> {
+  const params = new URLSearchParams({
+    limit: String(limit)
+  });
+  const response = await fetch(`/api/workflow/runs?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workflow runs: ${response.statusText}`);
+  }
+  const data = (await response.json()) as unknown;
+  const parsed = WorkflowRunListResponseSchema.parse(data);
+  return parsed.runs.filter((run) => run.definitionName === definitionName);
+}
+
 export async function getWorkflowRun(id: string): Promise<WorkflowRun> {
   const response = await fetch(`/api/workflow/runs/${encodeURIComponent(id)}`);
   if (!response.ok) {

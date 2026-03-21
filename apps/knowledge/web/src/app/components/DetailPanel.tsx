@@ -127,6 +127,8 @@ function EntryComposer({
 }
 
 function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
+  const shouldRenderHeader = entry.kind !== "doc-mirror";
+
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -134,7 +136,7 @@ function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
         <Chip label={entry.visibility} size="small" />
         <Chip label={entry.namespace} size="small" />
       </Stack>
-      <Typography variant="h3">{entry.title}</Typography>
+      {shouldRenderHeader ? <Typography variant="h3">{entry.title}</Typography> : null}
       <Typography variant="body2">{entry.content.abstract}</Typography>
       {entry.tags.length === 0 ? null : (
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">

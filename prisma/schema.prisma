@@ -580,6 +580,9 @@ model WorkflowStepRun {
   inputJson        String?
   outputJson       String?
   errorJson        String?
+  branchName       String?
+  stdout           String?
+  stderr           String?
   retryCount       Int      @default(0)
   startedAt        DateTime @default(now())
   completedAt      DateTime?
@@ -587,6 +590,7 @@ model WorkflowStepRun {
 
   @@index([runId])
   @@index([stepId])
+  @@index([branchName])
   @@index([startedAt])
 }
 

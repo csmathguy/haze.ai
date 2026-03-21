@@ -46,6 +46,9 @@
       ],
       "@taxes/shared/*": [
         "./packages/shared/src/*"
+      ],
+      "@taxes/workflow-web": [
+        "./apps/workflow/web/src/index.ts"
       ]
     }
   }

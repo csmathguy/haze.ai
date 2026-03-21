@@ -108,6 +108,8 @@ function DrawerHeader({
 }
 
 function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
+  const shouldRenderHeader = entry.kind !== "doc-mirror";
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -115,7 +117,7 @@ function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
         <Chip label={entry.visibility} size="small" />
         <Chip label={entry.namespace} size="small" />
       </Stack>
-      <Typography variant="h2">{entry.title}</Typography>
+      {shouldRenderHeader ? <Typography variant="h2">{entry.title}</Typography> : null}
       <Typography variant="body2">{entry.content.abstract}</Typography>
       <Divider />
       {entry.content.markdown === undefined ? null : <KnowledgeMarkdown content={entry.content.markdown} />}

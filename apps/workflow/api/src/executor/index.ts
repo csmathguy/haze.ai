@@ -9,3 +9,9 @@ export {
   recordStepComplete,
   recordStepFailed
 } from "./step-run-persistence.js";
+
+export { ConditionStepExecutor } from "./condition-step-executor.js";
+export type { ConditionStepResult } from "./condition-step-executor.js";
+
+export { executeWithRetry, createRetryPolicy } from "./retry-policy-executor.js";
+export type { RetryPolicy, RetryPolicyResult } from "./retry-policy-executor.js";

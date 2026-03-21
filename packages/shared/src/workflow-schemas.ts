@@ -241,6 +241,7 @@ export const WorkflowStepRunSchema = z.object({
     message: z.string(),
     code: z.string().optional()
   }).optional(),
+  branchName: z.string().min(1).optional(),
   retryCount: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   completedAt: z.iso.datetime().optional()

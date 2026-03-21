@@ -372,3 +372,5 @@ describe("WorkflowEngine", () => {
 
 });
 
+// ParallelStep tests live in workflow-parallel.test.ts (split for file-size budget)
+
