@@ -104,16 +104,27 @@ export async function resumeParentForCompletedChildren(db: PrismaClient): Promis
       : {};
 
     if (childRun.status === "completed") {
-      // Success: merge child output into parent context under step ID
+      // Success: merge child output into parent context under step ID, then advance
       const engine = new WorkflowEngine();
-      const stepResult = {
-        type: "success" as const,
-        output: {
-          [childStepRun.stepId]: childContextJson
-        }
+
+      // Merge child context directly under the step ID so parent context has
+      // parentContext[stepId] = childContextJson (not nested under "step_" prefix)
+      const mergedContextJson = {
+        ...parentContextJson,
+        [childStepRun.stepId]: childContextJson
       };
 
-      const advanceResult = engine.advanceRun(parentRunState, stepResult, workflowDefinition);
+      const parentRunStateWithMergedContext = {
+        ...parentRunState,
+        contextJson: mergedContextJson
+      };
+
+      // No output passed so engine.advanceRun won't add step_<id> key on top
+      const stepResult = {
+        type: "success" as const
+      };
+
+      const advanceResult = engine.advanceRun(parentRunStateWithMergedContext, stepResult, workflowDefinition);
 
       // Update parent run with new state
       // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
