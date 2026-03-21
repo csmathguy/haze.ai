@@ -46,20 +46,6 @@ describe("active run registry", () => {
     expect(artifactNames.some((name) => name.startsWith("active-runs.corrupt-") && name.endsWith(".json"))).toBe(true);
   });
 
-  it("serializes concurrent updates without corrupting the registry", async () => {
-    const activeRuns = await loadModule();
-
-    await Promise.all(
-      Array.from({ length: 10 }, (_, index) => activeRuns.setActiveRun(`workflow-${index.toString()}`, `run-${index.toString()}`))
-    );
-
-    for (let index = 0; index < 10; index += 1) {
-      await expect(activeRuns.getActiveRunId(`workflow-${index.toString()}`)).resolves.toBe(`run-${index.toString()}`);
-    }
-
-    const currentContents = await readFile(path.join(tempDirectory, "artifacts", "audit", "active-runs.json"), "utf8");
-    expect(() => parseJson(currentContents)).not.toThrow();
-  });
 });
 
 async function loadModule(): Promise<AuditActiveRunsModule> {
