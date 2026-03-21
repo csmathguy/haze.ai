@@ -43,6 +43,42 @@
 16. Close audited work with `npm run workflow:end implementation success` or `failed`. Successful implementation workflows are not done until the worktree is clean and the branch has an open PR when commits exist.
 17. If a command is not available yet, note the gap and update the nearest documentation or scaffold so the repo moves toward that standard.
 
+## Worktree Habits
+
+These three habits prevent the most common sources of wasted tokens and CI failures when working in worktrees:
+
+1. **Always merge main before starting CI fix work.**
+   When a PR has CI failures caused by code that was merged to main after your branch was cut, merge
+   `origin/main` into your worktree branch first. This syncs shared package types and avoids chasing
+   phantom type errors:
+   ```bash
+   git merge origin/main
+   npm run prisma:generate
+   ```
+
+2. **Use `--no-verify` on pure merge commits.**
+   When resolving merge conflicts, the resulting merge commit is not your authored code — it is a
+   structural git operation. The pre-commit hook now auto-detects merge commits and skips the quality
+   check, but if you ever need to force it manually:
+   ```bash
+   git commit --no-verify -m "Merge origin/main"
+   ```
+   The pre-push gate catches real issues before the branch lands on CI.
+
+3. **Run targeted tests locally before committing when fixing test failures.**
+   Before committing a test fix, confirm it actually passes in the worktree environment:
+   ```bash
+   npx vitest run --pool=forks --reporter=verbose <test-file>
+   ```
+   This costs seconds locally vs. minutes of CI round-trip time.
+
+4. **Run `worktree:ensure-junction` when node_modules feels broken.**
+   If tsx is missing, Prisma client errors appear, or module resolution behaves oddly, run:
+   ```bash
+   npm run worktree:ensure-junction
+   ```
+   This verifies the junction health, repairs it if needed, and re-generates the Prisma client.
+
 ## Context Management
 
 Long-running agent sessions accumulate context and can burn tokens unnecessarily. Use mandatory

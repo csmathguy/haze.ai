@@ -79,6 +79,18 @@ Always create worktrees via `npm run agent:worktree:create` (not raw `git worktr
 The script links `node_modules` from the main checkout into the new worktree automatically,
 so pre-commit hooks and npm scripts work immediately without a separate install step.
 
+**Windows junction repair (when node_modules is missing or broken):**
+
+`cmd /c mklink /J` silently fails when invoked through bash on Windows. Use `npm run worktree:ensure-junction`
+instead — it calls Node's `fs.symlinkSync(..., "junction")` which works without admin rights and without
+needing PowerShell. Run this at the start of any worktree session where the junction may be stale:
+
+```bash
+npm run worktree:ensure-junction
+```
+
+The script verifies the junction, repairs it if needed, and runs `prisma:generate` so the Prisma client exists.
+
 ### Compaction Preservation Note
 
 When auto-compacting, always preserve:
