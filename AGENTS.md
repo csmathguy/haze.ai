@@ -165,11 +165,11 @@ Always create worktrees via `npm run agent:worktree:create` rather than raw `git
 The script creates the git worktree and then links `node_modules` from the main checkout into
 the worktree so pre-commit hooks and npm scripts work without a separate install step.
 
-Pass `--merge-main` to automatically fetch `origin` and merge `origin/main` into the new branch
-immediately after creation. This keeps the branch fresh and avoids schema version mismatch
-warnings that arise when shared packages have diverged. Merge conflicts are reported as a
-non-fatal warning so the agent can resolve them manually without aborting the creation step.
+`--merge-main` is on by default. Every new worktree automatically fetches `origin` and merges
+`origin/main` immediately after creation. This keeps branches fresh and avoids schema version
+mismatch warnings. Pass `--no-merge-main` to skip when the merge is not desired.
 
 ```bash
-npm run agent:worktree:create -- --task PLAN-XX --summary "..." --scope tools/ --merge-main
+npm run agent:worktree:create -- --task PLAN-XX --summary "..." --scope tools/
+npm run agent:worktree:create -- --task PLAN-XX --summary "..." --no-merge-main
 ```

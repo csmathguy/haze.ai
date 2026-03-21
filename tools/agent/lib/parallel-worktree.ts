@@ -47,7 +47,7 @@ export function parseParallelTaskArgs(rawArgs: string[]): ParallelTaskArgs {
     dependsOn: [],
     dryRun: false,
     force: false,
-    mergeMain: false,
+    mergeMain: true,
     scopes: [],
     validations: [],
     worktreeRoot: DEFAULT_WORKTREE_ROOT
@@ -116,6 +116,11 @@ function consumeArgument(
 
   if (current === "--merge-main") {
     parsed.mergeMain = true;
+    return 0;
+  }
+
+  if (current === "--no-merge-main") {
+    parsed.mergeMain = false;
     return 0;
   }
 

@@ -38,6 +38,12 @@ async function main(): Promise<void> {
     repositoryRoot: checkoutRoot
   });
 
+  await runShortCommand(checkoutRoot, "repo:health", "node", [
+    "tools/runtime/run-npm.cjs",
+    "run",
+    "repo:health"
+  ]);
+
   if (options.skipDev) {
     writeInfo("Skipping dev environment start (--skip-dev was provided).");
     return;
