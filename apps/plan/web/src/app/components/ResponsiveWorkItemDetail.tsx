@@ -25,7 +25,7 @@ export function ResponsiveWorkItemDetail({
       description={
         workItem === null
           ? "Pick a card from the board to inspect tasks, criteria, and plan steps."
-          : `${workItem.id} · ${workItem.projectKey} · ${formatStatusLabel(workItem.status)}`
+          : `${workItem.id} - ${workItem.projectKey} - ${formatStatusLabel(workItem.status)}`
       }
       onClose={onClose}
       open={open && workItem !== null}
