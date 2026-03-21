@@ -201,6 +201,59 @@ describe("WorkflowRunService", () => {
     expect(result.effects).toBeDefined();
   });
 
+  it("listRuns() with formatRunForApi handles runs that have step runs (regression: PLAN-195)", async () => {
+    const definition = await workflowDefinitionService.createDefinition(prisma, {
+      name: "test-list-with-steps",
+      version: "1.0",
+      description: "Test workflow",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          {
+            type: "command",
+            id: "step-1",
+            label: "Step 1",
+            scriptPath: "/bin/echo"
+          }
+        ]
+      }
+    });
+
+    const { run } = await workflowRunService.startRun(prisma, {
+      definitionName: definition.name,
+      input: {}
+    });
+
+    // Create a step run directly (simulating what StepExecutionHandler does)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await (prisma as any).workflowStepRun.create({
+      data: {
+        runId: run.id,
+        stepId: "step-1",
+        stepType: "command",
+        nodeType: "deterministic",
+        stdout: "hello world",
+        stderr: "",
+        branchName: null,
+        inputJson: "{}",
+        retryCount: 0
+      }
+    });
+
+    const runs = await workflowRunService.listRuns(prisma, { limit: 10 });
+    const runWithSteps = runs.find((r) => r.id === run.id);
+    expect(runWithSteps).toBeDefined();
+
+    if (!runWithSteps) throw new Error("run not found in list");
+
+    // formatRunForApi must not throw when step runs include all columns
+    expect(() => workflowRunService.formatRunForApi(runWithSteps)).not.toThrow();
+    const formatted = workflowRunService.formatRunForApi(runWithSteps);
+    expect(Array.isArray(formatted.stepRuns)).toBe(true);
+    const stepRuns = formatted.stepRuns as unknown[];
+    expect(stepRuns.length).toBe(1);
+  });
+
   it("listRuns() respects limit parameter", async () => {
     const definition = await workflowDefinitionService.createDefinition(prisma, {
       name: "test-list-limit",

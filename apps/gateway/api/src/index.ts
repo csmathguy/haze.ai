@@ -4,7 +4,8 @@ import {
   GATEWAY_PORT,
   KNOWLEDGE_DATABASE_URL,
   PLANNING_DATABASE_URL,
-  TAXES_DATABASE_URL
+  TAXES_DATABASE_URL,
+  WORKFLOW_DATABASE_URL
 } from "./config.js";
 import { buildGatewayApp } from "./app.js";
 import { applyPendingMigrations } from "./db/migrations.js";
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
   await applyPendingMigrations(AUDIT_DATABASE_URL);
   await applyPendingMigrations(PLANNING_DATABASE_URL);
   await applyPendingMigrations(KNOWLEDGE_DATABASE_URL);
+  await applyPendingMigrations(WORKFLOW_DATABASE_URL);
 
   const app = await buildGatewayApp();
 

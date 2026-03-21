@@ -1,7 +1,9 @@
-import { WORKFLOW_API_HOST, WORKFLOW_API_PORT } from "./config.js";
+import { WORKFLOW_API_HOST, WORKFLOW_API_PORT, WORKFLOW_DATABASE_URL } from "./config.js";
 import { buildApp } from "./app.js";
+import { applyPendingMigrations } from "./db/migrations.js";
 
 async function main(): Promise<void> {
+  await applyPendingMigrations(WORKFLOW_DATABASE_URL);
   const app = await buildApp();
 
   try {
