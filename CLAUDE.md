@@ -136,31 +136,15 @@ git merge origin/main
 This resolves schema version mismatches caused by the junction-linked `node_modules` loading a newer schema
 than your branch expects. After merging, retry the push — the gate will pass once packages are current.
 
-**Step 3 — Run with `--pool forks` to eliminate module cache sharing**
+**Step 3 — Confirm the test is genuinely failing, not a stale cache artifact**
 
-The worktree shares `node_modules` with the main checkout via a directory junction.
-Vitest's default thread pool can load the same module from two different resolved paths
-(the worktree path and the junction path), causing false cache misses.
+`vitest.config.ts` sets `pool: "forks"` as the default (PLAN-238), so the module-cache sharing
+issue that previously required `--pool forks` is eliminated. If tests still fail after step 2,
+the failure is a genuine defect — read the stack trace and fix the bug.
 
 ```bash
-npx vitest run --pool=forks --reporter=verbose <test-file>
+npx vitest run --reporter=verbose <test-file>
 ```
-
-- **Passes** → the pre-commit hook now passes `--pool forks` automatically (PLAN-66).
-  If you need to run `quality:changed` manually, pass `--pool forks`:
-
-  ```bash
-  npm run quality:changed -- --pool forks <files...>
-  ```
-
-- **Still fails** → the test has a genuine defect. Read the stack trace and fix the bug.
-
-**Why pre-commit passing does not guarantee worktree correctness**
-
-Before PLAN-66, the pre-commit hook ran `quality:changed` from the **main checkout** using
-staged file paths. Tests passed against main's file versions, not the worktree's. A broken
-test in the worktree could pass pre-commit while failing on push. After PLAN-66 the hook
-runs from the worktree CWD with `--pool forks`, so the staged versions are what is tested.
 
 ### Module resolves to wrong version in worktree
 

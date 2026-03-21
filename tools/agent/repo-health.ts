@@ -23,6 +23,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import * as path from "node:path";
 
+import { readAgentSession } from "./lib/session.js";
+
 const cwd = process.cwd();
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -193,57 +195,84 @@ function checkPackagesInSync(repoPath: string): Issue {
   };
 }
 
+// ─── 6. Stale agent session ────────────────────────────────────────────────
+
+const STALE_SESSION_HOURS = 4;
+
+async function checkStaleSession(): Promise<Issue> {
+  const session = await readAgentSession();
+
+  if (session === undefined) {
+    return { severity: "ok", message: "No active agent session" };
+  }
+
+  const ageMs = Date.now() - Date.parse(session.startedAt);
+  const ageHours = ageMs / (1000 * 60 * 60);
+
+  if (ageHours >= STALE_SESSION_HOURS) {
+    const ageLabel = ageHours >= 24
+      ? `${(ageHours / 24).toFixed(1)}d`
+      : `${ageHours.toFixed(1)}h`;
+    const idLabel = session.workItemId !== undefined ? ` (${session.workItemId})` : "";
+    return {
+      severity: "warn",
+      message: `Agent session '${session.workflowName}'${idLabel} has been open for ${ageLabel} with no recent activity`,
+      fix: `Close it with: npm run workflow:end ${session.workflowName} success|failed`
+    };
+  }
+
+  const ageMin = Math.round(ageMs / 60000);
+  const idLabel = session.workItemId !== undefined ? ` (${session.workItemId})` : "";
+  return { severity: "ok", message: `Active session: '${session.workflowName}'${idLabel} (${String(ageMin)}m ago)` };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────
 
-const worktrees = listWorktrees();
-const mainWorktree = worktrees.find((w) => w.isMain);
-const mainPath = mainWorktree?.path ?? cwd;
+async function collectIssues(): Promise<Issue[]> {
+  const worktrees = listWorktrees();
+  const mainWorktree = worktrees.find((w) => w.isMain);
+  const mainPath = mainWorktree?.path ?? cwd;
+  const nonMainWorktrees = worktrees.filter((w) => !w.isMain);
 
-const issues: Issue[] = [];
+  const issues: Issue[] = [
+    checkMainClean(mainPath),
+    ...nonMainWorktrees.map(checkJunction),
+    ...(nonMainWorktrees.length === 0 ? [{ severity: "ok" as Severity, message: "No active worktrees" }] : []),
+    ...checkMigrationConflicts(cwd),
+    checkPackagesInSync(cwd),
+    await checkStaleSession()
+  ];
 
-// Check 1: main checkout clean
-issues.push(checkMainClean(mainPath));
-
-// Check 2: junction health for each non-main worktree
-for (const wt of worktrees.filter((w) => !w.isMain)) {
-  issues.push(checkJunction(wt));
+  return issues;
 }
 
-if (worktrees.filter((w) => !w.isMain).length === 0) {
-  issues.push({ severity: "ok", message: "No active worktrees" });
-}
+function printReport(issues: Issue[]): void {
+  process.stdout.write("\n[repo:health]\n\n");
 
-// Check 3: migration conflicts (run from cwd, which may be a worktree or main)
-issues.push(...checkMigrationConflicts(cwd));
-
-// Check 4: packages in sync
-issues.push(checkPackagesInSync(cwd));
-
-// ─── Report ───────────────────────────────────────────────────────────────
-
-process.stdout.write("\n[repo:health]\n\n");
-
-for (const issue of issues) {
-  process.stdout.write(`  ${icon(issue.severity)} ${issue.message}\n`);
-  if (issue.fix && issue.severity !== "ok") {
-    process.stdout.write(`    → ${issue.fix}\n`);
+  for (const issue of issues) {
+    process.stdout.write(`  ${icon(issue.severity)} ${issue.message}\n`);
+    if (issue.fix !== undefined && issue.severity !== "ok") {
+      process.stdout.write(`    → ${issue.fix}\n`);
+    }
   }
+
+  const criticalCount = issues.filter((i) => i.severity === "critical").length;
+  const warnCount = issues.filter((i) => i.severity === "warn").length;
+
+  process.stdout.write("\n");
+
+  if (criticalCount === 0 && warnCount === 0) {
+    process.stdout.write("  All clear. Environment is healthy.\n\n");
+    process.exit(0);
+  }
+
+  if (criticalCount === 0) {
+    process.stdout.write(`  ${String(warnCount)} warning(s). Review before pushing.\n\n`);
+    process.exit(0);
+  }
+
+  process.stderr.write(`  ${String(criticalCount)} critical issue(s) found. Fix before proceeding.\n\n`);
+  process.exit(1);
 }
 
-const criticalCount = issues.filter((i) => i.severity === "critical").length;
-const warnCount = issues.filter((i) => i.severity === "warn").length;
-
-process.stdout.write("\n");
-
-if (criticalCount === 0 && warnCount === 0) {
-  process.stdout.write("  All clear. Environment is healthy.\n\n");
-  process.exit(0);
-}
-
-if (criticalCount === 0) {
-  process.stdout.write(`  ${String(warnCount)} warning(s). Review before pushing.\n\n`);
-  process.exit(0);
-}
-
-process.stderr.write(`  ${String(criticalCount)} critical issue(s) found. Fix before proceeding.\n\n`);
-process.exit(1);
+void collectIssues().then(printReport);

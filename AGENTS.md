@@ -71,9 +71,10 @@ These three habits prevent the most common sources of wasted tokens and CI failu
 3. **Run targeted tests locally before committing when fixing test failures.**
    Before committing a test fix, confirm it actually passes in the worktree environment:
    ```bash
-   npx vitest run --pool=forks --reporter=verbose <test-file>
+   npx vitest run --reporter=verbose <test-file>
    ```
-   This costs seconds locally vs. minutes of CI round-trip time.
+   `vitest.config.ts` sets `pool: "forks"` as the default so the junction module-cache issue
+   is handled automatically. This costs seconds locally vs. minutes of CI round-trip time.
 
 4. **Run `worktree:ensure-junction` when node_modules feels broken.**
    If tsx is missing, Prisma client errors appear, or module resolution behaves oddly, run:
