@@ -9,6 +9,8 @@ import { resolveDatabaseFilePath } from "@taxes/db";
 
 const MIGRATIONS_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../prisma/migrations");
 const MIGRATIONS_TABLE_NAME = "_taxes_migrations";
+const INITIAL_MIGRATION_NAME = "20260311000000_init";
+const INITIAL_SCHEMA_TABLES = ["HouseholdProfile", "ImportedDocument", "MissingFact", "AssetLot"];
 
 interface MigrationEntry {
   checksum: string;
@@ -66,6 +68,16 @@ function applyMigration(database: Database.Database, migration: MigrationEntry):
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
+
+    if (canTreatMigrationAsAlreadyApplied(database, migration, error)) {
+      insertMigration.run({
+        appliedAt: new Date().toISOString(),
+        checksum: migration.checksum,
+        name: migration.name
+      });
+      return;
+    }
+
     throw error;
   }
 }
@@ -95,6 +107,39 @@ function readAppliedMigrations(database: Database.Database): Set<string> {
   const rows = statement.all() as { name: string }[];
 
   return new Set(rows.map((row) => row.name));
+}
+
+function canTreatMigrationAsAlreadyApplied(
+  database: Database.Database,
+  migration: MigrationEntry,
+  error: unknown
+): boolean {
+  if (migration.name !== INITIAL_MIGRATION_NAME) {
+    return false;
+  }
+
+  if (!isAlreadyExistsError(error)) {
+    return false;
+  }
+
+  return INITIAL_SCHEMA_TABLES.every((tableName) => tableExists(database, tableName));
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("already exists");
+}
+
+function tableExists(database: Database.Database, tableName: string): boolean {
+  const statement = database.prepare(`
+    SELECT 1
+    FROM "sqlite_master"
+    WHERE "type" = 'table'
+      AND "name" = @tableName
+    LIMIT 1
+  `);
+  const row = statement.get({ tableName }) as { 1: number } | undefined;
+
+  return row !== undefined;
 }
 
 async function readMigrationEntries(): Promise<MigrationEntry[]> {
