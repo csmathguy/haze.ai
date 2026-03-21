@@ -9,6 +9,7 @@ import { buildApp } from "../app.js";
 import { applyPendingMigrations } from "../db/migrations.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
 import { WorkflowWorker } from "../event-bus/workflow-worker.js";
+import { EventBus } from "../event-bus/event-bus.js";
 
 describe("Workflow E2E: smoke test for full execution loop", () => {
   let prisma: PrismaClient;

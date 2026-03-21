@@ -19,6 +19,7 @@ import { executeCommandStep } from "./command-executor.js";
 import { AgentStepExecutor, type StepExecutionEffect } from "./agent-step-executor.js";
 import { ConditionStepExecutor } from "./condition-step-executor.js";
 import { recordStepStart, recordStepComplete, recordStepFailed } from "./step-run-persistence.js";
+import { executeWaitForEventStep } from "./wait-for-event-executor.js";
 import { EventBus } from "../event-bus/event-bus.js";
 import * as approvalService from "../services/approval-service.js";
 
@@ -99,6 +100,10 @@ export class StepExecutionHandler {
 
     if (stepType === "approval") {
       return this.handleApprovalStep(runId, run, step);
+    }
+
+    if (stepType === "wait-for-event") {
+      return this.executeWaitForEventAndAdvance(runId, run, step);
     }
 
     // Parallel steps are handled by the engine directly via executeParallelStep
@@ -300,6 +305,49 @@ export class StepExecutionHandler {
     // Return the current run state unchanged (paused)
     return {
       nextRun: { ...run, status: "paused" },
+      effects: []
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // WaitForEventStep — pause the run until a matching external event arrives
+  // ---------------------------------------------------------------------------
+
+  private async executeWaitForEventAndAdvance(
+    runId: string,
+    run: WorkflowRun,
+    step: StepLike
+  ): Promise<WorkflowRunEffect> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+    const existing: { id: string } | null = await (this.db as any).workflowStepRun.findFirst({
+      where: { runId, stepId: step.id }
+    });
+
+    let stepRunId: string;
+    if (existing) {
+      stepRunId = existing.id;
+    } else {
+      const created = await recordStepStart(this.db, runId, step.id, "wait-for-event");
+      stepRunId = created.id;
+    }
+
+    await executeWaitForEventStep(this.db, stepRunId, {
+      type: "wait-for-event",
+      id: step.id,
+      label: step.label as string | undefined,
+      eventType: step.eventType as string,
+      correlationKey: step.correlationKey as string | undefined,
+      timeoutMs: step.timeoutMs as number | undefined
+    });
+
+    await this.eventBus.emit({
+      workflowRunId: runId,
+      eventType: "step.waiting-for-event",
+      payload: { stepId: step.id }
+    });
+
+    return {
+      nextRun: { ...run, status: "waiting" },
       effects: []
     };
   }

@@ -3,6 +3,7 @@ import type { WorkflowDefinition, WorkflowRun, WorkflowRunEffect, WorkflowEffect
 import { WorkflowEngine } from "@taxes/shared";
 
 import { EventBus } from "./event-bus.js";
+import { checkForWaitForEventMatches, checkForTimedOutWaitingSteps } from "./wait-for-event-handler.js";
 import { GitHubPrMergedHandler } from "../services/github-pr-merged-handler.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
 import { StepExecutionHandler } from "../executor/step-execution-handler.js";
@@ -68,6 +69,7 @@ export class WorkflowWorker {
 
   /** Process one batch of pending events — public for testing */
   async processBatch(): Promise<number> {
+    await checkForTimedOutWaitingSteps(this.db);
     const events = await this.eventBus.fetchPending(this.batchSize);
 
     if (events.length === 0) {
