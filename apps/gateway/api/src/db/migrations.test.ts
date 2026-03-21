@@ -54,6 +54,12 @@ const INITIAL_SCHEMA_SQL = `
     "sourceDocumentId" TEXT,
     CONSTRAINT "AssetLot_sourceDocumentId_fkey" FOREIGN KEY ("sourceDocumentId") REFERENCES "ImportedDocument" ("id") ON DELETE SET NULL ON UPDATE CASCADE
   );
+  CREATE INDEX "ImportedDocument_importedAt_idx" ON "ImportedDocument"("importedAt");
+  CREATE INDEX "ImportedDocument_taxYear_idx" ON "ImportedDocument"("taxYear");
+  CREATE INDEX "MissingFact_documentId_idx" ON "MissingFact"("documentId");
+  CREATE UNIQUE INDEX "MissingFact_documentId_sequence_key" ON "MissingFact"("documentId", "sequence");
+  CREATE INDEX "AssetLot_assetKey_acquiredOn_idx" ON "AssetLot"("assetKey", "acquiredOn");
+  CREATE INDEX "AssetLot_sourceDocumentId_idx" ON "AssetLot"("sourceDocumentId");
 `;
 
 interface TestContext {
