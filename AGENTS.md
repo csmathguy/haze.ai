@@ -129,6 +129,49 @@ commit history, exploration paths—can be reconstructed from git and the codeba
 - Treat each product web app's `apps/<product>/web/src/theme/` directory as the frontend styling contract. For the current tax app, that is `apps/taxes/web/src/theme/`.
 - Prefer composition over inheritance. Apply SOLID, DRY, and KISS without adding abstractions before there is a second real use case.
 
+## Orchestrator Supervision
+
+When acting as an orchestrator dispatching sub-agents to worktrees, use `workflow:watch` to tail
+their progress in real time rather than waiting passively:
+
+```bash
+# Tail a sub-agent's run with default settings (stale after 10m, poll every 3s)
+npm run workflow:watch -- <runId>
+
+# Tighten the stale threshold when the task should be fast
+npm run workflow:watch -- <runId> --stale-after 5
+
+# Read runId from the sub-agent's .agent-session.json after worktree:start
+cat /path/to/worktree/.agent-session.json | node -e "process.stdin|>JSON.parse|>r=>console.log(r.runId)"
+```
+
+**What to watch for:**
+
+| Output | Meaning | Action |
+|--------|---------|--------|
+| `→ skill/tool: ...` | Normal step progress | Continue monitoring |
+| `♥ heartbeat: ...` | Agent is alive | No action needed |
+| `⚑ APPROVAL GATE` (yellow) | Human decision required | Review and unblock |
+| No output for >10m | Stale — watcher exits non-zero | Investigate, resume, or abort |
+| `workflow ended — status: failed` | Run failed | Check artifacts/audit/YYYY-MM-DD/<runId>/ |
+
+**Checking for active runs without a known runId:**
+
+```bash
+npm run audit:progress   # shows all active heartbeat streams
+```
+
+**Verifying sub-agent process compliance:**
+
+A well-behaved sub-agent should produce these events in order:
+1. `workflow-start` — after `npm run workflow:start`
+2. `artifact-recorded` (kind: heartbeat) — after `npm run agent:heartbeat`
+3. `execution-start` / `execution-end` pairs — for each tracked step
+4. `workflow-end` (status: success) — after `npm run workflow:end ... success`
+
+If a sub-agent skips `workflow:start` or never produces heartbeats, check `.agent-session.json`
+in the worktree. A missing session file means the agent did not follow the required workflow.
+
 ## Privacy And Security
 - Never commit raw tax documents, generated filings, or local extracted data.
 - Redact or avoid logging SSNs, EINs, bank numbers, addresses, or full document contents.
