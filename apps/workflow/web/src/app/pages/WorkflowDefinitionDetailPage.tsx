@@ -73,7 +73,7 @@ const Content: React.FC<ContentProps> = ({ loading, error, definition, selectedR
   return (
     <Container maxWidth="lg" sx={{ py: 3, display: "flex", flexDirection: "column", gap: 2 }}>
       <RunSelector definitionName={definition.name} onRunSelected={onRunSelected} />
-      <Box sx={{ flex: 1, minHeight: 600, position: "relative" }}>
+      <Box sx={{ flex: 1, minHeight: 600, height: 600, position: "relative" }}>
         <WorkflowGraph definition={definition} runOverlay={runOverlay} />
       </Box>
     </Container>
