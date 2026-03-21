@@ -4,6 +4,7 @@ import type { PrismaClient } from "@taxes/db";
 import { z } from "zod";
 
 import { getWorkflowPrismaClient } from "../db/client.js";
+import { GitHubCiFailedHandler } from "../services/github-ci-failed-handler.js";
 
 declare global {
   interface FastifyRequest {
@@ -57,7 +58,15 @@ const GitHubWorkflowRunPayloadSchema = z.object({
       head_branch: z.string().nullable(),
       head_sha: z.string(),
       conclusion: z.string().nullable(),
-      status: z.string()
+      status: z.string(),
+      html_url: z.string().optional(),
+      pull_requests: z
+        .array(
+          z.object({
+            number: z.number()
+          })
+        )
+        .optional()
     })
     .optional(),
   repository: z
@@ -100,7 +109,15 @@ const GitHubCheckRunPayloadSchema = z.object({
       head_branch: z.string().nullable(),
       head_sha: z.string(),
       conclusion: z.string().nullable(),
-      status: z.string()
+      status: z.string(),
+      html_url: z.string().optional(),
+      pull_requests: z
+        .array(
+          z.object({
+            number: z.number()
+          })
+        )
+        .optional()
     })
     .optional(),
   repository: z
@@ -121,16 +138,20 @@ interface WebhookVerifyResult {
 interface WebhookEventData {
   type: string;
   correlationId?: string;
+  ciFailureData?: {
+    prNumber: number;
+    jobName: string;
+    logsUrl: string;
+  };
 }
-
-const PLAN_REF_PATTERN = /PLAN-(\d+)/i;
 
 function extractPlanReferenceFromBranch(branchName: string | null | undefined): string | undefined {
   if (!branchName) {
     return undefined;
   }
 
-  const match = PLAN_REF_PATTERN.exec(branchName);
+  const pattern = /PLAN-(\d+)/i;
+  const match = pattern.exec(branchName);
   if (!match) {
     return undefined;
   }
@@ -142,6 +163,16 @@ function extractPlanReferenceFromBranch(branchName: string | null | undefined): 
 function buildCiCorrelationId(owner: string, repo: string, sha: string, branch: string | null): string {
   const planRef = extractPlanReferenceFromBranch(branch);
   return planRef ?? `${owner}/${repo}@${sha}`;
+}
+
+function extractPrNumber(
+  pullRequests: Array<{ number: number }> | undefined
+): number | undefined {
+  if (!pullRequests || pullRequests.length === 0) {
+    return undefined;
+  }
+  const firstPr = pullRequests[0];
+  return firstPr?.number;
 }
 
 function verifySignature(secret: string, signature: string | undefined, rawBody: string): WebhookVerifyResult {
@@ -216,6 +247,24 @@ function parseWorkflowRunEvent(payload: unknown): WebhookEventData {
       repository.owner.login, repository.name,
       workflow_run.head_sha, workflow_run.head_branch
     );
+
+    // Check if this is a CI failure that should be emitted as github.ci.failed
+    if (conclusion === "failure" && workflow_run.status === "completed") {
+      const prNumber = extractPrNumber(workflow_run.pull_requests);
+      const logsUrl = workflow_run.html_url ?? `${repository.owner.login}/${repository.name}`;
+      if (prNumber && logsUrl) {
+        return {
+          type: "github.ci.failed",
+          correlationId,
+          ciFailureData: {
+            prNumber,
+            jobName: workflow_run.name,
+            logsUrl
+          }
+        };
+      }
+    }
+
     return { type, correlationId };
   }
 
@@ -258,6 +307,24 @@ function parseCheckRunEvent(payload: unknown): WebhookEventData {
       repository.owner.login, repository.name,
       check_run.head_sha, check_run.head_branch
     );
+
+    // Check if this is a CI failure that should be emitted as github.ci.failed
+    if (conclusion === "failure" && check_run.status === "completed") {
+      const prNumber = extractPrNumber(check_run.pull_requests);
+      const logsUrl = check_run.html_url ?? `${repository.owner.login}/${repository.name}`;
+      if (prNumber && logsUrl) {
+        return {
+          type: "github.ci.failed",
+          correlationId,
+          ciFailureData: {
+            prNumber,
+            jobName: check_run.name,
+            logsUrl
+          }
+        };
+      }
+    }
+
     return { type, correlationId };
   }
 
@@ -285,6 +352,19 @@ async function handleWebhookPayload(
   const eventData = parseGitHubEvent(eventType, payload);
 
   try {
+    // Handle github.ci.failed events through the handler service
+    if (eventData.type === "github.ci.failed" && eventData.ciFailureData) {
+      const handler = new GitHubCiFailedHandler(prisma);
+      await handler.handleEvent(
+        eventData.ciFailureData.prNumber,
+        eventData.ciFailureData.jobName,
+        eventData.ciFailureData.logsUrl,
+        JSON.stringify(payload)
+      );
+      return { code: 202, response: { type: eventData.type } };
+    }
+
+    // Standard webhook event persistence
     const event = await prisma.workflowEvent.create({
       data: {
         type: eventData.type,

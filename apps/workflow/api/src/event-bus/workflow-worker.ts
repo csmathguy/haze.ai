@@ -84,6 +84,12 @@ export class WorkflowWorker {
         return;
       }
 
+      // Handle CI failure events (skip/ignore for now — repair workflow PLAN-219 will handle)
+      if (event.type === "github.ci.failed") {
+        await this.eventBus.markProcessed(event.id);
+        return;
+      }
+
       // Handle step execute requests emitted by startRun / signalRun service layer
       if (event.type === "step.execute-requested") {
         await this.handleStepExecuteRequestedEvent(event);
