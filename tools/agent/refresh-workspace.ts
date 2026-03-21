@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { createDevEnvironmentPlan, parseDevEnvironmentArgs, type DevServiceLaunchPlan } from "./lib/dev-environment.js";
 import { ensureMuiDependencyIntegrity } from "./lib/dependency-integrity.js";
 import { parseGitWorktreePorcelain } from "./lib/git-worktree.js";
-import { selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
+import { hasPendingCheckoutChanges, selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(moduleDirectory, "..", "..");
@@ -165,10 +165,6 @@ function assertCheckoutClean(checkoutRoot: string): void {
       "The main checkout has local changes or staged files, so refusing to pull. " +
       "Finish or discard the pending changes first, or run the refresh flow against a clean worktree once support is added."
   );
-}
-
-export function hasPendingCheckoutChanges(statusOutput: string): boolean {
-  return statusOutput.trim().length > 0;
 }
 
 async function runShortCommand(checkoutRoot: string, label: string, command: string, args: string[]): Promise<void> {

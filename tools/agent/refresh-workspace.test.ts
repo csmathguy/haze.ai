@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { hasPendingCheckoutChanges, parseCheckoutMode } from "./refresh-workspace.js";
-import { selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
+import { parseCheckoutMode } from "./refresh-workspace.js";
+import { hasPendingCheckoutChanges, selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
 
 type CheckoutMode = "auto" | "current-worktree" | "main";
 

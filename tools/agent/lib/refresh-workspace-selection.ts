@@ -1,5 +1,3 @@
-import { hasPendingCheckoutChanges } from "../refresh-workspace.js";
-
 export interface WorktreeStatus {
   branch: string | null;
   statusOutput: string;
@@ -11,6 +9,10 @@ interface AutoCheckoutSelectionInput {
   repositoryRoot: string;
   rootStatusOutput: string;
   worktrees: WorktreeStatus[];
+}
+
+export function hasPendingCheckoutChanges(statusOutput: string): boolean {
+  return statusOutput.trim().length > 0;
 }
 
 export function selectAutoCheckoutRoot(input: AutoCheckoutSelectionInput): string {
