@@ -5,8 +5,12 @@ import { WorkflowEngine } from "@taxes/shared";
 import { EventBus } from "./event-bus.js";
 import { GitHubPrMergedHandler } from "../services/github-pr-merged-handler.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
-import * as workflowRunService from "../services/workflow-run-service.js";
 import { StepExecutionHandler } from "../executor/step-execution-handler.js";
+
+/** Internal step-status notification event types that the worker emits for observability only. */
+function isInternalStepNotification(eventType: string): boolean {
+  return eventType === "step.waiting-for-event" || eventType === "step.waiting-for-approval";
+}
 
 export interface WorkerConfig {
   readonly pollIntervalMs: number;   // default 1000
@@ -91,63 +95,82 @@ export class WorkflowWorker {
         return;
       }
 
-      // Handle standard workflow events
-      const correlationId = event.correlationId;
-      if (!correlationId) {
-        await this.eventBus.markFailed(event.id, "No correlationId (workflowRunId) in event");
+      // Internal step-status notification events — mark processed but do NOT route through
+      // engine.signalRun, which would unconditionally reset the run status to "running".
+      if (isInternalStepNotification(event.type)) {
+        await this.eventBus.markProcessed(event.id);
         return;
       }
 
-      const run = await this.db.workflowRun.findUnique({
-        where: { id: correlationId }
-      });
-
-      if (!run) {
-        await this.eventBus.markFailed(event.id, `WorkflowRun not found: ${correlationId}`);
-        return;
-      }
-
-      const payload = this.parseEventPayload(event.payload, event.id);
-      if (payload === null) {
-        return;
-      }
-
-      // Load the workflow definition from the database
-      const definition = await workflowDefinitionService.getDefinitionByName(
-        this.db,
-        run.definitionName
-      );
-
-      const runData = this.convertRunToSchema(run);
-      const workflowEvent = {
-        type: event.type,
-        payload
-      };
-
-      const engine = new WorkflowEngine();
-      let result;
-      let workflowDefinition: WorkflowDefinition | null = null;
-
-      if (definition) {
-        const definitionJson = JSON.parse(definition.definitionJson) as Record<string, unknown>;
-        workflowDefinition = {
-          name: definition.name,
-          version: definition.version,
-          triggers: JSON.parse(definition.triggerEvents) as string[],
-          inputSchema: {} as never,
-          steps: (definitionJson.steps ?? []) as never[]
-        };
-        result = engine.signalRun(runData, workflowEvent, workflowDefinition);
-      } else {
-        result = engine.signalRun(runData, workflowEvent);
-      }
-
-      await this.updateRun(run.id, result);
-      await this.applyEffects(run.id, result.effects, result.nextRun, workflowDefinition);
-      await this.eventBus.markProcessed(event.id);
+      await this.handleStandardWorkflowEvent(event);
     } catch (error) {
       await this.eventBus.markFailed(event.id, `Processing error: ${String(error)}`);
     }
+  }
+
+  private async handleStandardWorkflowEvent(event: { id: string; type: string; correlationId: string | null; payload: string }): Promise<void> {
+    // Parse payload
+    let eventPayload: Record<string, unknown> = {};
+    try {
+      if (event.payload) {
+        eventPayload = JSON.parse(event.payload) as Record<string, unknown>;
+      }
+    } catch {
+      // Use empty payload if parsing fails
+    }
+
+    // Try to match against waiting workflow runs
+    const matched = await checkForWaitForEventMatches(this.db, event.type, eventPayload);
+    if (matched) {
+      await this.eventBus.markProcessed(event.id);
+      return;
+    }
+
+    // Handle standard workflow events
+    const correlationId = event.correlationId;
+    if (!correlationId) {
+      await this.eventBus.markFailed(event.id, "No correlationId (workflowRunId) in event");
+      return;
+    }
+
+    const run = await this.db.workflowRun.findUnique({
+      where: { id: correlationId }
+    });
+
+    if (!run) {
+      await this.eventBus.markFailed(event.id, `WorkflowRun not found: ${correlationId}`);
+      return;
+    }
+
+    // Load the workflow definition from the database
+    const definition = await workflowDefinitionService.getDefinitionByName(
+      this.db,
+      run.definitionName
+    );
+
+    const runData = this.convertRunToSchema(run);
+    const workflowEvent = { type: event.type, payload: eventPayload };
+    const engine = new WorkflowEngine();
+    let result;
+    let workflowDefinition: WorkflowDefinition | null = null;
+
+    if (definition) {
+      const definitionJson = JSON.parse(definition.definitionJson) as Record<string, unknown>;
+      workflowDefinition = {
+        name: definition.name,
+        version: definition.version,
+        triggers: JSON.parse(definition.triggerEvents) as string[],
+        inputSchema: {} as never,
+        steps: (definitionJson.steps ?? []) as never[]
+      };
+      result = engine.signalRun(runData, workflowEvent, workflowDefinition);
+    } else {
+      result = engine.signalRun(runData, workflowEvent);
+    }
+
+    await this.updateRun(run.id, result);
+    await this.applyEffects(run.id, result.effects, result.nextRun, workflowDefinition);
+    await this.eventBus.markProcessed(event.id);
   }
 
   private async handleStepExecuteRequestedEvent(event: { id: string; type: string; correlationId: string | null; payload: string }): Promise<void> {
@@ -164,7 +187,7 @@ export class WorkflowWorker {
         return;
       }
 
-      const payload = this.parseEventPayload(event.payload, event.id);
+      const payload = this.parseEventPayload(event.payload);
       if (payload === null) return;
 
       const step = payload.step as { id: string; type: string; [key: string]: unknown } | undefined;
@@ -173,8 +196,7 @@ export class WorkflowWorker {
         return;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const definitionName = run.definitionName as string;
+      const definitionName = run.definitionName;
       const definition = await workflowDefinitionService.getDefinitionByName(this.db, definitionName);
       if (!definition) {
         await this.eventBus.markFailed(event.id, `WorkflowDefinition not found: ${definitionName}`);
@@ -229,6 +251,15 @@ export class WorkflowWorker {
       return null;
     }
     return parsed;
+  }
+
+  private parseEventPayload(payloadStr: string): Record<string, unknown> | null {
+    try {
+      if (!payloadStr) return {};
+      return JSON.parse(payloadStr) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   }
 
   private convertRunToSchema(run: { id: string; definitionName: string; version: string; status: string; currentStep: string | null; contextJson: string | null; correlationId: string | null; parentRunId: string | null; startedAt: Date; updatedAt: Date; completedAt: Date | null }) {

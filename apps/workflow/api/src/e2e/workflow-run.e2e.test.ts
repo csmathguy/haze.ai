@@ -282,4 +282,198 @@ describe("Workflow E2E: smoke test for full execution loop", () => {
       }
     }
   });
+
+  it("wait-for-event: pause, emit matching event, and resume", async () => {
+    // 1. Create a workflow with a wait-for-event step followed by another step
+    await workflowDefinitionService.createDefinition(prisma, {
+      name: "wait-for-event-test",
+      version: "1.0",
+      description: "Test wait-for-event step",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          {
+            type: "wait-for-event",
+            id: "wait-ci",
+            label: "Wait for CI completion",
+            eventType: "ci.build.completed",
+            timeoutMs: 30000
+          },
+          {
+            type: "command",
+            id: "step-after-wait",
+            label: "Echo after wait",
+            scriptPath: process.platform === "win32" ? "cmd" : "/bin/echo",
+            args: process.platform === "win32" ? ["/c", "echo done"] : ["done"]
+          }
+        ]
+      }
+    });
+
+    // 2. Build the app
+    const app = await buildApp({ databaseUrl: testDbUrl });
+
+    try {
+      // 3. Create a workflow run
+      const createRunResponse = await app.inject({
+        method: "POST",
+        url: "/api/workflow/runs",
+        payload: {
+          definitionName: "wait-for-event-test",
+          input: { testId: "wait-test-123" }
+        }
+      });
+
+      expect(createRunResponse.statusCode).toBe(201);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const createRunData = createRunResponse.json();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const runId = String(createRunData.run.id);
+      expect(runId).toBeDefined();
+
+      // 4. Process worker batch to execute the wait-for-event step
+      const worker = new WorkflowWorker({
+        pollIntervalMs: 100,
+        batchSize: 10,
+        db: prisma
+      });
+
+      await worker.processBatch();
+
+      // 5. Check that run is in waiting state
+      const getRunAfterWaitResponse = await app.inject({
+        method: "GET",
+        url: `/api/workflow/runs/${runId}`
+      });
+
+      expect(getRunAfterWaitResponse.statusCode).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const runAfterWait = getRunAfterWaitResponse.json();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect((runAfterWait.run as Record<string, unknown>).status).toBe("waiting");
+
+      // 6. Emit a matching event to resume the run
+      const eventBus = new EventBus(prisma);
+      await eventBus.emit({
+        workflowRunId: runId,
+        eventType: "ci.build.completed",
+        payload: { status: "success", duration: 120 }
+      });
+
+      // 7. Process another batch to handle the event
+      await worker.processBatch();
+
+      // 8. Check that the run has advanced past the wait step
+      const finalRunResponse = await app.inject({
+        method: "GET",
+        url: `/api/workflow/runs/${runId}`
+      });
+
+      expect(finalRunResponse.statusCode).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const finalRunData = finalRunResponse.json();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect((finalRunData.run as Record<string, unknown>).status).not.toBe("waiting");
+
+      // 9. Verify that the wait step run was recorded
+      const waitStepRun = await prisma.workflowStepRun.findFirst({
+        where: { runId, stepId: "wait-ci" }
+      });
+
+      expect(waitStepRun).toBeDefined();
+      expect(waitStepRun?.stepType).toBe("wait-for-event");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("wait-for-event: timeout expires and fails the step", async () => {
+    // 1. Create a workflow with a wait-for-event step with short timeout
+    const timeoutDefinition = await workflowDefinitionService.createDefinition(prisma, {
+      name: "wait-for-event-timeout-test",
+      version: "1.0",
+      description: "Test wait-for-event timeout",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          {
+            type: "wait-for-event",
+            id: "wait-timeout",
+            label: "Wait with short timeout",
+            eventType: "delayed.event",
+            timeoutMs: 100
+          }
+        ]
+      }
+    });
+
+    // 2. Create a workflow run
+    const run = await prisma.workflowRun.create({
+      data: {
+        definitionId: timeoutDefinition.id,
+        definitionName: "wait-for-event-timeout-test",
+        version: "1.0",
+        status: "running",
+        contextJson: JSON.stringify({})
+      }
+    });
+
+    // 3. Set up the worker
+    const worker = new WorkflowWorker({
+      pollIntervalMs: 50,
+      batchSize: 10,
+      db: prisma
+    });
+
+    // 4. Create event to trigger the wait-for-event step execution
+    const eventBus = new EventBus(prisma);
+    await eventBus.emit({
+      workflowRunId: run.id,
+      eventType: "step.execute-requested",
+      payload: {
+        step: {
+          type: "wait-for-event",
+          id: "wait-timeout",
+          label: "Wait with short timeout",
+          eventType: "delayed.event",
+          timeoutMs: 100
+        }
+      }
+    });
+
+    // 5. Process first batch to create the waiting state
+    await worker.processBatch();
+
+    // Verify the run is waiting
+    const runStateAfterWait = await prisma.workflowRun.findUnique({
+      where: { id: run.id }
+    });
+    expect(runStateAfterWait?.status).toBe("waiting");
+
+    // 6. Wait for timeout to expire
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // 7. Process another batch - should detect timeout
+    await worker.processBatch();
+
+    // 8. Verify the run failed due to timeout
+    const failedRun = await prisma.workflowRun.findUnique({
+      where: { id: run.id }
+    });
+
+    expect(failedRun?.status).toBe("failed");
+
+    // 9. Verify the step run has an error
+    const failedStepRun = await prisma.workflowStepRun.findFirst({
+      where: { runId: run.id, stepId: "wait-timeout" }
+    });
+
+    expect(failedStepRun).toBeDefined();
+    expect(failedStepRun?.errorJson).toBeDefined();
+    if (failedStepRun?.errorJson) {
+      const errorData = JSON.parse(failedStepRun.errorJson) as Record<string, unknown>;
+      expect(errorData.code).toBe("TIMEOUT");
+      expect(String(errorData.message)).toContain("Timeout");
+    }
+  });
 });
