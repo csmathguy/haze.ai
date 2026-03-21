@@ -25,6 +25,13 @@ const cwd = process.cwd();
 const gitEntry = path.join(cwd, ".git");
 const isWorktree = fs.existsSync(gitEntry) && fs.statSync(gitEntry).isFile();
 
+// Skip expensive lint/test run for pure merge commits — the pre-push gate catches real issues.
+// During a merge commit, git sets MERGE_HEAD in the git directory.
+if (isMergeCommit(cwd, gitEntry, isWorktree)) {
+  process.stdout.write("[pre-commit] Merge commit detected — skipping quality check (pre-push gate will verify).\n");
+  process.exit(0);
+}
+
 if (isWorktree) {
   const stagedFiles = getStagedFiles(cwd);
 
@@ -41,6 +48,19 @@ if (isWorktree) {
 } else {
   const result = runNpm(cwd, ["run", "quality:changed:staged"]);
   process.exit(result.status ?? 1);
+}
+
+function isMergeCommit(cwd, gitEntry, isWorktree) {
+  let gitDir;
+  if (isWorktree) {
+    // .git is a file with content "gitdir: <path>"
+    const content = fs.readFileSync(gitEntry, "utf8").trim();
+    const match = /^gitdir:\s*(.+)$/.exec(content);
+    gitDir = match ? path.resolve(cwd, match[1]) : null;
+  } else {
+    gitDir = gitEntry;
+  }
+  return gitDir !== null && fs.existsSync(path.join(gitDir, "MERGE_HEAD"));
 }
 
 function getStagedFiles(repoPath) {
