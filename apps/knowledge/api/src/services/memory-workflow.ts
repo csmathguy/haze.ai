@@ -41,11 +41,19 @@ export function buildKnowledgeMemoryContextPack(
   }
 ): KnowledgeMemoryContextPack {
   const tier = options.tier ?? "medium-term";
-  const selected = selectKnowledgeMemoryEntries(entries, {
-    agentRole: options.agentRole,
-    namespace: options.namespace,
-    tier
-  }).slice(0, options.limit ?? 8);
+  const filterOptions =
+    options.namespace === undefined
+      ? {
+          agentRole: options.agentRole,
+          tier
+        }
+      : {
+          agentRole: options.agentRole,
+          namespace: options.namespace,
+          tier
+        };
+
+  const selected = selectKnowledgeMemoryEntries(entries, filterOptions).slice(0, options.limit ?? 8);
 
   return {
     entries: selected,

@@ -244,12 +244,12 @@ export function promoteKnowledgeMemoryEntry(
     content: {
       ...entry.content,
       memory: promoteArchivedKnowledgeMemory({
-        agentRoles: options.agentRoles,
+        ...(options.agentRoles === undefined ? {} : { agentRoles: options.agentRoles }),
         archiveEntry: entry,
         promotedAt,
-        sharedAcrossAgents: options.sharedAcrossAgents,
-        sourceType: options.sourceType,
-        tier: options.tier
+        ...(options.sharedAcrossAgents === undefined ? {} : { sharedAcrossAgents: options.sharedAcrossAgents }),
+        ...(options.sourceType === undefined ? {} : { sourceType: options.sourceType }),
+        ...(options.tier === undefined ? {} : { tier: options.tier })
       })
     },
     lastReviewedAt: promotedAt
