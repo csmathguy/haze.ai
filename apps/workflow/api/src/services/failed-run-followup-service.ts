@@ -1,23 +1,22 @@
 import { getPrismaClient as getPlanningPrismaClient, createWorkItem } from "@taxes/plan-api";
 import type { CreateWorkItemDraftInput } from "@taxes/shared";
 
+export interface CreateFollowUpOptions {
+  runId: string;
+  runContextJson: Record<string, unknown>;
+  failedStepId?: string;
+  failureReason?: string;
+  planningDatabaseUrl?: string;
+}
+
 /**
  * Creates a follow-up work item in the planning backlog when a workflow run fails permanently.
  * Extracts context from the failed run and creates a "Fix failed run for PLAN-XXX" item.
- *
- * @param runId - The workflow run ID that failed
- * @param runContextJson - The context JSON from the run, which may contain workItemId
- * @param failedStepId - The ID of the step that caused the failure (optional)
- * @param failureReason - A description of why the run failed (optional)
- * @param planningDatabaseUrl - The URL for the planning database
  */
 export async function createFollowUpWorkItemForFailedRun(
-  runId: string,
-  runContextJson: Record<string, unknown>,
-  failedStepId: string | undefined,
-  failureReason: string | undefined,
-  planningDatabaseUrl?: string
+  options: CreateFollowUpOptions
 ): Promise<void> {
+  const { runId, runContextJson, failedStepId, failureReason, planningDatabaseUrl } = options;
   try {
     // Skip if no planning database URL is provided
     if (!planningDatabaseUrl) {
@@ -41,16 +40,8 @@ export async function createFollowUpWorkItemForFailedRun(
       return;
     }
 
-    // Build the follow-up work item
-    const followUpInput = buildFollowUpWorkItem(
-      workItemId,
-      runId,
-      failedStepId,
-      failureReason,
-      runContextJson
-    );
-
-    // Create the work item using the planning service
+    // Build and create the follow-up work item
+    const followUpInput = buildFollowUpWorkItem({ workItemId, runId, failedStepId, failureReason, runContextJson });
     await createWorkItem(followUpInput, { databaseUrl: planningDatabaseUrl });
   } catch (error) {
     // Log but don't throw — follow-up creation is fire-and-forget so a failed run
@@ -92,21 +83,21 @@ async function checkForExistingFollowUp(
   planningDatabaseUrl: string
 ): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     const planningDb = await getPlanningPrismaClient(planningDatabaseUrl);
     try {
       // Search for existing follow-up items with matching title pattern
-      const existingItem = await (planningDb as Record<string, unknown>).planWorkItem
-        .findFirst({
-          where: {
-            title: {
-              contains: `Fix failed run for ${workItemId}`
-            }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
+      const existingItem = await (planningDb as any).planWorkItem.findFirst({
+        where: {
+          title: {
+            contains: `Fix failed run for ${workItemId}`
           }
-        });
+        }
+      });
       return existingItem !== null;
     } finally {
-      await (planningDb as Record<string, unknown>).$disconnect();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+      await (planningDb as any).$disconnect();
     }
   } catch (error) {
     // If we can't check for duplicates, log and allow creation (fail open)
@@ -118,16 +109,19 @@ async function checkForExistingFollowUp(
   }
 }
 
+interface BuildFollowUpOptions {
+  workItemId: string;
+  runId: string;
+  failedStepId: string | undefined;
+  failureReason: string | undefined;
+  runContextJson: Record<string, unknown>;
+}
+
 /**
  * Builds the follow-up work item input based on the failed run context.
  */
-function buildFollowUpWorkItem(
-  workItemId: string,
-  runId: string,
-  failedStepId: string | undefined,
-  failureReason: string | undefined,
-  runContextJson: Record<string, unknown>
-): CreateWorkItemDraftInput {
+function buildFollowUpWorkItem(options: BuildFollowUpOptions): CreateWorkItemDraftInput {
+  const { workItemId, runId, failedStepId, failureReason, runContextJson } = options;
   const stepName = failedStepId ?? "unknown step";
 
   // Build the follow-up title
@@ -146,8 +140,9 @@ function buildFollowUpWorkItem(
 
   // Add any error details from context if available
   const errorContext = runContextJson.error as Record<string, unknown> | undefined;
-  if (errorContext && errorContext.message) {
-    summaryParts.push(`Details: ${String(errorContext.message)}`);
+  const errorMessage = typeof errorContext?.message === "string" ? errorContext.message : undefined;
+  if (errorMessage) {
+    summaryParts.push(`Details: ${errorMessage}`);
   }
 
   const summary = summaryParts.join(" ");
