@@ -23,7 +23,22 @@ const GitHubPullRequestPayloadSchema = z.object({
       number: z.number(),
       title: z.string(),
       body: z.string().optional(),
-      merged: z.boolean().optional()
+      merged: z.boolean().optional(),
+      mergeable_state: z.string().optional(),
+      mergeable: z.boolean().optional(),
+      head: z
+        .object({
+          ref: z.string(),
+          sha: z.string()
+        })
+        .optional(),
+      base: z
+        .object({
+          ref: z.string(),
+          sha: z.string()
+        })
+        .optional(),
+      html_url: z.string().optional()
     })
     .optional(),
   repository: z
@@ -176,6 +191,24 @@ function parsePullRequestEvent(payload: unknown): WebhookEventData {
   }
 
   const { action, pull_request, repository } = parsed.data;
+
+  // Check for merge conflicts (mergeable_state === "dirty" indicates conflict)
+  if (
+    pull_request &&
+    repository &&
+    ["opened", "synchronize", "reopened"].includes(action) &&
+    pull_request.mergeable_state === "dirty"
+  ) {
+    // Extract PLAN-XXX reference from PR body
+    const prBody = pull_request.body ?? "";
+    const planMatch = /PLAN-(\d+)/i.exec(prBody);
+    if (planMatch) {
+      const { login: owner } = repository.owner;
+      const correlationId = `${owner}/${repository.name}#${String(pull_request.number)}`;
+      return { type: "github.pull_request.conflict", correlationId };
+    }
+  }
+
   const type = `github.pull_request.${action}`;
 
   if (pull_request && repository) {

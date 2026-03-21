@@ -20,6 +20,8 @@ import { AgentStepExecutor, type StepExecutionEffect } from "./agent-step-execut
 import { ConditionStepExecutor } from "./condition-step-executor.js";
 import { recordStepStart, recordStepComplete, recordStepFailed } from "./step-run-persistence.js";
 import { executeWaitForEventStep } from "./wait-for-event-executor.js";
+import { executeChildWorkflowStep } from "./child-workflow-executor.js";
+import { executeContextPackStep } from "./context-pack-executor.js";
 import { EventBus } from "../event-bus/event-bus.js";
 import * as approvalService from "../services/approval-service.js";
 
@@ -65,13 +67,15 @@ export class StepExecutionHandler {
   private readonly agentExecutor: AgentStepExecutor;
   private readonly conditionExecutor: ConditionStepExecutor;
   private readonly eventBus: EventBus;
+  private readonly planningDatabaseUrl: string | undefined;
 
-  constructor(db: PrismaClient) {
+  constructor(db: PrismaClient, planningDatabaseUrl?: string) {
     this.db = db;
     this.engine = new WorkflowEngine();
     this.agentExecutor = new AgentStepExecutor();
     this.conditionExecutor = new ConditionStepExecutor();
     this.eventBus = new EventBus(db);
+    this.planningDatabaseUrl = planningDatabaseUrl;
   }
 
   /**
@@ -104,6 +108,14 @@ export class StepExecutionHandler {
 
     if (stepType === "wait-for-event") {
       return this.executeWaitForEventAndAdvance(runId, run, step);
+    }
+
+    if (stepType === "child-workflow") {
+      return this.executeChildWorkflowAndAdvance(runId, run, step, definition);
+    }
+
+    if (stepType === "context-pack") {
+      return this.executeContextPackAndAdvance(runId, run, step, definition);
     }
 
     // Parallel steps are handled by the engine directly via executeParallelStep
@@ -350,5 +362,137 @@ export class StepExecutionHandler {
       nextRun: { ...run, status: "waiting" },
       effects: []
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // ChildWorkflowStep
+  // ---------------------------------------------------------------------------
+
+  private async executeChildWorkflowAndAdvance(
+    runId: string,
+    run: WorkflowRun,
+    step: StepLike,
+    definition: WorkflowDefinition
+  ): Promise<WorkflowRunEffect> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+    const existing: { id: string } | null = await (this.db as any).workflowStepRun.findFirst({
+      where: { runId, stepId: step.id }
+    });
+
+    let stepRunId: string;
+    if (existing) {
+      stepRunId = existing.id;
+    } else {
+      const created = await recordStepStart(this.db, runId, step.id, "child-workflow");
+      stepRunId = created.id;
+    }
+
+    try {
+      await executeChildWorkflowStep(
+        this.db,
+        runId,
+        run.definitionName,
+        stepRunId,
+        {
+          type: "child-workflow",
+          id: step.id,
+          label: step.label as string | undefined,
+          workflowName: step.workflowName as string,
+          inputMapping: step.inputMapping as Record<string, string> | undefined
+        },
+        run.contextJson
+      );
+
+      await this.eventBus.emit({
+        workflowRunId: runId,
+        eventType: "step.waiting-for-child-workflow",
+        payload: { stepId: step.id }
+      });
+
+      return {
+        nextRun: { ...run, status: "waiting" },
+        effects: []
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await recordStepFailed(this.db, stepRunId, message);
+      const failResult: StepResult = {
+        type: "failure",
+        error: { message, code: "CHILD_WORKFLOW_ERROR" }
+      };
+      return this.engine.advanceRun(run, failResult, definition);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ContextPackStep — gather rich work item and codebase context
+  // ---------------------------------------------------------------------------
+
+  private async executeContextPackAndAdvance(
+    runId: string,
+    run: WorkflowRun,
+    step: StepLike,
+    definition: WorkflowDefinition
+  ): Promise<WorkflowRunEffect> {
+    const stepRun = await recordStepStart(this.db, runId, step.id, "context-pack");
+    let stepResult: StepResult;
+
+    try {
+      const contextPackStep = {
+        type: "context-pack" as const,
+        id: step.id,
+        label: (step.label as string | undefined) ?? step.id,
+        workItemId: step.workItemId as string | undefined,
+        outputKey: (step.outputKey as string | undefined) ?? "contextPack",
+        includeGitDiff: (step.includeGitDiff as boolean | undefined) ?? true,
+        includePreviousAttempts: (step.includePreviousAttempts as boolean | undefined) ?? true
+      };
+
+      const result = await executeContextPackStep(
+        this.db,
+        runId,
+        run,
+        contextPackStep,
+        this.planningDatabaseUrl
+      );
+
+      await recordStepComplete(this.db, stepRun.id, {
+        stepId: step.id,
+        exitCode: 0,
+        stdout: `context-pack gathered for ${result.workItemId}`,
+        stderr: "",
+        durationMs: 0,
+        success: true
+      });
+
+      // Merge result into contextJson under the specified output key
+      const updatedContextJson = {
+        ...run.contextJson,
+        [contextPackStep.outputKey]: result
+      };
+
+      // Advance the run with updated context
+      const updatedRun = {
+        ...run,
+        contextJson: updatedContextJson
+      };
+
+      stepResult = { type: "success", output: result };
+      const advanceResult = this.engine.advanceRun(updatedRun, stepResult, definition);
+
+      // Return the engine's result but with the updated context already in place
+      return {
+        ...advanceResult,
+        nextRun: {
+          ...advanceResult.nextRun,
+          contextJson: updatedContextJson
+        }
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await recordStepFailed(this.db, stepRun.id, message);
+      stepResult = { type: "failure", error: { message, code: "CONTEXT_PACK_ERROR" } };
+      return this.engine.advanceRun(run, stepResult, definition);
+    }
   }
 }

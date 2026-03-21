@@ -477,4 +477,133 @@ describe("Workflow E2E: smoke test for full execution loop", () => {
       expect(String(errorData.message)).toContain("Timeout");
     }
   });
+
+  it("executes child-workflow step and merges child output into parent context", async () => {
+    // 1. Create child workflow definition
+    const childDef = await workflowDefinitionService.createDefinition(prisma, {
+      name: `child-workflow-test-${String(Date.now())}`,
+      version: "1.0",
+      description: "Child workflow for testing",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          {
+            type: "command",
+            id: "child-step-1",
+            label: "Child command",
+            scriptPath: process.platform === "win32" ? "cmd" : "/bin/echo",
+            args: process.platform === "win32" ? ["/c", "echo child-output"] : ["child-output"]
+          }
+        ]
+      }
+    });
+
+    // 2. Create parent workflow definition with child-workflow step
+    const parentDef = await workflowDefinitionService.createDefinition(prisma, {
+      name: `parent-workflow-test-${String(Date.now())}`,
+      version: "1.0",
+      description: "Parent workflow for testing",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          {
+            type: "child-workflow",
+            id: "child-step",
+            label: "Spawn child workflow",
+            workflowName: childDef.name,
+            inputMapping: {
+              sourceData: "{{contextValue}}"
+            }
+          }
+        ]
+      }
+    });
+
+    const app = await buildApp({ databaseUrl: testDbUrl });
+
+    try {
+      // 3. Create parent run
+      const createRunResponse = await app.inject({
+        method: "POST",
+        url: "/api/workflow/runs",
+        payload: {
+          definitionName: parentDef.name,
+          input: { contextValue: "test-input" }
+        }
+      });
+
+      expect(createRunResponse.statusCode).toBe(201);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const parentRunId = String(createRunResponse.json().run.id);
+      expect(parentRunId).toBeDefined();
+
+      // 4. Process worker batch to execute child-workflow step
+      const worker = new WorkflowWorker({
+        pollIntervalMs: 100,
+        batchSize: 10,
+        db: prisma
+      });
+
+      const batch1 = await worker.processBatch();
+      expect(batch1).toBeGreaterThanOrEqual(0);
+
+      // 5. Check parent is now in waiting status
+      const getParentResponse = await app.inject({
+        method: "GET",
+        url: `/api/workflow/runs/${parentRunId}`
+      });
+
+      expect(getParentResponse.statusCode).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const parentRunData = getParentResponse.json().run;
+      expect((parentRunData as Record<string, unknown>).status).toBe("waiting");
+
+      // 6. Find the child run created
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const childRuns = await prisma.workflowRun.findMany({
+        where: { parentRunId }
+      });
+
+      expect(childRuns.length).toBeGreaterThan(0);
+      const childRunId = childRuns[0]?.id;
+      expect(childRunId).toBeDefined();
+
+      // 7. Process worker batch to execute child steps
+      const batch2 = await worker.processBatch();
+      expect(batch2).toBeGreaterThanOrEqual(0);
+
+      // 8. Check child run is now completed
+      const getChildResponse = await app.inject({
+        method: "GET",
+        url: `/api/workflow/runs/${childRunId}`
+      });
+
+      expect(getChildResponse.statusCode).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const childRunData = getChildResponse.json().run;
+      expect((childRunData as Record<string, unknown>).status).toBe("completed");
+
+      // 9. Process worker batch to resume parent workflow
+      const batch3 = await worker.processBatch();
+      expect(batch3).toBeGreaterThanOrEqual(0);
+
+      // 10. Check parent run has resumed and completed
+      const getFinalResponse = await app.inject({
+        method: "GET",
+        url: `/api/workflow/runs/${parentRunId}`
+      });
+
+      expect(getFinalResponse.statusCode).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const finalParentData = getFinalResponse.json().run;
+      expect((finalParentData as Record<string, unknown>).status).toBe("completed");
+
+      // 11. Verify child output is merged into parent context
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const parentContext = JSON.parse(String((finalParentData as Record<string, unknown>).contextJson)) as Record<string, unknown>;
+      expect(parentContext["child-step"]).toBeDefined();
+    } finally {
+      await app.close();
+    }
+  });
 });

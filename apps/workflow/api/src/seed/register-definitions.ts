@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@taxes/db";
-import { implementationWorkflow } from "../definitions/index.js";
+import { implementationWorkflow, conflictRepairWorkflow } from "../definitions/index.js";
 import type { WorkflowDefinitionCreateInput } from "../services/workflow-definition-service.js";
 import { createDefinition } from "../services/workflow-definition-service.js";
 
@@ -8,7 +8,7 @@ import { createDefinition } from "../services/workflow-definition-service.js";
  * This serializes the definition to JSON for storage.
  */
 function definitionToCreateInput(
-  definition: typeof implementationWorkflow
+  definition: typeof implementationWorkflow | typeof conflictRepairWorkflow
 ): WorkflowDefinitionCreateInput {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-member-access
   const rawDef = (definition.inputSchema as any).def as Record<string, unknown> | undefined;
@@ -38,7 +38,7 @@ function definitionToCreateInput(
 export async function registerWorkflowDefinitions(
   prisma: PrismaClient
 ): Promise<void> {
-  const definitions = [implementationWorkflow];
+  const definitions = [implementationWorkflow, conflictRepairWorkflow];
 
   for (const definition of definitions) {
     const existing = await prisma.workflowDefinition.findFirst({

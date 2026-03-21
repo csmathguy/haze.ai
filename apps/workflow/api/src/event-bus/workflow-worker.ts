@@ -4,13 +4,15 @@ import { WorkflowEngine } from "@taxes/shared";
 
 import { EventBus } from "./event-bus.js";
 import { checkForWaitForEventMatches, checkForTimedOutWaitingSteps } from "./wait-for-event-handler.js";
+import { resumeParentForCompletedChildren } from "./child-workflow-handler.js";
 import { GitHubPrMergedHandler } from "../services/github-pr-merged-handler.js";
+import { GitHubPrConflictHandler } from "../services/github-pr-conflict-handler.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
 import { StepExecutionHandler } from "../executor/step-execution-handler.js";
 
 /** Internal step-status notification event types that the worker emits for observability only. */
 function isInternalStepNotification(eventType: string): boolean {
-  return eventType === "step.waiting-for-event" || eventType === "step.waiting-for-approval";
+  return eventType === "step.waiting-for-event" || eventType === "step.waiting-for-approval" || eventType === "step.waiting-for-child-workflow";
 }
 
 export interface WorkerConfig {
@@ -70,6 +72,7 @@ export class WorkflowWorker {
   /** Process one batch of pending events — public for testing */
   async processBatch(): Promise<number> {
     await checkForTimedOutWaitingSteps(this.db);
+    await resumeParentForCompletedChildren(this.db);
     const events = await this.eventBus.fetchPending(this.batchSize);
 
     if (events.length === 0) {
@@ -88,6 +91,12 @@ export class WorkflowWorker {
       // Handle external system events (e.g., GitHub PR merged) that don't require a workflow run
       if (event.type === "github.pull_request.merged") {
         await this.handleGitHubPrMergedEvent(event);
+        return;
+      }
+
+      // Handle GitHub PR conflict events that trigger conflict-repair workflows
+      if (event.type === "github.pull_request.conflict") {
+        await this.handleGitHubPrConflictEvent(event);
         return;
       }
 
@@ -221,7 +230,7 @@ export class WorkflowWorker {
       };
 
       const runData = this.convertRunToSchema(run);
-      const handler = new StepExecutionHandler(this.db);
+      const handler = new StepExecutionHandler(this.db, this.planningDatabaseUrl);
       const advanceResult = await handler.executeAndAdvance(correlationId, runData, step, workflowDefinition);
       await this.updateRun(correlationId, advanceResult);
       await this.applyEffects(correlationId, advanceResult.effects, advanceResult.nextRun, workflowDefinition);
@@ -245,6 +254,24 @@ export class WorkflowWorker {
       await handler.handleEvent(fullEvent);
     } catch (error) {
       await this.eventBus.markFailed(event.id, `GitHub PR merged handler error: ${String(error)}`);
+    }
+  }
+
+  private async handleGitHubPrConflictEvent(event: { id: string; type: string; payload: string }): Promise<void> {
+    try {
+      const fullEvent = await this.db.workflowEvent.findUnique({
+        where: { id: event.id }
+      });
+
+      if (!fullEvent) {
+        throw new Error(`Event not found: ${event.id}`);
+      }
+
+      const handler = new GitHubPrConflictHandler(this.db);
+      await handler.handleEvent(fullEvent);
+      // Note: handler.handleEvent marks the event as processed
+    } catch (error) {
+      await this.eventBus.markFailed(event.id, `GitHub PR conflict handler error: ${String(error)}`);
     }
   }
 
@@ -435,6 +462,7 @@ export class WorkflowWorker {
       case "approval":
         return "approval";
       case "wait-for-event":
+      case "child-workflow":
         return "wait";
       case "command":
       case "timer":
