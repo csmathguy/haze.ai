@@ -8,6 +8,7 @@ import {
   Drawer,
   IconButton,
   MenuItem,
+  Paper,
   Stack,
   TextField,
   Typography
@@ -28,6 +29,7 @@ export function KnowledgeDrawer({
   onClose,
   onCreateEntry,
   onModeChange,
+  relatedEntries,
   subjects
 }: {
   readonly entry: KnowledgeEntry | null;
@@ -36,6 +38,7 @@ export function KnowledgeDrawer({
   readonly onClose: () => void;
   readonly onCreateEntry: (input: CreateKnowledgeEntryDraftInput) => Promise<void>;
   readonly onModeChange: (mode: DrawerMode) => void;
+  readonly relatedEntries: KnowledgeEntry[];
   readonly subjects: KnowledgeSubject[];
 }) {
   return (
@@ -48,7 +51,7 @@ export function KnowledgeDrawer({
       <DrawerHeader mode={mode} onClose={onClose} onModeChange={onModeChange} />
       <Divider />
       <Box sx={{ overflow: "auto", p: 2.5 }}>
-        <DrawerBody mode={mode} entry={entry} onCreateEntry={onCreateEntry} subjects={subjects} />
+        <DrawerBody mode={mode} entry={entry} onCreateEntry={onCreateEntry} relatedEntries={relatedEntries} subjects={subjects} />
       </Box>
     </Drawer>
   );
@@ -58,11 +61,13 @@ function DrawerBody({
   entry,
   mode,
   onCreateEntry,
+  relatedEntries,
   subjects
 }: {
   readonly entry: KnowledgeEntry | null;
   readonly mode: DrawerMode | null;
   readonly onCreateEntry: (input: CreateKnowledgeEntryDraftInput) => Promise<void>;
+  readonly relatedEntries: KnowledgeEntry[];
   readonly subjects: KnowledgeSubject[];
 }) {
   if (mode === "create") {
@@ -77,7 +82,7 @@ function DrawerBody({
     );
   }
 
-  return <EntryDetail entry={entry} />;
+  return <EntryDetail entry={entry} relatedEntries={relatedEntries} />;
 }
 
 function DrawerHeader({
@@ -107,8 +112,9 @@ function DrawerHeader({
   );
 }
 
-function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
+function EntryDetail({ entry, relatedEntries }: { readonly entry: KnowledgeEntry; readonly relatedEntries: KnowledgeEntry[] }) {
   const shouldRenderHeader = entry.kind !== "doc-mirror";
+  const memory = entry.content.memory;
 
   return (
     <Stack spacing={2}>
@@ -116,14 +122,54 @@ function EntryDetail({ entry }: { readonly entry: KnowledgeEntry }) {
         <Chip color="primary" label={entry.kind} size="small" />
         <Chip label={entry.visibility} size="small" />
         <Chip label={entry.namespace} size="small" />
+        {memory === undefined ? (
+          <Chip label="memory: none" size="small" variant="outlined" />
+        ) : (
+          <Chip label={`memory: ${memory.tier}`} size="small" variant="outlined" />
+        )}
       </Stack>
       {shouldRenderHeader ? <Typography variant="h2">{entry.title}</Typography> : null}
       <Typography variant="body2">{entry.content.abstract}</Typography>
       <Divider />
+      {memory === undefined ? null : (
+        <Stack spacing={1}>
+          <Typography variant="subtitle2">Memory metadata</Typography>
+          <Stack direction="row" flexWrap="wrap" gap={1}>
+            <Chip label={`source: ${memory.sourceType}`} size="small" variant="outlined" />
+            <Chip label={`review: ${memory.reviewState}`} size="small" variant="outlined" />
+            <Chip label={`confidence: ${memory.confidence}`} size="small" variant="outlined" />
+            <Chip label={`reactivations: ${String(memory.reactivationCount)}`} size="small" variant="outlined" />
+            {memory.sharedAcrossAgents ? <Chip label="shared" size="small" variant="outlined" /> : <Chip label="scoped" size="small" variant="outlined" />}
+          </Stack>
+        </Stack>
+      )}
       {entry.content.markdown === undefined ? null : <KnowledgeMarkdown content={entry.content.markdown} />}
       {entry.content.json === undefined ? null : (
         <Pre>{JSON.stringify(entry.content.json, null, 2)}</Pre>
       )}
+      <Divider />
+      <Stack spacing={1}>
+        <Typography variant="subtitle2">Related memories</Typography>
+        {relatedEntries.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No related memories found.
+          </Typography>
+        ) : (
+          relatedEntries.map((relatedEntry) => (
+            <Paper key={relatedEntry.id} sx={{ p: 1.25 }} variant="outlined">
+              <Stack spacing={0.5}>
+                <Typography variant="body2">{relatedEntry.title}</Typography>
+                <Typography color="text.secondary" variant="caption">
+                  {relatedEntry.namespace} · {relatedEntry.kind}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  {relatedEntry.content.abstract}
+                </Typography>
+              </Stack>
+            </Paper>
+          ))
+        )}
+      </Stack>
     </Stack>
   );
 }

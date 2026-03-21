@@ -22,26 +22,51 @@ import { summarizeEntryPresentation } from "../entry-presentation.js";
 
 const DEFAULT_ROWS_PER_PAGE = 25;
 const entryKinds = ["agent-memory", "doc-mirror", "follow-up", "process-note", "profile-note", "research-report", "technical-note"] as const;
+const memoryTiers = ["all", "short-term", "medium-term", "long-term", "archive"] as const;
+const memorySources = ["all", "user-stated", "agent-inferred", "workflow-observed", "repo-doc", "research-report"] as const;
+const memoryReviews = ["all", "auto", "needs-human-review", "approved", "rejected"] as const;
+const memoryRoles = ["all", "orchestrator", "coder", "memory-agent", "research-agent", "reviewer"] as const;
 
 export function EntriesTable({
   entries,
+  entryMemorySummary,
+  memoryRoleFilter,
   kindFilter,
   onCreateResearch,
   onSelectEntry,
   search,
   selectedEntryId,
   selectedSubjectId,
+  memoryReviewFilter,
+  memorySourceFilter,
+  memoryTierFilter,
+  setMemoryRoleFilter,
   setKindFilter,
+  setMemoryReviewFilter,
+  setMemorySourceFilter,
+  setMemoryTierFilter,
   setSearch
 }: {
   readonly entries: KnowledgeEntry[];
+  readonly entryMemorySummary: {
+    readonly byTier: Record<"archive" | "long-term" | "medium-term" | "short-term", number>;
+    readonly withMemory: number;
+  };
+  readonly memoryRoleFilter: string;
   readonly kindFilter: string;
   readonly onCreateResearch: () => void;
   readonly onSelectEntry: (entry: KnowledgeEntry) => void;
   readonly search: string;
   readonly selectedEntryId: string | null;
   readonly selectedSubjectId: string;
+  readonly memoryReviewFilter: string;
+  readonly memorySourceFilter: string;
+  readonly memoryTierFilter: string;
+  readonly setMemoryRoleFilter: (value: string) => void;
   readonly setKindFilter: (value: string) => void;
+  readonly setMemoryReviewFilter: (value: string) => void;
+  readonly setMemorySourceFilter: (value: string) => void;
+  readonly setMemoryTierFilter: (value: string) => void;
   readonly setSearch: (value: string) => void;
 }) {
   const [page, setPage] = useState(0);
@@ -71,10 +96,45 @@ export function EntriesTable({
             </MenuItem>
           ))}
         </TextField>
+        <TextField label="Memory tier" onChange={(event) => setMemoryTierFilter(event.target.value)} select value={memoryTierFilter}>
+          {memoryTiers.map((tier) => (
+            <MenuItem key={tier} value={tier}>
+              {tier}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField label="Source" onChange={(event) => setMemorySourceFilter(event.target.value)} select value={memorySourceFilter}>
+          {memorySources.map((source) => (
+            <MenuItem key={source} value={source}>
+              {source}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField label="Review" onChange={(event) => setMemoryReviewFilter(event.target.value)} select value={memoryReviewFilter}>
+          {memoryReviews.map((reviewState) => (
+            <MenuItem key={reviewState} value={reviewState}>
+              {reviewState}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField label="Agent role" onChange={(event) => setMemoryRoleFilter(event.target.value)} select value={memoryRoleFilter}>
+          {memoryRoles.map((role) => (
+            <MenuItem key={role} value={role}>
+              {role}
+            </MenuItem>
+          ))}
+        </TextField>
       </Stack>
       <Typography color="text.secondary" variant="body2">
         {selectedSubjectId === "all" ? "Showing all namespaces." : "Filtered to the selected subject."}
       </Typography>
+      <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
+        <Chip label={`Memory entries: ${String(entryMemorySummary.withMemory)}`} size="small" variant="outlined" />
+        <Chip label={`Short-term: ${String(entryMemorySummary.byTier["short-term"])}`} size="small" variant="outlined" />
+        <Chip label={`Medium-term: ${String(entryMemorySummary.byTier["medium-term"])}`} size="small" variant="outlined" />
+        <Chip label={`Long-term: ${String(entryMemorySummary.byTier["long-term"])}`} size="small" variant="outlined" />
+        <Chip label={`Archive: ${String(entryMemorySummary.byTier.archive)}`} size="small" variant="outlined" />
+      </Stack>
       <TableShell elevation={0}>
         <Table size="small">
           <TableHead>
@@ -82,6 +142,7 @@ export function EntriesTable({
               <TableCell>Entry</TableCell>
               <TableCell>Kind</TableCell>
               <TableCell>Namespace</TableCell>
+              <TableCell>Memory</TableCell>
               <TableCell>Updated</TableCell>
               <TableCell>Tags</TableCell>
             </TableRow>
@@ -89,7 +150,7 @@ export function EntriesTable({
           <TableBody>
             {visibleEntries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5}>
+                <TableCell colSpan={6}>
                   <Typography color="text.secondary" variant="body2">
                     No entries match the current filters.
                   </Typography>
@@ -121,6 +182,7 @@ export function EntriesTable({
                       <Chip color="primary" label={entry.kind} size="small" />
                     </TableCell>
                     <TableCell>{entry.namespace}</TableCell>
+                    <TableCell>{renderMemoryChip(entry)}</TableCell>
                     <TableCell>{formatDateTime(entry.updatedAt)}</TableCell>
                     <TableCell>
                       <Stack direction="row" flexWrap="wrap" spacing={0.5} useFlexGap>
@@ -150,6 +212,15 @@ export function EntriesTable({
       </TableShell>
     </Stack>
   );
+}
+
+function renderMemoryChip(entry: KnowledgeEntry) {
+  const memory = entry.content.memory;
+  if (memory === undefined) {
+    return <Chip label="none" size="small" variant="outlined" />;
+  }
+
+  return <Chip label={`${memory.tier} · ${memory.reviewState}`} size="small" variant="outlined" />;
 }
 
 const TableShell = styled(Paper)(({ theme }) => ({

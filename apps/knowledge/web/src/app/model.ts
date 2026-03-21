@@ -64,6 +64,100 @@ export function filterEntries(entries: KnowledgeEntry[], subjectId: string, kind
   });
 }
 
+export interface KnowledgeBrowseFilters {
+  readonly agentRole: string;
+  readonly kind: string;
+  readonly reviewState: string;
+  readonly search: string;
+  readonly sourceType: string;
+  readonly subjectId: string;
+  readonly tier: string;
+}
+
+export function filterKnowledgeEntries(entries: KnowledgeEntry[], filters: KnowledgeBrowseFilters): KnowledgeEntry[] {
+  const normalizedSearch = filters.search.trim().toLowerCase();
+
+  return entries.filter((entry) => {
+    return matchesSubject(entry, filters.subjectId)
+      && matchesKind(entry, filters.kind)
+      && matchesMemoryTier(entry, filters.tier)
+      && matchesMemoryReview(entry, filters.reviewState)
+      && matchesMemorySource(entry, filters.sourceType)
+      && matchesMemoryAgentRole(entry, filters.agentRole)
+      && matchesSearch(entry, normalizedSearch);
+  });
+}
+
+export function findRelatedKnowledgeEntries(entries: KnowledgeEntry[], entryId: string | null): KnowledgeEntry[] {
+  if (entryId === null) {
+    return [];
+  }
+
+  const entry = entries.find((item) => item.id === entryId);
+  if (entry === undefined) {
+    return [];
+  }
+
+  return entries.filter((candidate) => candidate.id !== entry.id && areEntriesRelated(entry, candidate)).slice(0, 8);
+}
+
+function matchesSubject(entry: KnowledgeEntry, subjectId: string): boolean {
+  return subjectId === "all" || entry.subjectId === subjectId;
+}
+
+function matchesKind(entry: KnowledgeEntry, kind: string): boolean {
+  return kind === "all" || entry.kind === kind;
+}
+
+function matchesMemoryTier(entry: KnowledgeEntry, tier: string): boolean {
+  return tier === "all" || entry.content.memory?.tier === tier;
+}
+
+function matchesMemoryReview(entry: KnowledgeEntry, reviewState: string): boolean {
+  return reviewState === "all" || entry.content.memory?.reviewState === reviewState;
+}
+
+function matchesMemorySource(entry: KnowledgeEntry, sourceType: string): boolean {
+  return sourceType === "all" || entry.content.memory?.sourceType === sourceType;
+}
+
+function matchesMemoryAgentRole(entry: KnowledgeEntry, agentRole: string): boolean {
+  const memory = entry.content.memory;
+
+  return agentRole === "all" || memory === undefined || memory.agentRoles.length === 0 || memory.agentRoles.includes(agentRole);
+}
+
+function matchesSearch(entry: KnowledgeEntry, normalizedSearch: string): boolean {
+  if (normalizedSearch.length === 0) {
+    return true;
+  }
+
+  const memory = entry.content.memory;
+  return `${entry.title} ${entry.content.abstract} ${entry.tags.join(" ")} ${memory?.tier ?? ""} ${memory?.sourceType ?? ""}`.toLowerCase().includes(normalizedSearch);
+}
+
+function areEntriesRelated(left: KnowledgeEntry, right: KnowledgeEntry): boolean {
+  if (left.subjectId === right.subjectId && left.subjectId !== undefined) {
+    return true;
+  }
+
+  if (left.namespace === right.namespace) {
+    return true;
+  }
+
+  if (left.tags.some((tag) => right.tags.includes(tag))) {
+    return true;
+  }
+
+  const leftMemory = left.content.memory;
+  const rightMemory = right.content.memory;
+  if (leftMemory?.agentRoles.some((role) => rightMemory?.agentRoles.includes(role) === true) === true) {
+    return true;
+  }
+
+  return false;
+}
+
 export function buildEntryInput(formState: {
   abstract: string;
   importance: string;

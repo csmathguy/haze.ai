@@ -21,7 +21,7 @@ import { EntriesTable } from "./components/EntriesTable.js";
 import { KnowledgeDrawer } from "./components/KnowledgeDrawer.js";
 import { SubjectsPanel } from "./components/SubjectsPanel.js";
 import { SummaryStrip } from "./components/SummaryStrip.js";
-import { filterEntries, refreshWorkspace, runMutation } from "./model.js";
+import { filterKnowledgeEntries, findRelatedKnowledgeEntries, refreshWorkspace, runMutation } from "./model.js";
 
 type DrawerMode = "create" | "detail" | null;
 
@@ -44,7 +44,9 @@ export function App({
             onCreateResearch={() => {
               controller.openDrawer("create");
             }}
-            onRepoSync={controller.handleRepoSync}
+            onRepoSync={async () => {
+              await controller.handleRepoSync();
+            }}
           />
           {controller.successMessage === null ? null : <Alert severity="success">{controller.successMessage}</Alert>}
           {controller.errorMessage === null ? null : <Alert severity="error">{controller.errorMessage}</Alert>}
@@ -65,6 +67,11 @@ export function App({
               <Panel>
                 <EntriesTable
                   entries={controller.filteredEntries}
+                  entryMemorySummary={controller.entryMemorySummary}
+                  memoryRoleFilter={controller.memoryRoleFilter}
+                  memoryReviewFilter={controller.memoryReviewFilter}
+                  memorySourceFilter={controller.memorySourceFilter}
+                  memoryTierFilter={controller.memoryTierFilter}
                   kindFilter={controller.kindFilter}
                   onCreateResearch={() => {
                     controller.openDrawer("create");
@@ -76,6 +83,10 @@ export function App({
                   selectedEntryId={controller.selectedEntry?.id ?? null}
                   selectedSubjectId={controller.selectedSubjectId}
                   setKindFilter={controller.setKindFilter}
+                  setMemoryRoleFilter={controller.setMemoryRoleFilter}
+                  setMemoryReviewFilter={controller.setMemoryReviewFilter}
+                  setMemorySourceFilter={controller.setMemorySourceFilter}
+                  setMemoryTierFilter={controller.setMemoryTierFilter}
                   setSearch={controller.setSearch}
                 />
               </Panel>
@@ -88,6 +99,7 @@ export function App({
             onClose={controller.closeDrawer}
             onCreateEntry={controller.handleEntryCreate}
             onModeChange={controller.setDrawerMode}
+            relatedEntries={controller.relatedEntries}
             subjects={controller.workspace?.subjects ?? []}
           />
         </Stack>
@@ -100,6 +112,10 @@ function useKnowledgeWorkspaceController() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(true);
   const [kindFilter, setKindFilter] = useState("all");
+  const [memoryRoleFilter, setMemoryRoleFilter] = useState("all");
+  const [memoryTierFilter, setMemoryTierFilter] = useState("all");
+  const [memorySourceFilter, setMemorySourceFilter] = useState("all");
+  const [memoryReviewFilter, setMemoryReviewFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
@@ -109,14 +125,23 @@ function useKnowledgeWorkspaceController() {
   const [drawerEntryId, setDrawerEntryId] = useState<string | null>(null);
 
   const deferredSearch = useDeferredValue(search);
-  const filteredEntries = useMemo(() => filterEntries(workspace?.entries ?? [], selectedSubjectId, kindFilter, deferredSearch), [
-    deferredSearch,
-    kindFilter,
-    selectedSubjectId,
-    workspace?.entries
-  ]);
+  const filteredEntries = useMemo(
+    () =>
+      filterKnowledgeEntries(workspace?.entries ?? [], {
+        agentRole: memoryRoleFilter,
+        kind: kindFilter,
+        reviewState: memoryReviewFilter,
+        search: deferredSearch,
+        sourceType: memorySourceFilter,
+        subjectId: selectedSubjectId,
+        tier: memoryTierFilter
+      }),
+    [deferredSearch, kindFilter, memoryReviewFilter, memoryRoleFilter, memorySourceFilter, memoryTierFilter, selectedSubjectId, workspace?.entries]
+  );
+  const relatedEntries = useMemo(() => findRelatedKnowledgeEntries(workspace?.entries ?? [], selectedEntryId), [selectedEntryId, workspace?.entries]);
   const selectedEntry = filteredEntries.find((entry) => entry.id === selectedEntryId) ?? null;
   const drawerEntry = workspace?.entries.find((entry) => entry.id === drawerEntryId) ?? null;
+  const entryMemorySummary = useMemo(() => summarizeMemoryEntries(filteredEntries), [filteredEntries]);
 
   useEffect(() => {
     void refreshWorkspace(setErrorMessage, setIsBusy, setWorkspace);
@@ -129,6 +154,7 @@ function useKnowledgeWorkspaceController() {
     },
     drawerEntry,
     drawerMode,
+    entryMemorySummary,
     errorMessage,
     filteredEntries,
     handleEntryCreate: async (input: CreateKnowledgeEntryDraftInput) =>
@@ -160,6 +186,10 @@ function useKnowledgeWorkspaceController() {
       }),
     isBusy,
     kindFilter,
+    memoryRoleFilter,
+    memoryReviewFilter,
+    memorySourceFilter,
+    memoryTierFilter,
     openDrawer: (mode: Exclude<DrawerMode, null>, entry?: KnowledgeEntry) => {
       setDrawerMode(mode);
       setDrawerEntryId(entry?.id ?? null);
@@ -167,17 +197,44 @@ function useKnowledgeWorkspaceController() {
         setSelectedEntryId(entry.id);
       }
     },
+    relatedEntries,
     search,
     selectedEntry,
     selectedSubjectId,
     setDrawerMode,
     setKindFilter,
+    setMemoryRoleFilter,
+    setMemoryReviewFilter,
+    setMemorySourceFilter,
+    setMemoryTierFilter,
     setSearch,
     setSelectedEntryId,
     setSelectedSubjectId,
     successMessage,
     workspace
   };
+}
+
+function summarizeMemoryEntries(entries: KnowledgeEntry[]) {
+  return entries.reduce(
+    (summary, entry) => {
+      const memory = entry.content.memory;
+      if (memory !== undefined) {
+        summary.withMemory += 1;
+        summary.byTier[memory.tier] += 1;
+      }
+      return summary;
+    },
+    {
+      byTier: {
+        archive: 0,
+        "long-term": 0,
+        "medium-term": 0,
+        "short-term": 0
+      },
+      withMemory: 0
+    }
+  );
 }
 
 function Header({
