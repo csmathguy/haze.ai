@@ -23,7 +23,7 @@ export async function buildApp(options: WorkflowPersistenceOptions = {}) {
   });
 
   registerHealthRoutes(app);
-  registerWorkflowRoutes(app);
+  registerWorkflowRoutes(app, { databaseUrl: options.databaseUrl });
 
   return app;
 }
