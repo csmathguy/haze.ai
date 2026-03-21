@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import type {
   WorkflowDefinition,
   WorkflowRun,
@@ -8,6 +7,12 @@ import type {
   WorkflowEvent,
   ParallelStep
 } from "./workflow-schemas.js";
+import {
+  handleStepFailure,
+  handleConditionStep,
+  advanceToNextLinearStep,
+  handleApprovalResponse
+} from "./workflow-step-advance.js";
 
 /**
  * Pure state machine for workflow orchestration.
@@ -80,7 +85,7 @@ export class WorkflowEngine {
 
     // Handle step failure with retry logic
     if (stepResult.type === "failure") {
-      return this.handleStepFailure(run, stepResult, definition, now);
+      return handleStepFailure(run, stepResult, definition, now);
     }
 
     // Create next run state with updated timestamp
@@ -88,10 +93,9 @@ export class WorkflowEngine {
       ...run,
       updatedAt: now
     };
-    const effects: WorkflowEffect[] = [];
 
     // Update context with step output
-    if (isSuccessStepResult(stepResult) && stepResult.output !== undefined && run.currentStepId) {
+    if (stepResult.output && run.currentStepId) {
       const stepKey = `step_${run.currentStepId}`;
       nextRun.contextJson = {
         ...nextRun.contextJson,
@@ -102,181 +106,14 @@ export class WorkflowEngine {
     // Handle condition steps
     const currentStep = definition.steps.find((s) => s.id === run.currentStepId);
     if (currentStep?.type === "condition") {
-      const conditionResult = this.handleConditionStep(
-        nextRun,
-        currentStep as never,
-        stepResult
-      );
+      const conditionResult = handleConditionStep(nextRun, currentStep as unknown as Record<string, unknown>, stepResult);
       if (conditionResult) {
         return conditionResult;
       }
     }
 
     // Advance to next step in sequence
-    return this.advanceToNextStep(nextRun, definition, effects, now);
-  }
-
-  private handleStepFailure(
-    run: WorkflowRun,
-    stepResult: Extract<StepResult, { type: "failure" }>,
-    definition: WorkflowDefinition,
-    now: string
-  ): WorkflowRunEffect {
-    const nextRun: WorkflowRun = {
-      ...run,
-      updatedAt: now
-    };
-    const effects: WorkflowEffect[] = [];
-
-    const currentStep = definition.steps.find((s) => s.id === run.currentStepId);
-    const retryPolicy = currentStep && "retryPolicy" in currentStep
-      ? currentStep.retryPolicy
-      : definition.retryPolicy;
-
-    const retryCountKey = `retry_count_${String(run.currentStepId)}`;
-    const currentRetryCount = nextRun.contextJson[retryCountKey] as number;
-
-    if (retryPolicy && currentRetryCount < retryPolicy.maxRetries) {
-      nextRun.contextJson = {
-        ...nextRun.contextJson,
-        [retryCountKey]: currentRetryCount + 1
-      };
-
-      if (currentStep) {
-        effects.push({
-          type: "execute-step",
-          step: currentStep
-        });
-      }
-
-      return { nextRun, effects };
-    }
-
-    nextRun.status = "failed";
-    nextRun.completedAt = now;
-    const errorMessage = stepResult.error.message;
-    const errorCode = stepResult.error.code;
-    effects.push({
-      type: "fail-run",
-      error: {
-        message: errorMessage,
-        ...(errorCode !== undefined && { code: errorCode })
-      }
-    });
-
-    return { nextRun, effects };
-  }
-
-  private handleConditionStep(
-    run: WorkflowRun,
-    conditionStep: never,
-    stepResult: Extract<StepResult, { type: "success" }>
-  ): WorkflowRunEffect | undefined {
-    const branchResult = stepResult.output?.branch as string | undefined;
-    const currentStepId = run.currentStepId ?? "";
-
-    const branchKey = branchResult === "true" ? "trueBranch" : "falseBranch";
-    const branch = (conditionStep as Record<string, unknown>)[branchKey] as never[] | undefined;
-
-    if (branch && branch.length > 0) {
-      const firstBranchStep = branch[0] as never;
-      const stepId = (firstBranchStep as Record<string, unknown>).id as string;
-
-      const nextRun: WorkflowRun = {
-        ...run,
-        currentStepId: stepId,
-        contextJson: {
-          ...run.contextJson,
-          [`condition_${currentStepId}_branch`]: branchResult,
-          [`__pendingSteps_${currentStepId}`]: branch
-        }
-      };
-
-      return {
-        nextRun,
-        effects: [{
-          type: "execute-step",
-          step: firstBranchStep
-        }]
-      };
-    }
-
-    return undefined;
-  }
-
-  private advanceToNextStep(
-    run: WorkflowRun,
-    definition: WorkflowDefinition,
-    _effects: WorkflowEffect[],
-    now: string
-  ): WorkflowRunEffect {
-    const currentStepIndex = definition.steps.findIndex((s) => s.id === run.currentStepId);
-
-    if (currentStepIndex === -1 || currentStepIndex + 1 >= definition.steps.length) {
-      // No next step - complete the workflow
-      return {
-        nextRun: {
-          ...run,
-          status: "completed",
-          completedAt: now
-        },
-        effects: [{
-          type: "complete-run",
-          output: run.contextJson
-        }]
-      };
-    }
-
-    const nextStep = definition.steps[currentStepIndex + 1];
-
-    if (nextStep === undefined) {
-      return {
-        nextRun: {
-          ...run,
-          status: "completed",
-          completedAt: now
-        },
-        effects: [{
-          type: "complete-run",
-          output: run.contextJson
-        }]
-      };
-    }
-
-    if (nextStep.type === "approval") {
-      const approvalPrompt = ((nextStep as Record<string, unknown>).prompt as string | undefined) ?? "Approval required";
-      return {
-        nextRun: {
-          ...run,
-          currentStepId: nextStep.id,
-          status: "paused"
-        },
-        effects: [{
-          type: "create-approval",
-          stepId: nextStep.id,
-          prompt: approvalPrompt
-        }]
-      };
-    }
-
-    if (nextStep.type === "parallel") {
-      return this.executeParallelStep(
-        { ...run, currentStepId: nextStep.id },
-        nextStep
-      );
-    }
-
-    // Normal step - advance to it
-    return {
-      nextRun: {
-        ...run,
-        currentStepId: nextStep.id
-      },
-      effects: [{
-        type: "execute-step",
-        step: nextStep
-      }]
-    };
+    return advanceToNextLinearStep(nextRun, definition, now, this.executeParallelStep.bind(this));
   }
 
   /**
@@ -292,25 +129,17 @@ export class WorkflowEngine {
     const now = new Date().toISOString();
     const nextRun: WorkflowRun = {
       ...run,
-      updatedAt: now
-    };
-
-    // Update context with event
-    nextRun.contextJson = {
-      ...nextRun.contextJson,
-      lastEvent: {
-        type: event.type,
-        payload: event.payload,
-        receivedAt: now
+      updatedAt: now,
+      contextJson: {
+        ...run.contextJson,
+        lastEvent: { type: event.type, payload: event.payload, receivedAt: now }
       }
     };
 
-    // Handle approval.responded event
     if (event.type === "approval.responded" && definition) {
-      return this.handleApprovalResponse(nextRun, event, definition, now);
+      return handleApprovalResponse({ run: nextRun, event, definition, now, executeParallel: this.executeParallelStep.bind(this) });
     }
 
-    // Default behavior: emit processed event
     nextRun.status = "running";
     return {
       nextRun,
@@ -318,117 +147,6 @@ export class WorkflowEngine {
         type: "emit-event",
         eventType: `${event.type}-processed`,
         payload: { runId: run.id }
-      }]
-    };
-  }
-
-  private handleApprovalResponse(
-    run: WorkflowRun,
-    event: WorkflowEvent,
-    definition: WorkflowDefinition,
-    now: string
-  ): WorkflowRunEffect {
-    const decision = event.payload?.decision as string | undefined;
-
-    if (decision === "rejected") {
-      return {
-        nextRun: {
-          ...run,
-          status: "failed",
-          completedAt: now
-        },
-        effects: [{
-          type: "fail-run",
-          error: {
-            message: "Approval rejected",
-            code: "APPROVAL_REJECTED"
-          }
-        }]
-      };
-    }
-
-    if (decision === "approved") {
-      return this.advanceAfterApproval(run, definition, now);
-    }
-
-    // Fallback for unknown decision
-    return {
-      nextRun: run,
-      effects: []
-    };
-  }
-
-  private advanceAfterApproval(
-    run: WorkflowRun,
-    definition: WorkflowDefinition,
-    now: string
-  ): WorkflowRunEffect {
-    const currentStepIndex = definition.steps.findIndex((s) => s.id === run.currentStepId);
-
-    if (currentStepIndex === -1 || currentStepIndex + 1 >= definition.steps.length) {
-      // No more steps - complete workflow
-      return {
-        nextRun: {
-          ...run,
-          status: "completed",
-          completedAt: now
-        },
-        effects: [{
-          type: "complete-run",
-          output: run.contextJson
-        }]
-      };
-    }
-
-    const nextStep = definition.steps[currentStepIndex + 1];
-
-    if (nextStep === undefined) {
-      return {
-        nextRun: {
-          ...run,
-          status: "completed",
-          completedAt: now
-        },
-        effects: [{
-          type: "complete-run",
-          output: run.contextJson
-        }]
-      };
-    }
-
-    if (nextStep.type === "approval") {
-      const approvalPrompt = ((nextStep as Record<string, unknown>).prompt as string | undefined) ?? "Approval required";
-      return {
-        nextRun: {
-          ...run,
-          currentStepId: nextStep.id,
-          status: "paused"
-        },
-        effects: [{
-          type: "create-approval",
-          stepId: nextStep.id,
-          prompt: approvalPrompt
-        }]
-      };
-    }
-
-    if (nextStep.type === "parallel") {
-      return this.executeParallelStep(
-        { ...run, currentStepId: nextStep.id },
-        nextStep
-      );
-    }
-
-    // Normal step - guaranteed to exist at this point
-    return {
-      nextRun: {
-        ...run,
-        currentStepId: nextStep.id,
-        status: "running"
-      },
-      effects: [{
-        type: "execute-step",
-        step: nextStep
       }]
     };
   }
@@ -636,8 +354,4 @@ export class WorkflowEngine {
   private getBranchOutputKey(parallelStepId: string, branchIndex: number): string {
     return `branch_${parallelStepId}_${String(branchIndex)}_output`;
   }
-}
-
-function isSuccessStepResult(stepResult: StepResult): stepResult is Extract<StepResult, { type: "success" }> {
-  return stepResult.type === "success";
 }

@@ -1,5 +1,5 @@
 import type { WorkflowRun as PrismaWorkflowRun, PrismaClient } from "@taxes/db";
-import type { WorkflowEvent, WorkflowRun } from "@taxes/shared";
+import type { WorkflowEvent, WorkflowRun, WorkflowDefinition } from "@taxes/shared";
 import { WorkflowEngine } from "@taxes/shared";
 
 import { EventBus } from "../event-bus/event-bus.js";
@@ -201,7 +201,7 @@ async function applySignalRunEffects(
   }
 }
 
-function buildWorkflowDefinition(definition: { name: string; version: string; definitionJson: string; triggerEvents: string }): Record<string, unknown> {
+function buildWorkflowDefinition(definition: { name: string; version: string; definitionJson: string; triggerEvents: string }): WorkflowDefinition {
   const definitionJson = JSON.parse(definition.definitionJson) as Record<string, unknown>;
 
   return {
@@ -210,7 +210,7 @@ function buildWorkflowDefinition(definition: { name: string; version: string; de
     triggers: JSON.parse(definition.triggerEvents) as string[],
     inputSchema: {} as never,
     steps: (definitionJson.steps ?? []) as never[]
-  };
+  } as WorkflowDefinition;
 }
 
 export async function cancelRun(
