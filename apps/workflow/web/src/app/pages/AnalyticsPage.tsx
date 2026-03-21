@@ -32,7 +32,7 @@ const getSuccessRateColor = (rate: number): "success" | "warning" | "error" => {
 };
 
 const formatDuration = (ms: number): string => {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 1000) return `${Math.round(ms).toString()}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 };
 
@@ -135,7 +135,7 @@ const DefinitionCard: React.FC<DefinitionCardProps> = ({ definition }) => {
           </Typography>
           <Box sx={{ mt: 0.5 }}>
             <Chip
-              label={`${definition.healthScore}/100`}
+              label={`${definition.healthScore.toString()}/100`}
               color={getHealthScoreColor(definition.healthScore)}
               variant="filled"
             />
@@ -174,6 +174,41 @@ const DefinitionCard: React.FC<DefinitionCardProps> = ({ definition }) => {
   );
 };
 
+interface AnalyticsFiltersProps {
+  analytics: DefinitionMetrics[];
+  selectedDefinition: string;
+  sinceDays: number;
+  onDefinitionChange: (v: string) => void;
+  onSinceDaysChange: (v: number) => void;
+}
+
+const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
+  analytics, selectedDefinition, sinceDays, onDefinitionChange, onSinceDaysChange
+}) => (
+  <Paper sx={{ p: 3, mb: 4 }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+      <FormControl fullWidth size="small">
+        <InputLabel>Definition</InputLabel>
+        <Select value={selectedDefinition} onChange={(e) => { onDefinitionChange(e.target.value); }} label="Definition">
+          <MenuItem value="">All Definitions</MenuItem>
+          {analytics.map((a) => (
+            <MenuItem key={a.definitionName} value={a.definitionName}>{a.definitionName}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <FormControl fullWidth size="small">
+        <InputLabel>Last N Days</InputLabel>
+        <Select value={sinceDays} onChange={(e) => { onSinceDaysChange(e.target.value); }} label="Last N Days">
+          <MenuItem value={7}>7 days</MenuItem>
+          <MenuItem value={14}>14 days</MenuItem>
+          <MenuItem value={30}>30 days</MenuItem>
+          <MenuItem value={90}>90 days</MenuItem>
+        </Select>
+      </FormControl>
+    </Box>
+  </Paper>
+);
+
 export const AnalyticsPage: React.FC = () => {
   const [analytics, setAnalytics] = useState<DefinitionMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,8 +221,7 @@ export const AnalyticsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-      const data = await getWorkflowAnalytics(selectedDefinition || undefined, since);
-      setAnalytics(data);
+      setAnalytics(await getWorkflowAnalytics(selectedDefinition || undefined, since));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch analytics");
     } finally {
@@ -195,9 +229,7 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    void fetchAnalytics();
-  }, [selectedDefinition, sinceDays]);
+  useEffect(() => { void fetchAnalytics(); }, [selectedDefinition, sinceDays]);
 
   const filteredAnalytics = selectedDefinition
     ? analytics.filter((a) => a.definitionName === selectedDefinition)
@@ -207,65 +239,25 @@ export const AnalyticsPage: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4 }}>
         <Typography variant="h4">Workflow Analytics</Typography>
-        <Button
-          startIcon={<RefreshIcon />}
-          onClick={() => { void fetchAnalytics(); }}
-          variant="outlined"
-        >
+        <Button startIcon={<RefreshIcon />} onClick={() => { void fetchAnalytics(); }} variant="outlined">
           Refresh
         </Button>
       </Box>
-
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Definition</InputLabel>
-            <Select
-              value={selectedDefinition}
-              onChange={(e) => { setSelectedDefinition(e.target.value); }}
-              label="Definition"
-            >
-              <MenuItem value="">All Definitions</MenuItem>
-              {analytics.map((a) => (
-                <MenuItem key={a.definitionName} value={a.definitionName}>
-                  {a.definitionName}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth size="small">
-            <InputLabel>Last N Days</InputLabel>
-            <Select
-              value={sinceDays}
-              onChange={(e) => { setSinceDays(e.target.value as number); }}
-              label="Last N Days"
-            >
-              <MenuItem value={7}>7 days</MenuItem>
-              <MenuItem value={14}>14 days</MenuItem>
-              <MenuItem value={30}>30 days</MenuItem>
-              <MenuItem value={90}>90 days</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-      </Paper>
-
-      {loading && (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-          <CircularProgress />
-        </Box>
-      )}
-
+      <AnalyticsFilters
+        analytics={analytics}
+        selectedDefinition={selectedDefinition}
+        sinceDays={sinceDays}
+        onDefinitionChange={setSelectedDefinition}
+        onSinceDaysChange={setSinceDays}
+      />
+      {loading && <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box>}
       {error && <Alert severity="error">{error}</Alert>}
-
       {!loading && !error && filteredAnalytics.length === 0 && (
         <Alert severity="info">No analytics data available for the selected filters</Alert>
       )}
-
-      {!loading && !error && (
-        filteredAnalytics.map((definition: DefinitionMetrics) => (
-          <DefinitionCard key={definition.definitionName} definition={definition} />
-        ))
-      )}
+      {!loading && !error && filteredAnalytics.map((definition: DefinitionMetrics) => (
+        <DefinitionCard key={definition.definitionName} definition={definition} />
+      ))}
     </Container>
   );
 };
