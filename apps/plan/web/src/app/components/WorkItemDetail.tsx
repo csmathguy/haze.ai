@@ -113,6 +113,8 @@ function WorkItemMetaChips({ workItem }: { readonly workItem: WorkItem }) {
       <Chip color="primary" label={workItem.projectKey} />
       <Chip label={workItem.kind} />
       <Chip label={workItem.priority} />
+      <Chip label={`${workItem.tasks.length.toString()} tasks`} variant="outlined" />
+      <Chip label={`${workItem.acceptanceCriteria.length.toString()} criteria`} variant="outlined" />
       {workItem.targetIteration !== undefined ? <Chip label={workItem.targetIteration} /> : null}
       {workItem.auditWorkflowRunId !== undefined ? <Chip color="secondary" label={workItem.auditWorkflowRunId} /> : null}
     </Stack>
@@ -154,7 +156,10 @@ interface ChecklistSectionProps {
 function ChecklistSection({ emptyMessage, items, onToggle, title }: ChecklistSectionProps) {
   return (
     <Stack spacing={1.5}>
-      <Typography variant="h4">{title}</Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+        <Typography variant="h4">{title}</Typography>
+        <Chip label={items.length.toString()} size="small" variant="outlined" />
+      </Stack>
       {items.length === 0 ? (
         <Typography color="text.secondary" variant="body2">
           {emptyMessage}
