@@ -410,6 +410,13 @@ Provide your response as JSON matching the output schema. Include reasoning in a
           providerFamily: context.execution.providerFamily,
           runtimeKind: context.execution.runtimeKind
         }),
+        tokenUsageJson: context.execution.tokenUsage
+          ? JSON.stringify({
+              inputTokens: context.execution.tokenUsage.inputTokens ?? 0,
+              outputTokens: context.execution.tokenUsage.outputTokens ?? 0,
+              totalTokens: context.execution.tokenUsage.totalTokens ?? 0
+            })
+          : null,
         startedAt: new Date(),
         completedAt: new Date()
       }
