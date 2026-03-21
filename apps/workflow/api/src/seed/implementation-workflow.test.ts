@@ -113,14 +113,12 @@ describe("Implementation Workflow Definition", () => {
 
     expect(stepIds).toContain("phase-1-check-planning-item");
     expect(stepIds).toContain("phase-2-create-worktree");
-    expect(stepIds).toContain("phase-2-start-workflow");
     expect(stepIds).toContain("phase-3-implement");
-    expect(stepIds).toContain("phase-4-quality-changed");
+    expect(stepIds).toContain("phase-4-quality-logged");
     expect(stepIds).toContain("phase-4-typecheck");
     expect(stepIds).toContain("phase-5-commit");
     expect(stepIds).toContain("phase-5-push-branch");
     expect(stepIds).toContain("phase-5-sync-pr");
-    expect(stepIds).toContain("phase-5-end-workflow");
   });
 
   it("workflow definition includes different step types", async () => {

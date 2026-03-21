@@ -25,7 +25,6 @@ describe("Implementation Workflow Definition", () => {
 
     // Phase 2
     expect(stepIds).toContain("phase-2-create-worktree");
-    expect(stepIds).toContain("phase-2-start-workflow");
 
     // Phase 3
     expect(stepIds).toContain("phase-3-implement");
@@ -36,7 +35,6 @@ describe("Implementation Workflow Definition", () => {
     // Phase 5
     expect(stepIds).toContain("phase-5-commit");
     expect(stepIds).toContain("phase-5-pr-review");
-    expect(stepIds).toContain("phase-5-end-workflow");
   });
 
   it("should have planning check as condition step", () => {
