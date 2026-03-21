@@ -1,10 +1,11 @@
-import type { PrismaClient } from "@taxes/db";
+import type { PrismaClient, WorkflowRun as PrismaWorkflowRun } from "@taxes/db";
 import type { WorkflowDefinition, WorkflowRun, WorkflowRunEffect, WorkflowEffect, ExecuteStepEffect } from "@taxes/shared";
 import { WorkflowEngine } from "@taxes/shared";
 
 import { EventBus } from "./event-bus.js";
 import { checkForWaitForEventMatches, checkForTimedOutWaitingSteps } from "./wait-for-event-handler.js";
 import { GitHubPrMergedHandler } from "../services/github-pr-merged-handler.js";
+import * as workflowRunService from "../services/workflow-run-service.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
 import { StepExecutionHandler } from "../executor/step-execution-handler.js";
 
@@ -128,7 +129,7 @@ export class WorkflowWorker {
     }
 
     // Try to match against waiting workflow runs
-    const matched = await checkForWaitForEventMatches(this.db, event.type, eventPayload);
+    const matched = await checkForWaitForEventMatches(this.db, event.type, eventPayload, event.correlationId);
     if (matched) {
       await this.eventBus.markProcessed(event.id);
       return;
@@ -195,7 +196,7 @@ export class WorkflowWorker {
         return;
       }
 
-      const payload = this.parseEventPayload(event.payload);
+      const payload = this.parseEventPayload(event.payload, event.id);
       if (payload === null) return;
 
       const step = payload.step as { id: string; type: string; [key: string]: unknown } | undefined;
@@ -221,7 +222,7 @@ export class WorkflowWorker {
       };
 
       const runData = this.convertRunToSchema(run);
-      const handler = new StepExecutionHandler(this.db);
+      const handler = new StepExecutionHandler(this.db, this.planningDatabaseUrl);
       const advanceResult = await handler.executeAndAdvance(correlationId, runData, step, workflowDefinition);
       await this.updateRun(correlationId, advanceResult);
       await this.applyEffects(correlationId, advanceResult.effects, advanceResult.nextRun, workflowDefinition);
@@ -288,16 +289,14 @@ export class WorkflowWorker {
 
       // Start the implementation workflow
       const summary = String(payload.summary) || workItemId;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-      const { run } = await workflowRunService.startRun(this.db, {
+      const startResult: { run: PrismaWorkflowRun } = await workflowRunService.startRun(this.db, {
         definitionName: "implementation",
         input: { workItemId, summary }
       });
 
       // Set the correlation ID to the work item ID
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       await this.db.workflowRun.update({
-        where: { id: run.id as string },
+        where: { id: startResult.run.id },
         data: { correlationId: workItemId }
       });
 
@@ -319,15 +318,6 @@ export class WorkflowWorker {
       return null;
     }
     return parsed;
-  }
-
-  private parseEventPayload(payloadStr: string): Record<string, unknown> | null {
-    try {
-      if (!payloadStr) return {};
-      return JSON.parse(payloadStr) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
   }
 
   private convertRunToSchema(run: { id: string; definitionName: string; version: string; status: string; currentStep: string | null; contextJson: string | null; correlationId: string | null; parentRunId: string | null; startedAt: Date; updatedAt: Date; completedAt: Date | null }) {
@@ -418,7 +408,7 @@ export class WorkflowWorker {
     }
 
     const step = effect.step as { id: string; type: string; [key: string]: unknown };
-    const handler = new StepExecutionHandler(this.db);
+    const handler = new StepExecutionHandler(this.db, this.planningDatabaseUrl);
 
     // Execute the step and get the engine's next state
     const advanceResult = await handler.executeAndAdvance(runId, currentRun, step, definition);

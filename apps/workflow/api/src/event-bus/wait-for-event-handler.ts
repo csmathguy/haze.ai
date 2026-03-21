@@ -1,10 +1,43 @@
 import type { PrismaClient } from "@taxes/db";
+import { WorkflowEngine } from "@taxes/shared";
 
 interface WaitingStepInputData {
   eventType: string;
   expectedAt?: string;
   correlationKey?: string;
   timeoutMs?: number;
+}
+
+function convertRunToSchema(run: {
+  id: string;
+  definitionName: string;
+  version: string;
+  status: string;
+  currentStep: string | null;
+  contextJson: string | null;
+  correlationId: string | null;
+  parentRunId: string | null;
+  startedAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+}) {
+  const contextJson: Record<string, unknown> = run.contextJson
+    ? (JSON.parse(run.contextJson) as Record<string, unknown>)
+    : {};
+
+  return {
+    id: run.id,
+    definitionName: run.definitionName,
+    version: run.version,
+    status: run.status as "running" | "pending" | "paused" | "waiting" | "failed" | "completed" | "cancelled",
+    currentStepId: run.currentStep ?? undefined,
+    contextJson,
+    correlationId: run.correlationId ?? undefined,
+    parentRunId: run.parentRunId ?? undefined,
+    startedAt: run.startedAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    completedAt: run.completedAt?.toISOString()
+  };
 }
 
 /**
@@ -15,16 +48,20 @@ interface WaitingStepInputData {
 export async function checkForWaitForEventMatches(
   db: PrismaClient,
   eventType: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  correlationId?: string | null
 ): Promise<boolean> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-  const waitingStepRuns: Array<{ id: string; runId: string; inputJson: string | null; run: { status: string } }> = await (db as any).workflowStepRun.findMany({
+  const waitingStepRuns: { id: string; runId: string; inputJson: string | null; run: { status: string } }[] = await (db as any).workflowStepRun.findMany({
     where: { stepType: "wait-for-event", completedAt: null },
     include: { run: true }
   });
 
   const matches = waitingStepRuns.filter((stepRun) => {
     if (stepRun.run.status !== "waiting") return false;
+    if (correlationId !== undefined && correlationId !== null && stepRun.runId !== correlationId) {
+      return false;
+    }
     const inputData = JSON.parse(stepRun.inputJson ?? "{}") as WaitingStepInputData;
     return inputData.eventType === eventType;
   });
@@ -32,6 +69,18 @@ export async function checkForWaitForEventMatches(
   if (matches.length === 0) return false;
 
   for (const stepRun of matches) {
+    const run = await db.workflowRun.findUnique({
+      where: { id: stepRun.runId }
+    });
+
+    if (!run) {
+      continue;
+    }
+
+    const engine = new WorkflowEngine();
+    const workflowEvent = { type: eventType, payload };
+    const signalResult = engine.signalRun(convertRunToSchema(run), workflowEvent);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await (db as any).workflowStepRun.update({
       where: { id: stepRun.id },
@@ -44,7 +93,13 @@ export async function checkForWaitForEventMatches(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await (db as any).workflowRun.update({
       where: { id: stepRun.runId },
-      data: { status: "running", updatedAt: new Date() }
+      data: {
+        status: signalResult.nextRun.status,
+        currentStep: signalResult.nextRun.currentStepId ?? null,
+        contextJson: JSON.stringify(signalResult.nextRun.contextJson),
+        updatedAt: new Date(signalResult.nextRun.updatedAt),
+        completedAt: signalResult.nextRun.completedAt ? new Date(signalResult.nextRun.completedAt) : null
+      }
     });
   }
 
@@ -58,7 +113,7 @@ export async function checkForTimedOutWaitingSteps(db: PrismaClient): Promise<vo
   const now = new Date().toISOString();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-  const waitingStepRuns: Array<{ id: string; runId: string; inputJson: string | null; run: { status: string } }> = await (db as any).workflowStepRun.findMany({
+  const waitingStepRuns: { id: string; runId: string; inputJson: string | null; run: { status: string } }[] = await (db as any).workflowStepRun.findMany({
     where: { stepType: "wait-for-event", completedAt: null },
     include: { run: true }
   });

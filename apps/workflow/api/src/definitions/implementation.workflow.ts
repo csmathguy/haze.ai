@@ -5,7 +5,8 @@ import type {
   AgentStep,
   ApprovalStep,
   ConditionStep,
-  ParallelStep
+  ParallelStep,
+  ContextPackStep
 } from "@taxes/shared";
 
 /**
@@ -64,6 +65,16 @@ const planningCheckCondition: ConditionStep = {
         "Work item not found or invalid. Please create a planning work item or provide a valid PLAN-XXX ID before proceeding."
     } as ApprovalStep
   ]
+};
+
+// Phase 1b: Gather rich context
+const gatherContextStep: ContextPackStep = {
+  type: "context-pack",
+  id: "phase-1b-gather-context",
+  label: "Phase 1b: Gather work item and codebase context",
+  outputKey: "contextPack",
+  includeGitDiff: true,
+  includePreviousAttempts: true
 };
 
 // Phase 2: Worktree creation
@@ -363,6 +374,9 @@ export const implementationWorkflow: WorkflowDefinition = {
   steps: [
     // Phase 1
     planningCheckCondition,
+
+    // Phase 1b
+    gatherContextStep,
 
     // Phase 2
     createWorktreeStep,

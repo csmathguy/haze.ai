@@ -584,6 +584,7 @@ model WorkflowStepRun {
   stdout           String?
   stderr           String?
   retryCount       Int      @default(0)
+  tokenUsageJson   String?
   startedAt        DateTime @default(now())
   completedAt      DateTime?
   run              WorkflowRun @relation(fields: [runId], references: [id])

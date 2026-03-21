@@ -129,3 +129,52 @@ export function parseDefinitionJson(definition: WorkflowDefinition): Record<stri
 export function parseTriggers(definition: WorkflowDefinition): string[] {
   return JSON.parse(definition.triggerEvents) as string[];
 }
+
+const StepMetricsSchema = z.object({
+  stepId: z.string(),
+  stepType: z.string(),
+  totalRuns: z.number(),
+  successCount: z.number(),
+  failureCount: z.number(),
+  successRate: z.number(),
+  medianDurationMs: z.number(),
+  p95DurationMs: z.number(),
+  avgRetryCount: z.number(),
+  avgInputTokens: z.number(),
+  avgOutputTokens: z.number()
+});
+
+const DefinitionMetricsSchema = z.object({
+  definitionName: z.string(),
+  totalRuns: z.number(),
+  successRate: z.number(),
+  healthScore: z.number(),
+  steps: z.array(StepMetricsSchema)
+});
+
+export type StepMetrics = z.infer<typeof StepMetricsSchema>;
+export type DefinitionMetrics = z.infer<typeof DefinitionMetricsSchema>;
+
+const AnalyticsResponseSchema = z.object({
+  analytics: z.array(DefinitionMetricsSchema)
+});
+
+export async function getWorkflowAnalytics(
+  definitionName?: string,
+  since?: Date
+): Promise<DefinitionMetrics[]> {
+  const params = new URLSearchParams();
+  if (definitionName) {
+    params.append("definitionName", definitionName);
+  }
+  if (since) {
+    params.append("since", since.toISOString());
+  }
+  const response = await fetch(`/api/workflow/analytics?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workflow analytics: ${response.statusText}`);
+  }
+  const data = (await response.json()) as unknown;
+  const parsed = AnalyticsResponseSchema.parse(data);
+  return parsed.analytics;
+}
