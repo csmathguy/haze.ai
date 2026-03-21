@@ -58,17 +58,30 @@ describe("buildChangedFilePlan", () => {
     expect(plan.typecheckScopes).toEqual(["api", "quality"]);
   });
 
-  it("falls back to the full suite for test and tooling changes", () => {
-    const testPlan = buildChangedFilePlan(["apps/taxes/api/src/index.test.ts"]);
-    const toolingPlan = buildChangedFilePlan(["tools/agent/workflow-log.ts"]);
+  it("falls back to the full suite for direct test file changes", () => {
+    const plan = buildChangedFilePlan(["apps/taxes/api/src/index.test.ts"]);
 
-    expect(testPlan.testCommand).toEqual({
+    expect(plan.testCommand).toEqual({
       kind: "full",
       targets: []
     });
-    expect(toolingPlan.testCommand).toEqual({
-      kind: "full",
-      targets: []
+  });
+
+  it("uses vitest related for tools/ source file changes instead of the full suite", () => {
+    const plan = buildChangedFilePlan(["tools/agent/workflow-log.ts"]);
+
+    expect(plan.testCommand).toEqual({
+      kind: "related",
+      targets: ["tools/agent/workflow-log.ts"]
+    });
+  });
+
+  it("uses vitest related for tools/agent/lib/ changes", () => {
+    const plan = buildChangedFilePlan(["tools/agent/lib/changed-files.ts"]);
+
+    expect(plan.testCommand).toEqual({
+      kind: "related",
+      targets: ["tools/agent/lib/changed-files.ts"]
     });
   });
 

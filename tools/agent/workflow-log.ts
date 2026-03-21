@@ -21,6 +21,7 @@ import {
   createMissingPullRequestMessage,
   getCompletionRequirements
 } from "./lib/pull-request-publish.js";
+import { createRetrospectiveArtifact } from "./lib/retrospective.js";
 import { exportTranscriptIfAvailable } from "./lib/transcript-capture.js";
 
 type CommandName = "end" | "note" | "start";
@@ -152,6 +153,16 @@ async function endWorkflow(workflow: string, status: "failed" | "success", messa
   });
   await clearActiveRun(workflow);
   await clearSessionFile();
+  await captureRetrospective(runId);
+}
+
+async function captureRetrospective(runId: string): Promise<void> {
+  try {
+    const retro = await createRetrospectiveArtifact(runId);
+    process.stdout.write(`Retrospective written: ${retro.paths.outputPath}\n`);
+  } catch {
+    // Non-fatal: retrospective capture failing should not block workflow:end
+  }
 }
 
 function ensureWorkflowCanClose(workflow: string, status: "failed" | "success"): void {

@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     });
 
     linkNodeModules(repoRoot, plan.worktreePath);
+    generatePrismaClient(repoRoot, plan.worktreePath);
 
     if (plan.mergeMain) {
       mergeOriginMain(plan);
@@ -100,6 +101,19 @@ function linkNodeModules(repoRoot: string, worktreePath: string): void {
   // On other platforms, the type argument is ignored and a regular symlink is created.
   symlinkSync(source, target, "junction");
   process.stdout.write(`[worktree] Linked node_modules: ${target} -> ${source}\n`);
+}
+
+function generatePrismaClient(repoRoot: string, worktreePath: string): void {
+  try {
+    execFileSync("node", ["tools/runtime/run-npm.cjs", "run", "prisma:generate"], {
+      cwd: worktreePath,
+      encoding: "utf8",
+      stdio: "pipe"
+    });
+    process.stdout.write(`[worktree] Prisma client generated in ${path.relative(repoRoot, worktreePath)}\n`);
+  } catch {
+    process.stderr.write(`[worktree] Warning: prisma:generate failed — run npm run prisma:generate manually if tests fail.\n`);
+  }
 }
 
 function mergeOriginMain(plan: ReturnType<typeof createParallelTaskPlan>): void {

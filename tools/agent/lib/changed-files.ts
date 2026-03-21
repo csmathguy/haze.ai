@@ -137,7 +137,11 @@ function isArchitectureRuleFile(file: string): boolean {
 }
 
 function isRelatedTestTarget(file: string): boolean {
-  return /^(?:apps|packages)\/.+\.(?:ts|tsx)$/u.test(file);
+  // apps/ and packages/ — vitest related resolves imports from these to their test files
+  if (/^(?:apps|packages)\/.+\.(?:ts|tsx)$/u.test(file)) return true;
+  // tools/ (excluding architecture rules) — lib files have companion test files
+  if (file.startsWith("tools/") && !isArchitectureRuleFile(file) && /\.(?:ts|tsx)$/u.test(file)) return true;
+  return false;
 }
 
 function isDirectTestFile(file: string): boolean {
@@ -148,8 +152,6 @@ function requiresFullTestRun(file: string): boolean {
   return (
     requiresPrismaCheck(file) ||
     isRepositoryWideConfig(file) ||
-    file.startsWith("tools/agent/") ||
-    (file.startsWith("tools/") && !isArchitectureRuleFile(file)) ||
     isDirectTestFile(file)
   );
 }

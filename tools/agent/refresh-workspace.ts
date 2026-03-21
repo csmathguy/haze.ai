@@ -44,6 +44,12 @@ async function main(): Promise<void> {
     "repo:health"
   ]);
 
+  await runShortCommand(checkoutRoot, "agent:worktree:prune", "node", [
+    "tools/runtime/run-npm.cjs",
+    "run",
+    "agent:worktree:prune"
+  ]);
+
   if (options.skipDev) {
     writeInfo("Skipping dev environment start (--skip-dev was provided).");
     return;
