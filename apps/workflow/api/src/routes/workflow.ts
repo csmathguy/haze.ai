@@ -133,6 +133,89 @@ function registerRunListAndCreateRoutes(app: FastifyInstance, databaseUrl?: stri
       throw error;
     }
   });
+
+  app.get("/api/workflow/runs/summary", async (request: FastifyRequest, reply: FastifyReply) => {
+    const prisma = await getWorkflowPrismaClient(databaseUrl);
+    try {
+      const now = new Date();
+      const stalledThresholdMs = 5 * 60 * 1000; // 5 minutes
+
+      // Get all active runs (not completed/failed)
+      const activeRuns = await prisma.workflowRun.findMany({
+        where: {
+          status: {
+            in: ["pending", "running", "waiting"]
+          }
+        },
+        include: {
+          workflowStepRuns: {
+            orderBy: { startedAt: "desc" },
+            take: 1
+          }
+        },
+        orderBy: { startedAt: "desc" },
+        take: 100
+      });
+
+      // Get recent completed/failed runs (last 10)
+      const recentRuns = await prisma.workflowRun.findMany({
+        where: {
+          status: {
+            in: ["completed", "failed", "cancelled"]
+          }
+        },
+        include: {
+          workflowStepRuns: {
+            orderBy: { startedAt: "desc" },
+            take: 1
+          }
+        },
+        orderBy: { completedAt: "desc" },
+        take: 10
+      });
+
+      // Get all pending approvals
+      const pendingApprovals = await prisma.workflowApproval.findMany({
+        where: { status: "pending" }
+      });
+
+      // Count runs by status
+      const counts = await Promise.all([
+        prisma.workflowRun.count({ where: { status: "running" } }),
+        prisma.workflowRun.count({ where: { status: "waiting" } }),
+        prisma.workflowRun.count({ where: { status: "failed" } }),
+        prisma.workflowRun.count({ where: { status: "completed" } })
+      ]);
+
+      const formatRun = (run: typeof activeRuns[0]) => {
+        const lastStepRun = run.workflowStepRuns[0];
+        const isStalled = run.status === "waiting" && (now.getTime() - new Date(run.updatedAt).getTime()) > stalledThresholdMs;
+        const pendingApproval = pendingApprovals.find(a => a.runId === run.id);
+
+        return {
+          id: run.id,
+          definitionName: run.definitionName,
+          status: run.status,
+          currentStep: run.currentStep ?? lastStepRun?.stepId ?? null,
+          startedAt: run.startedAt.toISOString(),
+          elapsedMs: now.getTime() - new Date(run.startedAt).getTime(),
+          isStalled,
+          pendingApprovalId: pendingApproval?.id ?? null
+        };
+      };
+
+      return {
+        counts: {
+          running: counts[0],
+          waiting: counts[1],
+          failed: counts[2],
+          completed: counts[3]
+        },
+        activeRuns: activeRuns.map(formatRun),
+        recentRuns: recentRuns.map(formatRun)
+      };
+    } finally { await prisma.$disconnect(); }
+  });
 }
 
 function registerRunDetailRoutes(app: FastifyInstance, databaseUrl?: string): void {

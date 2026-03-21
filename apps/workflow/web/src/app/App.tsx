@@ -5,15 +5,19 @@ import { WorkflowDefinitionListPage } from "./pages/WorkflowDefinitionListPage.j
 import { WorkflowDefinitionDetailPage } from "./pages/WorkflowDefinitionDetailPage.js";
 import { WorkflowRunListPage } from "./pages/WorkflowRunListPage.js";
 import { WorkflowRunDetailPage } from "./pages/WorkflowRunDetailPage.js";
+import { AnalyticsPage } from "./pages/AnalyticsPage.js";
+import { FleetDashboard } from "./pages/FleetDashboard.js";
 
 export const WorkflowRoutes: React.FC = () => {
   return (
     <Routes>
+      <Route path="/fleet" element={<FleetDashboard />} />
       <Route path="/definitions" element={<WorkflowDefinitionListPage />} />
       <Route path="/definitions/:name" element={<WorkflowDefinitionDetailPage />} />
       <Route path="/runs" element={<WorkflowRunListPage />} />
       <Route path="/runs/:id" element={<WorkflowRunDetailPage />} />
-      <Route path="/" element={<Navigate to="/runs" replace />} />
+      <Route path="/analytics" element={<AnalyticsPage />} />
+      <Route path="/" element={<Navigate to="/fleet" replace />} />
     </Routes>
   );
 };
