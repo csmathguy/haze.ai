@@ -159,7 +159,10 @@ function canSkipStatement(error: unknown, statement: string): boolean {
 }
 
 function isAlreadyExistsError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("already exists");
+  return error instanceof Error && (
+    error.message.includes("already exists") ||
+    error.message.startsWith("duplicate column name:")
+  );
 }
 
 function objectExists(
