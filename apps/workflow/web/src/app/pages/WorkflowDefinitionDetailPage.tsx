@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -48,6 +48,34 @@ interface ContentProps {
 }
 
 const Content: React.FC<ContentProps> = ({ loading, error, definition, selectedRun, onRunSelected }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const element = containerRef.current;
+    if (!element) return;
+
+    const logSize = (label: string) => {
+      console.warn("[workflow-definition-detail]", label, {
+        height: element.offsetHeight,
+        width: element.offsetWidth
+      });
+    };
+
+    logSize("content-mounted");
+
+    const observer = new ResizeObserver(() => {
+      logSize("content-resized");
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [definition?.name, loading, error, selectedRun?.id]);
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
@@ -71,7 +99,7 @@ const Content: React.FC<ContentProps> = ({ loading, error, definition, selectedR
     : undefined;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+    <Container ref={containerRef} maxWidth="lg" sx={{ py: 3, display: "flex", flexDirection: "column", gap: 2 }}>
       <RunSelector definitionName={definition.name} onRunSelected={onRunSelected} />
       <Box sx={{ flex: 1, minHeight: 600, height: 600, position: "relative" }}>
         <WorkflowGraph definition={definition} runOverlay={runOverlay} />
