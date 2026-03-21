@@ -1,7 +1,8 @@
 import type {
   CreateKnowledgeEntryDraftInput,
   CreateKnowledgeSubjectDraftInput,
-  KnowledgeWorkspace
+  KnowledgeWorkspace,
+  UpdateKnowledgeEntryPatchInput
 } from "@taxes/shared";
 
 export async function fetchKnowledgeWorkspace(): Promise<KnowledgeWorkspace> {
@@ -17,6 +18,10 @@ export async function createKnowledgeSubject(input: CreateKnowledgeSubjectDraftI
 
 export async function createKnowledgeEntry(input: CreateKnowledgeEntryDraftInput): Promise<void> {
   await sendJsonRequest("/api/knowledge/entries", "POST", input);
+}
+
+export async function updateKnowledgeEntry(entryId: string, input: UpdateKnowledgeEntryPatchInput): Promise<void> {
+  await sendJsonRequest(`/api/knowledge/entries/${entryId}`, "PATCH", input);
 }
 
 export async function syncRepositoryDocs(): Promise<void> {

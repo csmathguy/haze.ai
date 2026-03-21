@@ -16,12 +16,13 @@ import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import type { CreateKnowledgeEntryDraftInput, CreateKnowledgeSubjectDraftInput, KnowledgeEntry, KnowledgeWorkspace } from "@taxes/shared";
 
-import { createKnowledgeEntry, createKnowledgeSubject, syncRepositoryDocs } from "./api.js";
+import { createKnowledgeEntry, createKnowledgeSubject, syncRepositoryDocs, updateKnowledgeEntry } from "./api.js";
 import { EntriesTable } from "./components/EntriesTable.js";
 import { KnowledgeDrawer } from "./components/KnowledgeDrawer.js";
+import { MemoryReviewPanel } from "./components/MemoryReviewPanel.js";
 import { SubjectsPanel } from "./components/SubjectsPanel.js";
 import { SummaryStrip } from "./components/SummaryStrip.js";
-import { filterKnowledgeEntries, findRelatedKnowledgeEntries, refreshWorkspace, runMutation } from "./model.js";
+import { filterKnowledgeEntries, findMemoryReviewQueue, findRelatedKnowledgeEntries, refreshWorkspace, runMutation } from "./model.js";
 
 type DrawerMode = "create" | "detail" | null;
 
@@ -33,6 +34,21 @@ export function App({
   readonly onColorModeChange: (value: "dark" | "light") => void;
 }) {
   const controller = useKnowledgeWorkspaceController();
+  const handleMemoryApprove = (entry: KnowledgeEntry) => {
+    const promise = controller.handleMemoryApprove(entry);
+    promise.catch((error: unknown) => {
+      console.error(error);
+    });
+  };
+  const handleMemoryReject = (entry: KnowledgeEntry) => {
+    const promise = controller.handleMemoryReject(entry);
+    promise.catch((error: unknown) => {
+      console.error(error);
+    });
+  };
+  const handleMemoryRevise = (entry: KnowledgeEntry) => {
+    controller.handleMemoryRevise(entry);
+  };
 
   return (
     <Shell>
@@ -53,15 +69,27 @@ export function App({
           <SummaryStrip workspace={controller.workspace} />
           <Stack direction={{ lg: "row", xs: "column" }} spacing={2}>
             <Box sx={{ minWidth: { lg: 320, xs: "auto" }, width: { lg: 360, xs: "100%" } }}>
-              <Panel>
-                <SubjectsPanel
-                  isBusy={controller.isBusy}
-                  onCreate={controller.handleSubjectCreate}
-                  selectedSubjectId={controller.selectedSubjectId}
-                  setSelectedSubjectId={controller.setSelectedSubjectId}
-                  subjects={controller.workspace?.subjects ?? []}
-                />
-              </Panel>
+              <Stack spacing={2}>
+                <Panel>
+                  <SubjectsPanel
+                    isBusy={controller.isBusy}
+                    onCreate={async (input) => {
+                      await controller.handleSubjectCreate(input);
+                    }}
+                    selectedSubjectId={controller.selectedSubjectId}
+                    setSelectedSubjectId={controller.setSelectedSubjectId}
+                    subjects={controller.workspace?.subjects ?? []}
+                  />
+                </Panel>
+                <Panel>
+                  <MemoryReviewPanel
+                    entries={controller.reviewQueue}
+                    onApprove={handleMemoryApprove}
+                    onReject={handleMemoryReject}
+                    onRevise={handleMemoryRevise}
+                  />
+                </Panel>
+              </Stack>
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Panel>
@@ -139,6 +167,7 @@ function useKnowledgeWorkspaceController() {
     [deferredSearch, kindFilter, memoryReviewFilter, memoryRoleFilter, memorySourceFilter, memoryTierFilter, selectedSubjectId, workspace?.entries]
   );
   const relatedEntries = useMemo(() => findRelatedKnowledgeEntries(workspace?.entries ?? [], selectedEntryId), [selectedEntryId, workspace?.entries]);
+  const reviewQueue = useMemo(() => findMemoryReviewQueue(workspace?.entries ?? []), [workspace?.entries]);
   const selectedEntry = filteredEntries.find((entry) => entry.id === selectedEntryId) ?? null;
   const drawerEntry = workspace?.entries.find((entry) => entry.id === drawerEntryId) ?? null;
   const entryMemorySummary = useMemo(() => summarizeMemoryEntries(filteredEntries), [filteredEntries]);
@@ -184,6 +213,56 @@ function useKnowledgeWorkspaceController() {
         setSuccessMessage,
         successMessage: "Knowledge subject saved."
       }),
+    handleMemoryApprove: async (entry: KnowledgeEntry) =>
+      runKnowledgeMutation({
+        action: async () =>
+          updateKnowledgeEntry(entry.id, {
+            content: {
+              ...entry.content,
+              memory: entry.content.memory === undefined
+                ? undefined
+                : {
+                    ...entry.content.memory,
+                    lastReactivatedAt: new Date().toISOString(),
+                    reviewState: "approved"
+                  }
+            },
+            lastReviewedAt: new Date().toISOString(),
+            status: "active"
+          }),
+        errorMessage: "Failed to approve the memory.",
+        refresh: async () => refreshWorkspace(setErrorMessage, setIsBusy, setWorkspace),
+        setErrorMessage,
+        setSuccessMessage,
+        successMessage: "Memory approved."
+      }),
+    handleMemoryReject: async (entry: KnowledgeEntry) =>
+      runKnowledgeMutation({
+        action: async () =>
+          updateKnowledgeEntry(entry.id, {
+            content: {
+              ...entry.content,
+              memory: entry.content.memory === undefined
+                ? undefined
+                : {
+                    ...entry.content.memory,
+                    reviewState: "rejected"
+                  }
+            },
+            lastReviewedAt: new Date().toISOString(),
+            status: "archived"
+          }),
+        errorMessage: "Failed to reject the memory.",
+        refresh: async () => refreshWorkspace(setErrorMessage, setIsBusy, setWorkspace),
+        setErrorMessage,
+        setSuccessMessage,
+        successMessage: "Memory rejected."
+      }),
+    handleMemoryRevise: (entry: KnowledgeEntry) => {
+      setSelectedEntryId(entry.id);
+      setDrawerMode("detail");
+      setDrawerEntryId(entry.id);
+    },
     isBusy,
     kindFilter,
     memoryRoleFilter,
@@ -198,6 +277,7 @@ function useKnowledgeWorkspaceController() {
       }
     },
     relatedEntries,
+    reviewQueue,
     search,
     selectedEntry,
     selectedSubjectId,

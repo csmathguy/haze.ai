@@ -101,6 +101,24 @@ export function findRelatedKnowledgeEntries(entries: KnowledgeEntry[], entryId: 
   return entries.filter((candidate) => candidate.id !== entry.id && areEntriesRelated(entry, candidate)).slice(0, 8);
 }
 
+export function findMemoryReviewQueue(entries: KnowledgeEntry[]): KnowledgeEntry[] {
+  return entries
+    .filter((entry) => entry.content.memory !== undefined)
+    .filter((entry) => {
+      const memory = entry.content.memory;
+      return memory !== undefined && (memory.reviewState === "needs-human-review" || memory.reviewState === "auto" || memory.confidence === "low");
+    })
+    .sort((left, right) => {
+      const reviewRank = compareReviewPriority(left.content.memory, right.content.memory);
+      if (reviewRank !== 0) {
+        return reviewRank;
+      }
+
+      return right.updatedAt.localeCompare(left.updatedAt);
+    })
+    .slice(0, 12);
+}
+
 function matchesSubject(entry: KnowledgeEntry, subjectId: string): boolean {
   return subjectId === "all" || entry.subjectId === subjectId;
 }
@@ -156,6 +174,24 @@ function areEntriesRelated(left: KnowledgeEntry, right: KnowledgeEntry): boolean
   }
 
   return false;
+}
+
+function compareReviewPriority(
+  leftMemory: NonNullable<KnowledgeEntry["content"]["memory"]> | undefined,
+  rightMemory: NonNullable<KnowledgeEntry["content"]["memory"]> | undefined
+): number {
+  return rankMemory(leftMemory) - rankMemory(rightMemory);
+}
+
+function rankMemory(memory: NonNullable<KnowledgeEntry["content"]["memory"]> | undefined): number {
+  if (memory === undefined) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  if (memory.reviewState === "needs-human-review") return 0;
+  if (memory.confidence === "low") return 1;
+  if (memory.reviewState === "auto") return 2;
+  return 3;
 }
 
 export function buildEntryInput(formState: {
