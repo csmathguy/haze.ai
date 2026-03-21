@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseCheckoutMode } from "./refresh-workspace.js";
-import { hasPendingCheckoutChanges, selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
+import { hasPendingCheckoutChanges } from "./lib/refresh-workspace-selection.js";
 
 type CheckoutMode = "auto" | "current-worktree" | "main";
 
@@ -27,61 +27,5 @@ describe("parseCheckoutMode", () => {
 
   it("rejects unsupported checkout modes", () => {
     expect(() => parseCheckoutModeTyped("feature")).toThrow(/Unsupported checkout/);
-  });
-});
-
-describe("selectAutoCheckoutRoot", () => {
-  const repositoryRoot = "C:/repo";
-
-  it("keeps the repository root when it is already clean", () => {
-    expect(
-      selectAutoCheckoutRoot({
-        branch: "main",
-        repositoryRoot,
-        rootStatusOutput: "",
-        worktrees: []
-      })
-    ).toBe(repositoryRoot);
-  });
-
-  it("prefers a clean worktree already on the target branch", () => {
-    expect(
-      selectAutoCheckoutRoot({
-        branch: "main",
-        repositoryRoot,
-        rootStatusOutput: " M tools/agent/refresh-workspace.ts\n",
-        worktrees: [
-          { branch: "feature/plan-234", statusOutput: "", worktreePath: "C:/repo/.worktrees/plan-234" },
-          { branch: "main", statusOutput: "", worktreePath: "C:/repo/.worktrees/main" }
-        ]
-      })
-    ).toBe("C:/repo/.worktrees/main");
-  });
-
-  it("falls back to any clean worktree when the target branch is unavailable", () => {
-    expect(
-      selectAutoCheckoutRoot({
-        branch: "main",
-        repositoryRoot,
-        rootStatusOutput: " M tools/agent/refresh-workspace.ts\n",
-        worktrees: [
-          { branch: "feature/plan-234", statusOutput: "", worktreePath: "C:/repo/.worktrees/plan-234" },
-          { branch: "feature/plan-235", statusOutput: " M readme.md\n", worktreePath: "C:/repo/.worktrees/plan-235" }
-        ]
-      })
-    ).toBe("C:/repo/.worktrees/plan-234");
-  });
-
-  it("falls back to the repository root when no clean worktree is available", () => {
-    expect(
-      selectAutoCheckoutRoot({
-        branch: "main",
-        repositoryRoot,
-        rootStatusOutput: " M tools/agent/refresh-workspace.ts\n",
-        worktrees: [
-          { branch: "main", statusOutput: " M readme.md\n", worktreePath: "C:/repo/.worktrees/main" }
-        ]
-      })
-    ).toBe(repositoryRoot);
   });
 });

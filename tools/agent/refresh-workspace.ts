@@ -3,8 +3,7 @@ import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 import { createDevEnvironmentPlan, parseDevEnvironmentArgs, type DevServiceLaunchPlan } from "./lib/dev-environment.js";
 import { ensureMuiDependencyIntegrity } from "./lib/dependency-integrity.js";
-import { parseGitWorktreePorcelain } from "./lib/git-worktree.js";
-import { hasPendingCheckoutChanges, selectAutoCheckoutRoot } from "./lib/refresh-workspace-selection.js";
+import { hasPendingCheckoutChanges } from "./lib/refresh-workspace-selection.js";
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(moduleDirectory, "..", "..");
@@ -19,7 +18,7 @@ interface RefreshOptions {
 
 async function main(): Promise<void> {
   const options = parseArgs();
-  const checkoutRoot = resolveCheckoutRoot(options.checkout, options.branch);
+  const checkoutRoot = resolveCheckoutRoot(options.checkout);
 
   writeInfo("Refreshing the Taxes repository and services...");
   writeInfo(`Using checkout: ${checkoutRoot}`);
@@ -139,10 +138,11 @@ export function ensureOnBranch(checkoutRoot: string, branch: string): void {
   if (show.error !== undefined) throw show.error;
   const currentBranch = show.stdout.trim();
   if (currentBranch === branch) return;
-  writeInfo(`Checkout is on '${currentBranch}'; switching to '${branch}'...`);
-  const checkout = spawnSync("git", ["checkout", branch], { cwd: checkoutRoot, encoding: "utf8", windowsHide: true });
-  if (checkout.error !== undefined) throw checkout.error;
-  if (checkout.status !== 0) throw new Error(`Failed to switch to '${branch}': ${checkout.stderr.trim()}`);
+  throw new Error(
+    `repo:refresh requires the root checkout to be on '${branch}'. ` +
+    `Currently on '${currentBranch}'. ` +
+    `Switch branches first: git checkout ${branch}`
+  );
 }
 
 function assertCheckoutClean(checkoutRoot: string): void {
@@ -338,50 +338,14 @@ function stopProcess(processId: number): void {
   }
 }
 
-export function resolveCheckoutRoot(checkoutMode: RefreshOptions["checkout"], branch: string): string {
-  if (checkoutMode === "main") {
-    return repositoryRoot;
-  }
-
+export function resolveCheckoutRoot(checkoutMode: RefreshOptions["checkout"]): string {
   if (checkoutMode === "current-worktree") {
     return process.cwd();
   }
 
-  const rootStatus = readGitStatus(repositoryRoot);
-  const worktrees = listWorktrees(repositoryRoot).map((worktree) => ({
-    ...worktree,
-    statusOutput: readGitStatus(worktree.worktreePath)
-  }));
-
-  return selectAutoCheckoutRoot({
-    branch,
-    repositoryRoot,
-    rootStatusOutput: rootStatus,
-    worktrees
-  });
-}
-
-function readGitStatus(cwd: string): string {
-  const status = spawnSync("git", ["status", "--short"], {
-    cwd,
-    encoding: "utf8",
-    windowsHide: true
-  });
-
-  if (status.error !== undefined) {
-    throw status.error;
-  }
-
-  return status.stdout;
-}
-
-function listWorktrees(repoRoot: string): { branch: string | null; worktreePath: string }[] {
-  const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"]
-  });
-  return parseGitWorktreePorcelain(output);
+  // Both "auto" and "main" modes use the repository root as the control plane.
+  // The root checkout must be on the target branch — enforced by ensureOnBranch.
+  return repositoryRoot;
 }
 
 async function runLongRunningCommand(command: string, args: string[], checkoutRoot: string): Promise<void> {
