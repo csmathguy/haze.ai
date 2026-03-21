@@ -131,7 +131,6 @@ export async function signalRun(
     throw new Error("Workflow run not found: " + data.runId);
   }
 
-  // Load the workflow definition from the database
   const definition = await workflowDefinitionService.getDefinitionByName(
     prisma,
     run.definitionName
@@ -141,18 +140,9 @@ export async function signalRun(
     throw new Error("Workflow definition not found: " + run.definitionName);
   }
 
-  const definitionJson = JSON.parse(definition.definitionJson) as Record<string, unknown>;
-
-  const workflowDefinition = {
-    name: definition.name,
-    version: definition.version,
-    triggers: JSON.parse(definition.triggerEvents) as string[],
-    inputSchema: {} as never,
-    steps: (definitionJson.steps ?? []) as never[]
-  };
-
   const workflowRun = convertPrismaRunToWorkflowRun(run);
   const engine = new WorkflowEngine();
+  const workflowDefinition = buildWorkflowDefinition(definition);
   const effect = engine.signalRun(workflowRun, data.event, workflowDefinition);
 
   const updatedRun = await prisma.workflowRun.update({
@@ -167,31 +157,59 @@ export async function signalRun(
   });
 
   const eventBus = new EventBus(prisma);
-  for (const eff of effect.effects) {
-    if (eff.type === "emit-event") {
-      await eventBus.emit({
-        workflowRunId: data.runId,
-        eventType: eff.eventType,
-        payload: eff.payload ?? {}
-      });
-    } else if (eff.type === "execute-step") {
-      await eventBus.emit({
-        workflowRunId: data.runId,
-        eventType: "step.execute-requested",
-        payload: { step: eff.step }
-      });
-    } else if (eff.type === "create-approval") {
-      await eventBus.emit({
-        workflowRunId: data.runId,
-        eventType: "approval.created",
-        payload: { stepId: eff.stepId, prompt: eff.prompt }
-      });
-    }
-  }
+  await applySignalRunEffects(eventBus, data.runId, effect.effects);
 
   return {
     run: updatedRun,
     effects: effect.effects as unknown[]
+  };
+}
+
+async function applySignalRunEffects(
+  eventBus: EventBus,
+  runId: string,
+  effects: unknown[]
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const typedEffects = effects as Array<{ type: string; [key: string]: unknown }>;
+  for (const effect of typedEffects) {
+    if (effect.type === "emit-event") {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      await eventBus.emit({
+        workflowRunId: runId,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        eventType: effect.eventType as string,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        payload: (effect.payload ?? {}) as Record<string, unknown>
+      });
+    } else if (effect.type === "execute-step") {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      await eventBus.emit({
+        workflowRunId: runId,
+        eventType: "step.execute-requested",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        payload: { step: effect.step }
+      });
+    } else if (effect.type === "create-approval") {
+      await eventBus.emit({
+        workflowRunId: runId,
+        eventType: "approval.created",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        payload: { stepId: effect.stepId, prompt: effect.prompt }
+      });
+    }
+  }
+}
+
+function buildWorkflowDefinition(definition: { name: string; version: string; definitionJson: string; triggerEvents: string }): Record<string, unknown> {
+  const definitionJson = JSON.parse(definition.definitionJson) as Record<string, unknown>;
+
+  return {
+    name: definition.name,
+    version: definition.version,
+    triggers: JSON.parse(definition.triggerEvents) as string[],
+    inputSchema: {} as never,
+    steps: (definitionJson.steps ?? []) as never[]
   };
 }
 

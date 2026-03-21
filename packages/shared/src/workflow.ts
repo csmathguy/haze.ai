@@ -128,8 +128,7 @@ export class WorkflowEngine {
       ? currentStep.retryPolicy
       : definition.retryPolicy;
 
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    const retryCountKey = `retry_count_${run.currentStepId || "unknown"}`;
+    const retryCountKey = `retry_count_${run.currentStepId ?? "unknown"}`;
     const currentRetryCount = (nextRun.contextJson[retryCountKey] as number) ?? 0;
 
     if (retryPolicy && currentRetryCount < retryPolicy.maxRetries) {
@@ -150,12 +149,15 @@ export class WorkflowEngine {
 
     nextRun.status = "failed";
     nextRun.completedAt = now;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const errorMessage = stepResult.error.message;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const errorCode = stepResult.error.code;
     effects.push({
       type: "fail-run",
       error: {
-        message: stepResult.error.message,
-        ...(stepResult.error.code !== undefined && { code: stepResult.error.code })
+        message: errorMessage,
+        ...(errorCode !== undefined && { code: errorCode })
       }
     });
 
@@ -169,7 +171,7 @@ export class WorkflowEngine {
   ): WorkflowRunEffect | undefined {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const branchResult = stepResult.output?.branch as string | undefined;
-    const currentStepId = run.currentStepId;
+    const currentStepId = run.currentStepId ?? "";
 
     const branchKey = branchResult === "true" ? "trueBranch" : "falseBranch";
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -185,9 +187,7 @@ export class WorkflowEngine {
         currentStepId: stepId,
         contextJson: {
           ...run.contextJson,
-          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           [`condition_${currentStepId}_branch`]: branchResult,
-          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           [`__pendingSteps_${currentStepId}`]: branch
         }
       };
@@ -207,8 +207,7 @@ export class WorkflowEngine {
   private advanceToNextStep(
     run: WorkflowRun,
     definition: WorkflowDefinition,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    effects: WorkflowEffect[],
+    _effects: WorkflowEffect[],
     now: string
   ): WorkflowRunEffect {
     const currentStepIndex = definition.steps.findIndex((s) => s.id === run.currentStepId);
@@ -389,14 +388,14 @@ export class WorkflowEngine {
     }
 
     if (nextStep?.type === "parallel") {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       return this.executeParallelStep(
         { ...run, currentStepId: nextStep.id },
         nextStep as ParallelStep
       );
     }
 
-    // Normal step
+    // Normal step - guaranteed to exist at this point
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     return {
       nextRun: {
         ...run,
@@ -405,7 +404,7 @@ export class WorkflowEngine {
       },
       effects: [{
         type: "execute-step",
-        step: nextStep
+        step: nextStep as never
       }]
     };
   }
