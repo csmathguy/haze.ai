@@ -14,7 +14,7 @@ import {
   writeSummary
 } from "./lib/audit.js";
 import { endExecution, startExecution } from "./lib/execution.js";
-import { resolveNpmCommand, runLoggedCommand } from "./lib/process.js";
+import { resolveNpmCommand, runLoggedCommand, type ResolvedCommand } from "./lib/process.js";
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
@@ -29,87 +29,106 @@ async function main(): Promise<void> {
   }
 }
 
-async function executeSteps(workflow: string, run: InitializedRun, withCoverage: boolean): Promise<boolean> {
-  const packagesDiverged = checkAndEnforceSharedPackagesMerged(workflow);
-  const npmCommand = resolveNpmCommand();
-  const steps = [
-    { args: ["run", "prisma:check"], command: npmCommand, step: "prisma-check" },
-    { args: ["run", "typecheck"], command: npmCommand, step: "typecheck" },
-    { args: ["run", "lint"], command: npmCommand, step: "lint" },
-    { args: ["run", "stylelint"], command: npmCommand, step: "stylelint" },
-    { args: ["run", withCoverage ? "test:coverage" : "test"], command: npmCommand, step: withCoverage ? "test-coverage" : "test" }
-  ];
+interface QualityStep {
+  args: string[];
+  command: ResolvedCommand;
+  step: string;
+}
 
-  const scope = await startExecution(
-    {
-      paths: run.paths,
-      runId: run.runId,
-      summary: run.summary,
-      workflow
-    },
-    {
-      kind: workflow.startsWith("pre-") ? "hook" : "validation",
-      metadata: {
-        withCoverage
-      },
-      name: workflow
+function resolveTestStep(workflow: string, withCoverage: boolean, npmCommand: ResolvedCommand): QualityStep {
+  if (withCoverage) {
+    return { args: ["run", "test:coverage"], command: npmCommand, step: "test-coverage" };
+  }
+
+  // On pre-push, run targeted tests only when infrastructure is unchanged.
+  // Full suite runs when packages/ or prisma/ have changes (schema version risk).
+  if (workflow === "pre-push") {
+    const changedFiles = getChangedFilesSinceMain();
+    const needsFullSuite = changedFiles.some(
+      (f) => f.startsWith("packages/") || f.startsWith("prisma/")
+    );
+
+    if (!needsFullSuite && changedFiles.length > 0) {
+      process.stdout.write(
+        `[quality-gates] Running targeted tests for ${String(changedFiles.length)} changed file(s) (no packages/ or prisma/ changes).\n`
+      );
+      return { args: ["run", "quality:changed", "--", ...changedFiles], command: npmCommand, step: "test-changed" };
     }
+  }
+
+  return { args: ["run", "test"], command: npmCommand, step: "test" };
+}
+
+function getChangedFilesSinceMain(): string[] {
+  try {
+    return execFileSync("git", ["diff", "--name-only", "origin/main...HEAD"], {
+      cwd: process.cwd(),
+      encoding: "utf8"
+    })
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+async function runStepsWithExecution(
+  workflow: string,
+  run: InitializedRun,
+  steps: QualityStep[],
+  withCoverage: boolean
+): Promise<boolean> {
+  const scope = await startExecution(
+    { paths: run.paths, runId: run.runId, summary: run.summary, workflow },
+    { kind: workflow.startsWith("pre-") ? "hook" : "validation", metadata: { withCoverage }, name: workflow }
   );
-  let failed = packagesDiverged;
+  let failed = false;
 
   try {
-    if (packagesDiverged) {
-      // Exit early since packages are stale; all steps would fail anyway due to schema mismatches
-      return failed;
-    }
-
     for (const step of steps) {
       const result = await runLoggedCommand(
-        {
-          paths: run.paths,
-          runId: run.runId,
-          summary: run.summary,
-          workflow
-        },
+        { paths: run.paths, runId: run.runId, summary: run.summary, workflow },
         step
       );
-
-      if (result.exitCode !== 0) {
-        failed = true;
-        break;
-      }
+      if (result.exitCode !== 0) { failed = true; break; }
     }
-
     await endExecution(
-      {
-        paths: run.paths,
-        runId: run.runId,
-        summary: run.summary,
-        workflow
-      },
+      { paths: run.paths, runId: run.runId, summary: run.summary, workflow },
       scope,
-      {
-        status: failed ? "failed" : "success"
-      }
+      { status: failed ? "failed" : "success" }
     );
   } catch (error) {
     await endExecution(
-      {
-        paths: run.paths,
-        runId: run.runId,
-        summary: run.summary,
-        workflow
-      },
+      { paths: run.paths, runId: run.runId, summary: run.summary, workflow },
       scope,
-      {
-        error,
-        status: "failed"
-      }
+      { error, status: "failed" }
     );
     throw error;
   }
 
   return failed;
+}
+
+async function executeSteps(workflow: string, run: InitializedRun, withCoverage: boolean): Promise<boolean> {
+  const packagesDiverged = checkAndEnforceSharedPackagesMerged(workflow);
+
+  if (packagesDiverged) {
+    // Exit early since packages are stale; all steps would fail anyway due to schema mismatches
+    return true;
+  }
+
+  const npmCommand = resolveNpmCommand();
+  const testStep = resolveTestStep(workflow, withCoverage, npmCommand);
+  const steps = [
+    { args: ["run", "prisma:check"], command: npmCommand, step: "prisma-check" },
+    { args: ["run", "typecheck"], command: npmCommand, step: "typecheck" },
+    { args: ["run", "lint"], command: npmCommand, step: "lint" },
+    { args: ["run", "stylelint"], command: npmCommand, step: "stylelint" },
+    testStep
+  ];
+
+  return runStepsWithExecution(workflow, run, steps, withCoverage);
 }
 
 async function finalizeRun(workflow: string, run: InitializedRun, failed: boolean): Promise<void> {

@@ -110,7 +110,8 @@
     "workflow:note": "node ./node_modules/tsx/dist/cli.mjs tools/agent/workflow-log.ts note",
     "workflow:end": "node ./node_modules/tsx/dist/cli.mjs tools/agent/workflow-log.ts end",
     "workflow:run": "node ./node_modules/tsx/dist/cli.mjs tools/workflow/workflow-run.ts",
-    "workflow:run:start": "node tools/workflow/start-workflow-run.cjs"
+    "workflow:run:start": "node tools/workflow/start-workflow-run.cjs",
+    "workflow:token-report": "node ./node_modules/tsx/dist/cli.mjs tools/agent/workflow-token-report.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

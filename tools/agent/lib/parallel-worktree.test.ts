@@ -25,10 +25,10 @@ describe("parseParallelTaskArgs", () => {
     expect(parsed.scopes).toEqual(["packages/shared/src/extraction.ts", "apps/api/src/services"]);
     expect(parsed.baseRef).toBe("HEAD");
     expect(parsed.dryRun).toBe(false);
-    expect(parsed.mergeMain).toBe(false);
+    expect(parsed.mergeMain).toBe(true);
   });
 
-  it("accepts the merge-main flag", () => {
+  it("accepts the no-merge-main flag", () => {
     const parsed = parseParallelTaskArgs([
       "--task",
       "api-contract",
@@ -36,10 +36,10 @@ describe("parseParallelTaskArgs", () => {
       "Define extraction contract",
       "--scope",
       "tools/agent/parallel-worktree.ts",
-      "--merge-main"
+      "--no-merge-main"
     ]);
 
-    expect(parsed.mergeMain).toBe(true);
+    expect(parsed.mergeMain).toBe(false);
   });
 
   it("rejects missing required arguments", () => {

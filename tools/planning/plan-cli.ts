@@ -210,7 +210,8 @@ const MVP_SEED_ITEMS: SeedWorkItem[] = [
 
 async function main(): Promise<void> {
   const [group, action, ...restArgs] = process.argv.slice(2);
-  const commandKey = `${group ?? ""}:${action ?? ""}`;
+  // Support both "group:action" as one arg and "group action" as two args
+  const commandKey = action !== undefined ? `${group ?? ""}:${action}` : (group ?? "");
   const handler = commandHandlers.get(commandKey);
 
   if (handler === undefined) {
