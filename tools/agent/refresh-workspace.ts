@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   writeInfo(`Using checkout: ${checkoutRoot}`);
   assertCheckoutClean(checkoutRoot);
   await runShortCommand(checkoutRoot, "git fetch", "git", ["fetch", options.remote, options.branch]);
-  await runShortCommand(checkoutRoot, "git pull", "git", ["pull", options.remote, options.branch]);
+  await runShortCommand(checkoutRoot, "git pull --ff-only", "git", ["pull", "--ff-only", options.remote, options.branch]);
   await runShortCommand(checkoutRoot, "npm install", "node", [
     "tools/runtime/run-npm.cjs",
     "install"
