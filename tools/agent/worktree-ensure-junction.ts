@@ -137,4 +137,21 @@ if (prismaResult.status !== 0) {
   process.exit(prismaResult.status ?? 1);
 }
 
+// ─── 7. Check for untracked migration conflicts ────────────────────────────
+
+process.stdout.write("[ensure-junction] Checking for untracked migration conflicts...\n");
+
+const migrationsResult = spawnSync(
+  process.platform === "win32" ? "npm.cmd" : "npm",
+  ["run", "db:check-migrations"],
+  { cwd, stdio: "inherit" }
+);
+
+if (migrationsResult.status !== 0) {
+  process.stderr.write(
+    "[ensure-junction] Migration conflict detected. Resolve before merging or pushing.\n"
+  );
+  // Non-fatal: warn but don't block worktree setup
+}
+
 process.stdout.write("[ensure-junction] Done. Worktree is ready.\n");
