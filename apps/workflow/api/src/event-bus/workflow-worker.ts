@@ -221,7 +221,7 @@ export class WorkflowWorker {
       };
 
       const runData = this.convertRunToSchema(run);
-      const handler = new StepExecutionHandler(this.db);
+      const handler = new StepExecutionHandler(this.db, this.planningDatabaseUrl);
       const advanceResult = await handler.executeAndAdvance(correlationId, runData, step, workflowDefinition);
       await this.updateRun(correlationId, advanceResult);
       await this.applyEffects(correlationId, advanceResult.effects, advanceResult.nextRun, workflowDefinition);
