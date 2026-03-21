@@ -107,7 +107,7 @@ export class WorkflowEngine {
     // Handle condition steps
     const currentStep = definition.steps.find((s) => s.id === run.currentStepId);
     if (currentStep?.type === "condition") {
-      const conditionResult = handleConditionStep(nextRun, currentStep as Record<string, unknown>, stepResult);
+      const conditionResult = handleConditionStep(nextRun, currentStep as unknown as Record<string, unknown>, stepResult);
       if (conditionResult) {
         return conditionResult;
       }
