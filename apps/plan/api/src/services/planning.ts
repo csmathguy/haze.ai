@@ -296,3 +296,83 @@ async function maybeAttachPlanRun(
     }
   }) as Promise<StoredPlanWorkItem>;
 }
+
+/**
+ * Updates a work item and emits a workflow event if the status changes to "in-progress".
+ * This is the gateway-friendly version that handles workflow event emission.
+ */
+export async function updateWorkItemAndEmitWorkflowEvent(
+  workItemId: string,
+  input: UpdateWorkItemPatchInput,
+  options: PlanningPersistenceOptions = {}
+): Promise<WorkItem> {
+  // Get the current work item before update to check for status change
+  const prisma = await getPrismaClient(options.databaseUrl);
+  const existingWorkItem = await prisma.planWorkItem.findUnique({
+    include: PLAN_WORK_ITEM_INCLUDE,
+    where: { id: workItemId }
+  });
+
+  if (existingWorkItem === null) {
+    throw new PlanningNotFoundError(`Planning work item ${workItemId} was not found.`);
+  }
+
+  // Perform the update using existing logic
+  const updatedWorkItem = await updateWorkItem(workItemId, input, options);
+
+  // Check if status changed to "in-progress"
+  const newStatus = input.status;
+  if (newStatus === "in-progress" && existingWorkItem.status !== "in-progress") {
+    // Emit workflow event (outside of transaction as we need the workflow DB)
+    await maybeEmitImplementationWorkflowEvent(
+      workItemId,
+      updatedWorkItem.summary || updatedWorkItem.title,
+      options.workflowDatabaseUrl
+    );
+  }
+
+  return updatedWorkItem;
+}
+
+/**
+ * Emits a WorkflowEvent when a work item status changes to "in-progress".
+ * Requires access to the workflow database URL.
+ */
+async function maybeEmitImplementationWorkflowEvent(
+  workItemId: string,
+  summary: string,
+  workflowDatabaseUrl?: string
+): Promise<void> {
+  try {
+    // Skip if no workflow database URL is provided
+    if (!workflowDatabaseUrl) {
+      console.warn(`No workflow database URL provided, skipping event emission for work item ${workItemId}`);
+      return;
+    }
+
+    // Import the client factory from the db package
+    const dbModule = await import("@taxes/db");
+    const workflowPrisma = await dbModule.getPrismaClient(workflowDatabaseUrl);
+
+    try {
+      await workflowPrisma.workflowEvent.create({
+        data: {
+          type: "planning.work_item.status_changed",
+          source: "planning",
+          correlationId: workItemId,
+          payload: JSON.stringify({
+            workItemId,
+            status: "in-progress",
+            summary
+          })
+        }
+      });
+    } finally {
+      // Note: we don't disconnect here to avoid connection pool thrashing
+      // The gateway manages the lifecycle
+    }
+  } catch (error) {
+    // Log but don't throw — workflow event emission is best-effort
+    console.error(`Failed to emit workflow event for work item ${workItemId}:`, error);
+  }
+}

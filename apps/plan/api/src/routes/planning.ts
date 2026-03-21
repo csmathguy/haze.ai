@@ -20,7 +20,7 @@ import {
   PlanningNotFoundError,
   updateAcceptanceCriterionStatus,
   updateTaskStatus,
-  updateWorkItem
+  updateWorkItemAndEmitWorkflowEvent
 } from "../services/planning.js";
 
 export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPersistenceOptions = {}): void {
@@ -93,7 +93,8 @@ function registerWorkItemRoutes(app: FastifyInstance, options: PlanningPersisten
   app.patch("/api/planning/work-items/:workItemId", async (request, reply) => {
     try {
       const input = readBody(request.body, UpdateWorkItemInputSchema);
-      const workItem = await updateWorkItem((request.params as { workItemId: string }).workItemId, input, options);
+      const workItemId = (request.params as { workItemId: string }).workItemId;
+      const workItem = await updateWorkItemAndEmitWorkflowEvent(workItemId, input, options);
 
       return { workItem };
     } catch (error) {
