@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@taxes/db";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
+import { startRun } from "../services/workflow-run-service.js";
 
 export interface ChildWorkflowStepConfig {
   type: "child-workflow";
@@ -116,21 +117,14 @@ export async function executeChildWorkflowStep(
   // Map input from parent context
   const childInput = mapInputFromParentContext(step.inputMapping, parentContextJson);
 
-  // Create the child run with parentRunId
-  const startedAt = new Date().toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const childRun: { id: string } = await (db as any).workflowRun.create({
-    data: {
-      definitionId: childDefinition.id,
-      definitionName: childDefinition.name,
-      version: childDefinition.version,
-      status: "pending",
-      contextJson: JSON.stringify(childInput),
-      parentRunId,
-      startedAt: new Date(startedAt),
-      updatedAt: new Date(startedAt)
-    }
+  // Create the child run via startRun so it gets proper initial state and events emitted
+  const { run: childRun } = await startRun(db, {
+    definitionName: childWorkflowName,
+    input: childInput,
+    parentRunId
   });
+
+  const startedAt = childRun.startedAt.toISOString();
 
   // Update the step run to record the child run ID
   const inputData: Record<string, unknown> = {

@@ -1,17 +1,6 @@
 import { spawnSync } from "child_process";
 import type { PrismaClient } from "@taxes/db";
-import type { WorkflowRun } from "@taxes/shared";
-import { getWorkItemById } from "@taxes/plan-api";
-
-export interface ContextPackStep {
-  type: "context-pack";
-  id: string;
-  label: string;
-  workItemId?: string;
-  outputKey: string;
-  includeGitDiff: boolean;
-  includePreviousAttempts: boolean;
-}
+import type { ContextPackStep, WorkflowRun } from "@taxes/shared";
 
 export interface ContextPackResult {
   workItemId: string;
@@ -19,187 +8,174 @@ export interface ContextPackResult {
   workItemSummary: string;
   acceptanceCriteria: string[];
   tasks: string[];
-  gitDiff: string;
-  changedFiles: string[];
-  previousAttemptSummary?: string;
-  packedAt: string;
-}
-
-export interface ContextPackOptions {
-  db: PrismaClient;
-  run: WorkflowRun;
-  step: ContextPackStep;
-  planningDatabaseUrl: string | undefined;
-}
-
-function resolveWorkItemId(step: ContextPackStep, run: WorkflowRun): string {
-  if (step.workItemId) return step.workItemId;
-  const input = run.contextJson.input;
-  if (input && typeof input === "object") {
-    const id = (input as Record<string, unknown>).workItemId;
-    if (typeof id === "string") return id;
-  }
-  throw new Error(
-    "Unable to determine workItemId: not in step config or contextJson.input"
-  );
-}
-
-function extractStringField(obj: unknown, field: string): string | undefined {
-  if (obj && typeof obj === "object") {
-    const val = (obj as Record<string, unknown>)[field];
-    if (typeof val === "string") return val;
-  }
-  return undefined;
-}
-
-interface WorkItemDetails {
-  workItemTitle: string;
-  workItemSummary: string;
-  acceptanceCriteria: string[];
-  tasks: string[];
-}
-
-async function loadWorkItemDetails(workItemId: string, planningDatabaseUrl: string): Promise<WorkItemDetails> {
-  const workItem = await getWorkItemById(workItemId, { databaseUrl: planningDatabaseUrl });
-
-  if (!workItem) {
-    return { workItemTitle: workItemId, workItemSummary: "", acceptanceCriteria: [], tasks: [] };
-  }
-
-  const acceptanceCriteria: string[] = [];
-  if (Array.isArray(workItem.acceptanceCriteria)) {
-    for (const c of workItem.acceptanceCriteria) {
-      const text = extractStringField(c, "criterion");
-      if (text) acceptanceCriteria.push(text);
-    }
-  }
-
-  const tasks: string[] = [];
-  if (Array.isArray(workItem.tasks)) {
-    for (const t of workItem.tasks) {
-      const text = extractStringField(t, "title");
-      if (text) tasks.push(text);
-    }
-  }
-
-  return {
-    workItemTitle: workItem.title,
-    workItemSummary: workItem.summary,
-    acceptanceCriteria,
-    tasks
-  };
-}
-
-interface GitContext {
-  gitDiff: string;
-  changedFiles: string[];
-}
-
-function gatherGitContext(): GitContext {
-  const changedFiles: string[] = [];
-  let gitDiff = "";
-
-  // eslint-disable-next-line sonarjs/no-os-command-from-path
-  const namesResult = spawnSync("git", ["diff", "origin/main...HEAD", "--name-only"]);
-  if (namesResult.status === 0) {
-    changedFiles.push(...namesResult.stdout.toString().split("\n").filter((l) => l.trim()));
-  }
-
-  // eslint-disable-next-line sonarjs/no-os-command-from-path
-  const statResult = spawnSync("git", ["diff", "origin/main...HEAD", "--stat"]);
-  if (statResult.status === 0) {
-    gitDiff = statResult.stdout.toString();
-    if (gitDiff.length > 5000) {
-      gitDiff = `${gitDiff.substring(0, 5000)}\n[... truncated ...]`;
-    }
-  }
-
-  return { gitDiff, changedFiles };
-}
-
-async function loadPreviousAttemptSummary(
-  db: PrismaClient,
-  run: WorkflowRun,
-  workItemId: string
-): Promise<string | undefined> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const previousRun = await (db as any).workflowRun.findFirst({
-    where: {
-      definitionName: run.definitionName,
-      status: "failed",
-      contextJson: { contains: JSON.stringify(workItemId) }
-    },
-    orderBy: { completedAt: "desc" }
-  }) as { contextJson: string | null } | null;
-
-  const contextJson = previousRun?.contextJson;
-  if (!contextJson) return undefined;
-
-  return parsePreviousRunError(contextJson);
-}
-
-function parsePreviousRunError(contextJson: string): string | undefined {
-  try {
-    const ctx = JSON.parse(contextJson) as Record<string, unknown>;
-    const errorVal = ctx.error;
-    const message =
-      typeof errorVal === "string"
-        ? errorVal
-        : extractStringField(errorVal, "message");
-    return message ? `Previous attempt failed with error: ${message}` : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function tryLoadWorkItem(workItemId: string, url: string): Promise<WorkItemDetails> {
-  return loadWorkItemDetails(workItemId, url).catch((err: unknown) => {
-    console.warn(`Failed to load work item ${workItemId}: ${err instanceof Error ? err.message : String(err)}`);
-    return { workItemTitle: workItemId, workItemSummary: "", acceptanceCriteria: [], tasks: [] };
-  });
-}
-
-async function tryLoadPreviousAttempt(db: PrismaClient, run: WorkflowRun, workItemId: string): Promise<string | undefined> {
-  return loadPreviousAttemptSummary(db, run, workItemId).catch((err: unknown) => {
-    console.warn(`Failed to load previous attempt: ${err instanceof Error ? err.message : String(err)}`);
-    return undefined;
-  });
-}
-
-function tryGatherGit(): GitContext {
-  try {
-    return gatherGitContext();
-  } catch (err) {
-    console.warn(`Failed to gather git diff: ${err instanceof Error ? err.message : String(err)}`);
-    return { gitDiff: "", changedFiles: [] };
-  }
+  gitDiff: string; // truncated to 5000 chars if necessary
+  changedFiles: string[]; // list of changed file paths
+  previousAttemptSummary?: string; // summary of last failed run if available
+  packedAt: string; // ISO timestamp
 }
 
 /**
  * Loads work item from planning database and gathers rich context including
  * git diff, changed files, and previous attempt history.
  */
-export async function executeContextPackStep(options: ContextPackOptions): Promise<ContextPackResult> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const db: PrismaClient = options.db;
-  const run: WorkflowRun = options.run;
-  const step: ContextPackStep = options.step;
-  const planningDatabaseUrl: string | undefined = options.planningDatabaseUrl;
+export async function executeContextPackStep(
+  db: PrismaClient,
+  runId: string,
+  run: WorkflowRun,
+  step: ContextPackStep,
+  planningDatabaseUrl: string | undefined
+): Promise<ContextPackResult> {
+  // Resolve workItemId: from step config or from input context
+  let workItemId = step.workItemId;
+  if (!workItemId && run.contextJson) {
+    const input = run.contextJson.input as Record<string, unknown> | undefined;
+    workItemId = input?.workItemId as string | undefined;
+  }
 
-  const workItemId = resolveWorkItemId(step, run);
-  const workItemDetails = planningDatabaseUrl
-    ? await tryLoadWorkItem(workItemId, planningDatabaseUrl)
-    : { workItemTitle: workItemId, workItemSummary: "", acceptanceCriteria: [], tasks: [] };
+  if (!workItemId) {
+    throw new Error(
+      "Unable to determine workItemId: not provided in step config and not found in contextJson.input"
+    );
+  }
 
-  const { gitDiff, changedFiles } = step.includeGitDiff ? tryGatherGit() : { gitDiff: "", changedFiles: [] };
+  // Fetch work item from planning database if available
+  let workItemTitle = workItemId;
+  let workItemSummary = "";
+  const acceptanceCriteria: string[] = [];
+  const tasks: string[] = [];
 
-  const previousAttemptSummary = step.includePreviousAttempts
-    ? await tryLoadPreviousAttempt(db, run, workItemId)
-    : undefined;
+  if (planningDatabaseUrl) {
+    try {
+      const planningModule = await import("@taxes/plan-api");
+      const workItem = await planningModule.getWorkItemById(workItemId, {
+        databaseUrl: planningDatabaseUrl
+      });
+
+      if (workItem) {
+        workItemTitle = workItem.title;
+        workItemSummary = workItem.summary || "";
+        // Extract acceptance criteria texts
+        if (Array.isArray(workItem.acceptanceCriteria)) {
+          for (const criterion of workItem.acceptanceCriteria) {
+            if (criterion && typeof criterion === "object") {
+              const text = (criterion as Record<string, unknown>).criterion;
+              if (typeof text === "string") {
+                acceptanceCriteria.push(text);
+              }
+            }
+          }
+        }
+        // Extract task texts
+        if (Array.isArray(workItem.tasks)) {
+          for (const task of workItem.tasks) {
+            if (task && typeof task === "object") {
+              const text = (task as Record<string, unknown>).title;
+              if (typeof text === "string") {
+                tasks.push(text);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to load work item ${workItemId} from planning database: ${error instanceof Error ? error.message : String(error)}`
+      );
+      // Continue with minimal context if planning DB fails
+    }
+  }
+
+  // Gather git diff and changed files
+  let gitDiff = "";
+  const changedFiles: string[] = [];
+
+  if (step.includeGitDiff) {
+    try {
+      // Try to get diff between main and HEAD
+      const diffResult = spawnSync("git", [
+        "diff",
+        "origin/main...HEAD",
+        "--name-only"
+      ]);
+
+      if (diffResult.status === 0) {
+        const changedFilesList = diffResult.stdout
+          .toString()
+          .split("\n")
+          .filter((line) => line.trim());
+        changedFiles.push(...changedFilesList);
+      }
+
+      // Get stat summary (total changed files and insertions/deletions)
+      const statResult = spawnSync("git", [
+        "diff",
+        "origin/main...HEAD",
+        "--stat"
+      ]);
+
+      if (statResult.status === 0) {
+        gitDiff = statResult.stdout.toString();
+        // Truncate to first 5000 chars if necessary
+        if (gitDiff.length > 5000) {
+          gitDiff = gitDiff.substring(0, 5000) + "\n[... truncated ...]";
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to gather git diff: ${error instanceof Error ? error.message : String(error)}`
+      );
+      // Continue without git diff if git command fails
+    }
+  }
+
+  // Gather previous attempt summary if available
+  let previousAttemptSummary: string | undefined;
+
+  if (step.includePreviousAttempts) {
+    try {
+      const previousRun = await db.workflowRun.findFirst({
+        where: {
+          definitionName: run.definitionName,
+          status: "failed",
+          contextJson: {
+            contains: JSON.stringify(workItemId)
+          }
+        },
+        orderBy: { completedAt: "desc" }
+      });
+
+      if (previousRun) {
+        try {
+          const previousContext = JSON.parse(previousRun.contextJson);
+          const error = (previousContext as Record<string, unknown>).error;
+          if (typeof error === "string") {
+            previousAttemptSummary = `Previous attempt failed with error: ${error}`;
+          } else if (
+            error &&
+            typeof error === "object" &&
+            "message" in error &&
+            typeof (error as Record<string, unknown>).message === "string"
+          ) {
+            previousAttemptSummary = `Previous attempt failed with error: ${(error as Record<string, unknown>).message}`;
+          }
+        } catch {
+          // Couldn't parse context, skip
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to load previous attempt: ${error instanceof Error ? error.message : String(error)}`
+      );
+      // Continue without previous attempt info
+    }
+  }
 
   return {
     workItemId,
-    ...workItemDetails,
+    workItemTitle,
+    workItemSummary,
+    acceptanceCriteria,
+    tasks,
     gitDiff,
     changedFiles,
     previousAttemptSummary,

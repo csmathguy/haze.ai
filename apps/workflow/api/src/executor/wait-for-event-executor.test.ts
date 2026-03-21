@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { executeWaitForEventStep } from "./wait-for-event-executor.js";
+import { executeWaitForEventStep } from "./wait-for-event-executor.ts";
 import { applyPendingMigrations } from "../db/migrations.js";
 
 describe("WaitForEventExecutor", () => {

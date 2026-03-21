@@ -8,6 +8,7 @@ import * as workflowDefinitionService from "./workflow-definition-service.js";
 export interface StartRunInput {
   definitionName: string;
   input?: unknown;
+  parentRunId?: string;
 }
 
 export interface SignalRunInput {
@@ -54,6 +55,7 @@ export async function startRun(
       status: effect.nextRun.status,
       currentStep: effect.nextRun.currentStepId ?? null,
       contextJson: JSON.stringify(effect.nextRun.contextJson),
+      parentRunId: data.parentRunId ?? null,
       startedAt: new Date(effect.nextRun.startedAt),
       updatedAt: new Date(effect.nextRun.updatedAt)
     }

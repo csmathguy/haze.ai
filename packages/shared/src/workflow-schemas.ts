@@ -156,11 +156,23 @@ export const TimerStepSchema = z.object({
 });
 export type TimerStep = z.infer<typeof TimerStepSchema>;
 
+export const ContextPackStepSchema = z.object({
+  type: z.literal("context-pack"),
+  id: z.string().min(1),
+  label: z.string().optional(),
+  workItemId: z.string().optional(), // if omitted, read from contextJson.input.workItemId
+  outputKey: z.string().default("contextPack"), // key to store result under in contextJson
+  includeGitDiff: z.boolean().default(true),
+  includePreviousAttempts: z.boolean().default(true)
+});
+export type ContextPackStep = z.infer<typeof ContextPackStepSchema>;
+
 export const WorkflowStepSchema: z.ZodType = z.union([
   CommandStepSchema,
   ApprovalStepSchema,
   WaitForEventStepSchema,
-  TimerStepSchema
+  TimerStepSchema,
+  ContextPackStepSchema
 ]);
 export type WorkflowStep =
   | CommandStep
@@ -170,7 +182,8 @@ export type WorkflowStep =
   | ConditionStep
   | ParallelStep
   | ChildWorkflowStep
-  | TimerStep;
+  | TimerStep
+  | ContextPackStep;
 
 // ============================================================================
 // Workflow Definition

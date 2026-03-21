@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getWorkflowPrismaClient } from "../db/client.js";
 import * as agentService from "../services/agent-service.js";
+import * as analyticsService from "../services/analytics-service.js";
 import * as approvalService from "../services/approval-service.js";
 import * as skillService from "../services/skill-service.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
@@ -426,6 +427,30 @@ function registerApprovalRoutes(app: FastifyInstance, databaseUrl?: string): voi
   });
 }
 
+function registerAnalyticsRoutes(app: FastifyInstance, databaseUrl?: string): void {
+  app.get("/api/workflow/analytics", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const params = z.object({
+        definitionName: z.string().optional(),
+        since: z.string().datetime().optional()
+      }).parse(request.query);
+      const prisma = await getWorkflowPrismaClient(databaseUrl);
+      try {
+        const since = params.since ? new Date(params.since) : undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const analytics = await analyticsService.getWorkflowAnalytics(prisma, {
+          ...(params.definitionName !== undefined ? { definitionName: params.definitionName } : {}),
+          ...(since !== undefined ? { since } : {})
+        } as any);
+        return { analytics };
+      } finally { await prisma.$disconnect(); }
+    } catch (error) {
+      if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid query parameters", details: error.issues }; }
+      throw error;
+    }
+  });
+}
+
 export function registerWorkflowRoutes(app: FastifyInstance, options?: { databaseUrl?: string | undefined }): void {
   const db = options?.databaseUrl;
   registerDefinitionRoutes(app, db);
@@ -434,4 +459,5 @@ export function registerWorkflowRoutes(app: FastifyInstance, options?: { databas
   registerAgentRoutes(app, db);
   registerSkillRoutes(app, db);
   registerApprovalRoutes(app, db);
+  registerAnalyticsRoutes(app, db);
 }

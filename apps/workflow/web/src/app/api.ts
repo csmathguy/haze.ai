@@ -228,7 +228,7 @@ export async function cancelWorkflowRun(id: string): Promise<WorkflowRun> {
   return parsed.run;
 }
 
-export async function approveWorkflowRun(approvalId: string, respondedBy: string = "fleet-dashboard"): Promise<void> {
+export async function approveWorkflowRun(approvalId: string, respondedBy = "fleet-dashboard"): Promise<void> {
   const response = await fetch(`/api/workflow/approvals/${encodeURIComponent(approvalId)}/respond`, {
     method: "POST",
     headers: {
