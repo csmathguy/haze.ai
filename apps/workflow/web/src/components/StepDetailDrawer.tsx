@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Drawer as MuiDrawer,
@@ -8,6 +8,7 @@ import {
   Chip,
   Button
 } from "@mui/material";
+import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 
 import type { WorkflowStepRun } from "../app/api.js";
 import type { WorkflowStep } from "./workflow-types.js";
@@ -50,6 +51,84 @@ const monoTypeSx = {
   fontSize: "0.75rem",
   whiteSpace: "pre-wrap",
   wordBreak: "break-word"
+};
+
+const outputBoxSx = {
+  bgcolor: "background.paper",
+  p: 1,
+  borderRadius: 1,
+  border: "1px solid",
+  borderColor: "divider",
+  overflow: "auto",
+  maxHeight: 200,
+  fontSize: "0.75rem",
+  fontFamily: "monospace",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word"
+};
+
+interface StepCommandSectionProps {
+  step: WorkflowStep;
+}
+
+const StepCommandSection: React.FC<StepCommandSectionProps> = ({ step }) => {
+  if (!step.scriptPath) return null;
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="overline" color="textSecondary">Command</Typography>
+      <Box sx={{ p: 1, bgcolor: "action.hover", borderRadius: 1 }}>
+        <Typography variant="caption" sx={monoTypeSx}>{step.scriptPath}</Typography>
+        {step.args && step.args.length > 0 && (
+          <Box sx={{ mt: 0.5 }}>
+            {step.args.map((arg, idx) => (
+              <Typography key={idx} variant="caption" sx={{ ...monoTypeSx, display: "block" }}>
+                {arg}
+              </Typography>
+            ))}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+interface StepOutputSectionProps {
+  label: string;
+  output: string | null;
+  maxHeight?: number;
+}
+
+const StepOutputSection: React.FC<StepOutputSectionProps> = ({ label, output, maxHeight = 200 }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!output) return null;
+
+  const lines = output.split("\n");
+  const maxLines = 10;
+  const isTruncated = lines.length > maxLines;
+  const displayLines = expanded ? lines : lines.slice(0, maxLines);
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="overline" color="textSecondary">{label}</Typography>
+      <Box sx={{ ...outputBoxSx, maxHeight: expanded ? maxHeight : "auto" }}>
+        <Typography variant="caption" sx={monoTypeSx}>
+          {displayLines.join("\n")}
+        </Typography>
+      </Box>
+      {isTruncated && (
+        <Button
+          size="small"
+          startIcon={<ExpandMoreIcon sx={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />}
+          onClick={() => { setExpanded(!expanded); }}
+          sx={{ mt: 0.5 }}
+        >
+          {expanded ? "Show less" : "Show full output"}
+        </Button>
+      )}
+    </Box>
+  );
 };
 
 interface StepRunSectionProps {
@@ -104,6 +183,9 @@ const StepRunSection: React.FC<StepRunSectionProps> = ({ stepRun }) => {
         </Box>
       )}
 
+      <StepOutputSection label="Stdout" output={stepRun.stdout} />
+      <StepOutputSection label="Stderr" output={stepRun.stderr} />
+
       {stepRun.errorJson && (
         <Box sx={{ mb: 2 }}>
           <Typography variant="overline" color="error">Error</Typography>
@@ -136,14 +218,7 @@ const StepDefinitionSection: React.FC<StepDefinitionSectionProps> = ({ step }) =
       <Chip label={step.type} size="small" />
     </Box>
 
-    {step.scriptPath && (
-      <Box>
-        <Typography variant="overline" color="textSecondary">Script Path</Typography>
-        <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: "0.875rem" }}>
-          {step.scriptPath}
-        </Typography>
-      </Box>
-    )}
+    <StepCommandSection step={step} />
 
     {step.agentName && (
       <>

@@ -186,9 +186,30 @@ function registerRunDetailRoutes(app: FastifyInstance, databaseUrl?: string): vo
   });
 }
 
+function registerStepRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
+  app.get("/api/workflow/runs/:runId/steps/:stepId", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { runId, stepId } = z.object({ runId: z.string(), stepId: z.string() }).parse(request.params);
+      const prisma = await getWorkflowPrismaClient(databaseUrl);
+      try {
+        const stepRun = await prisma.workflowStepRun.findFirst({
+          where: { runId, stepId },
+          orderBy: { startedAt: "desc" }
+        });
+        if (!stepRun) { reply.code(404); return { error: "Step run not found" }; }
+        return { stepRun };
+      } finally { await prisma.$disconnect(); }
+    } catch (error) {
+      if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid request params", details: error.issues }; }
+      throw error;
+    }
+  });
+}
+
 function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
   registerRunListAndCreateRoutes(app, databaseUrl);
   registerRunDetailRoutes(app, databaseUrl);
+  registerStepRunRoutes(app, databaseUrl);
 }
 
 function registerEventRoutes(app: FastifyInstance, databaseUrl?: string): void {

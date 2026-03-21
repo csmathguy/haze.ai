@@ -3,6 +3,7 @@ export interface WorkflowStep {
   type: "deterministic" | "agent" | "approval" | "condition" | "wait";
   label: string;
   scriptPath?: string;
+  args?: string[];
   agentName?: string;
   model?: string;
   skills?: string[];

@@ -212,23 +212,41 @@ function convertPrismaRunToWorkflowRun(run: PrismaWorkflowRun): WorkflowRun {
   };
 }
 
+function extractStdoutStderr(outputJson: string | null): { stdout: string | null; stderr: string | null } {
+  if (!outputJson) return { stdout: null, stderr: null };
+  try {
+    const parsed = JSON.parse(outputJson) as Record<string, unknown>;
+    return {
+      stdout: typeof parsed.stdout === "string" ? parsed.stdout : null,
+      stderr: typeof parsed.stderr === "string" ? parsed.stderr : null
+    };
+  } catch {
+    return { stdout: null, stderr: null };
+  }
+}
+
 export function formatRunForApi(run: WorkflowRunWithStepRuns): Record<string, unknown> {
-  const stepRuns = run.workflowStepRuns?.map((sr) => ({
-    id: sr.id,
-    runId: sr.runId,
-    stepId: sr.stepId,
-    stepType: sr.stepType,
-    nodeType: sr.nodeType,
-    agentId: sr.agentId,
-    model: sr.model,
-    skillIds: sr.skillIds,
-    inputJson: sr.inputJson,
-    outputJson: sr.outputJson,
-    errorJson: sr.errorJson,
-    retryCount: sr.retryCount,
-    startedAt: sr.startedAt.toISOString(),
-    completedAt: sr.completedAt?.toISOString() ?? null
-  })) ?? [];
+  const stepRuns = run.workflowStepRuns?.map((sr) => {
+    const { stdout, stderr } = extractStdoutStderr(sr.outputJson);
+    return {
+      id: sr.id,
+      runId: sr.runId,
+      stepId: sr.stepId,
+      stepType: sr.stepType,
+      nodeType: sr.nodeType,
+      agentId: sr.agentId,
+      model: sr.model,
+      skillIds: sr.skillIds,
+      inputJson: sr.inputJson,
+      outputJson: sr.outputJson,
+      errorJson: sr.errorJson,
+      stdout,
+      stderr,
+      retryCount: sr.retryCount,
+      startedAt: sr.startedAt.toISOString(),
+      completedAt: sr.completedAt?.toISOString() ?? null
+    };
+  }) ?? [];
 
   return {
     id: run.id,
