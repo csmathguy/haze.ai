@@ -169,7 +169,7 @@ function getCreatedObjects(sql: string): { name: string; type: "index" | "table"
 
   while (match !== null) {
     const tableName = match[1];
-    if (tableName !== undefined && tableName.length > 0) {
+    if (tableName !== undefined && tableName.length > 0 && !tableName.startsWith("new_")) {
       objects.push({ name: tableName, type: "table" });
     }
     match = createTablePattern.exec(sql);
