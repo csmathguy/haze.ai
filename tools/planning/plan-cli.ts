@@ -17,6 +17,7 @@ import {
 } from "@taxes/shared";
 
 import { PLANNING_DATABASE_URL } from "../../apps/plan/api/src/config.js";
+import { WORKFLOW_DATABASE_URL } from "../../apps/gateway/api/src/config.js";
 import { applyPendingMigrations } from "../../apps/plan/api/src/db/migrations.js";
 import {
   formatUnknownCommandError,
@@ -33,7 +34,7 @@ import {
   getWorkItemById,
   updateAcceptanceCriterionStatus,
   updateTaskStatus,
-  updateWorkItem
+  updateWorkItemAndEmitWorkflowEvent
 } from "../../apps/plan/api/src/services/planning.js";
 import { CODE_REVIEW_SEED_ITEMS } from "./mvp-seed-data.js";
 
@@ -279,12 +280,17 @@ async function handleWorkItemGet(args: string[]): Promise<{ workItem: WorkItem }
   return { workItem };
 }
 
-async function handleWorkItemUpdate(args: string[]): Promise<{ workItem: Awaited<ReturnType<typeof updateWorkItem>> }> {
+async function handleWorkItemUpdate(args: string[]): Promise<{ workItem: Awaited<ReturnType<typeof updateWorkItemAndEmitWorkflowEvent>> }> {
   const workItemId = WorkItemIdSchema.parse(readRequiredFlag(args, "--id"));
   const input = await readJsonFileFlag(args, "--json-file", UpdateWorkItemInputSchema);
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  const workItem = await updateWorkItemAndEmitWorkflowEvent(workItemId, input, {
+    workflowDatabaseUrl: WORKFLOW_DATABASE_URL
+  });
+
   return {
-    workItem: await updateWorkItem(workItemId, input)
+    workItem
   };
 }
 

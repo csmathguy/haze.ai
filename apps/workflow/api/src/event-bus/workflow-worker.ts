@@ -84,6 +84,12 @@ export class WorkflowWorker {
         return;
       }
 
+      // Handle planning work item status changed events that trigger implementation workflows
+      if (event.type === "planning.work_item.status_changed") {
+        await this.handlePlanningWorkItemStatusChangedEvent(event);
+        return;
+      }
+
       // Handle step execute requests emitted by startRun / signalRun service layer
       if (event.type === "step.execute-requested") {
         await this.handleStepExecuteRequestedEvent(event);
@@ -214,6 +220,66 @@ export class WorkflowWorker {
       await handler.handleEvent(fullEvent);
     } catch (error) {
       await this.eventBus.markFailed(event.id, `GitHub PR merged handler error: ${String(error)}`);
+    }
+  }
+
+  private async handlePlanningWorkItemStatusChangedEvent(event: { id: string; type: string; correlationId: string | null; payload: string }): Promise<void> {
+    try {
+      let payload: Record<string, unknown> = {};
+      try {
+        if (event.payload) {
+          payload = JSON.parse(event.payload) as Record<string, unknown>;
+        }
+      } catch (parseError) {
+        await this.eventBus.markFailed(event.id, `Failed to parse event payload: ${String(parseError)}`);
+        return;
+      }
+
+      const workItemId = String(payload.workItemId);
+      if (!workItemId || workItemId === "undefined") {
+        await this.eventBus.markFailed(event.id, "No workItemId in planning.work_item.status_changed payload");
+        return;
+      }
+
+      const status = String(payload.status);
+      if (status !== "in-progress") {
+        await this.eventBus.markProcessed(event.id);
+        return;
+      }
+
+      // Check for existing running or waiting workflow runs with this correlation ID to avoid duplicates
+      const existingRun = await this.db.workflowRun.findFirst({
+        where: {
+          correlationId: workItemId,
+          status: { in: ["running", "waiting"] }
+        }
+      });
+
+      if (existingRun) {
+        console.warn(`Skipping duplicate implementation workflow for work item ${workItemId}: run ${existingRun.id} already exists`);
+        await this.eventBus.markProcessed(event.id);
+        return;
+      }
+
+      // Start the implementation workflow
+      const summary = String(payload.summary) || workItemId;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+      const { run } = await workflowRunService.startRun(this.db, {
+        definitionName: "implementation",
+        input: { workItemId, summary }
+      });
+
+      // Set the correlation ID to the work item ID
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      await this.db.workflowRun.update({
+        where: { id: run.id as string },
+        data: { correlationId: workItemId }
+      });
+
+      await this.eventBus.markProcessed(event.id);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await this.eventBus.markFailed(event.id, `Planning work item status changed handler error: ${errorMsg}`);
     }
   }
 

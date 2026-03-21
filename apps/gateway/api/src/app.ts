@@ -51,7 +51,7 @@ export async function buildGatewayApp(options: GatewayOptions = {}) {
   });
   await app.register(registerTaxesPlugin, { databaseUrl: taxesDb });
   await app.register(registerAuditPlugin, { databaseUrl: auditDb });
-  await app.register(registerPlanPlugin, { databaseUrl: planningDb });
+  await app.register(registerPlanPlugin, { databaseUrl: planningDb, workflowDatabaseUrl: workflowDb });
   await app.register(registerKnowledgePlugin, { databaseUrl: knowledgeDb, docsRoot });
   await app.register(registerCodeReviewPlugin, {
     auditDatabaseUrl: auditDb,
