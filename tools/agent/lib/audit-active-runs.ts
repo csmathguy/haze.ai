@@ -178,7 +178,7 @@ async function acquireActiveRunsLock(): Promise<void> {
       await mkdir(ACTIVE_RUNS_LOCK_PATH);
       return;
     } catch (error) {
-      if (!isAlreadyExists(error)) {
+      if (!isAlreadyExists(error) && !isTransientWindowsPermissionError(error)) {
         throw error;
       }
 
@@ -234,6 +234,13 @@ function isMissingFile(error: unknown): boolean {
 
 function isAlreadyExists(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "EEXIST";
+}
+
+// On Windows, mkdir can return EPERM transiently when another process
+// (antivirus, Explorer, etc.) briefly holds a handle on the parent directory.
+// Treat it as a retryable condition the same way EEXIST is handled.
+function isTransientWindowsPermissionError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "EPERM";
 }
 
 function isJsonSyntaxError(error: unknown): boolean {
