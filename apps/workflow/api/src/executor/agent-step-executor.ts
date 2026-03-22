@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { PrismaClient, WorkflowStepRun, Agent, Skill } from "@taxes/db";
 import type { AgentStep, WorkflowRun } from "@taxes/shared";
 import { parseStreamJson } from "./agent-step-stream-parser.js";
-import type { TokenUsage } from "./agent-step-stream-parser.js";
+import type { TokenUsage, CliStreamResult } from "./agent-step-stream-parser.js";
+import type { ZodType } from "zod";
 
 /**
  * Step execution result emitted by the CLI (stream-json format).
@@ -112,16 +113,8 @@ export class AgentStepExecutor {
     // Verify skills are allowed
     this.verifyAllowedSkills(agent, step);
 
-    // Load skill definitions.
-    // skillIds in step definitions are skill names (e.g. "implementation-workflow"), not cuids.
-    // Try by id first, then fall back to name lookup.
-    const byId = await db.skill.findMany({ where: { id: { in: step.skillIds } } });
-    const foundIds = new Set(byId.map((s) => s.id));
-    const missingNames = step.skillIds.filter((sid) => !foundIds.has(sid));
-    const byName = missingNames.length > 0
-      ? await db.skill.findMany({ where: { name: { in: missingNames } } })
-      : [];
-    const skills = [...byId, ...byName];
+    // Load skill definitions (try by id first, fall back to name lookup).
+    const skills = await this.loadSkills(db, step.skillIds);
 
     // Build the prompt from skill definitions
     const prompt = this.buildPrompt(agent, skills, step, run);
@@ -149,8 +142,8 @@ export class AgentStepExecutor {
       ...(worktreePath !== undefined && { cwd: worktreePath })
     });
 
-    // Parse stream-json output
-    const parsed = parseStreamJson(cliOutput.stdout, step.outputSchema);
+    // Parse stream-json output; on failure, include stdout sample for diagnostics
+    const parsed = this.parseCli(cliOutput.stdout, cliOutput.stderr, step.outputSchema);
 
     const durationMs = Date.now() - startTime;
 
@@ -173,6 +166,29 @@ export class AgentStepExecutor {
       type: "step-completed",
       stepRun
     };
+  }
+
+  private async loadSkills(db: PrismaClient, skillIds: string[]): Promise<Skill[]> {
+    const byId = await db.skill.findMany({ where: { id: { in: skillIds } } });
+    const foundIds = new Set(byId.map((s) => s.id));
+    const missingNames = skillIds.filter((sid) => !foundIds.has(sid));
+    const byName = missingNames.length > 0
+      ? await db.skill.findMany({ where: { name: { in: missingNames } } })
+      : [];
+    return [...byId, ...byName];
+  }
+
+  /** Parses CLI stdout with diagnostic context on failure. */
+  private parseCli(stdout: string[], stderr: string, outputSchema: ZodType): CliStreamResult {
+    try {
+      return parseStreamJson(stdout, outputSchema);
+    } catch (parseError) {
+      const stdoutSample = stdout.slice(-20).join("\n").slice(0, 2000);
+      const base = parseError instanceof Error ? parseError.message : String(parseError);
+      const diagErr = new Error(`${base} (last stdout lines: ${stdoutSample}; stderr: ${stderr.slice(0, 500)})`);
+      diagErr.cause = parseError instanceof Error ? parseError : new Error(String(parseError));
+      throw diagErr;
+    }
   }
 
   private verifyAllowedSkills(agent: Agent, step: AgentStep): void {
@@ -264,20 +280,17 @@ export class AgentStepExecutor {
     }).join("\n\n---\n\n");
 
     // Extract contextPack from contextJson if available (from prior ContextPackStep)
-    const contextPack = (run.contextJson as Record<string, unknown> | null)?.contextPack as Record<string, unknown> | undefined;
-    const contextPackInfo = contextPack ? `\n\nWork Item Context:
-${JSON.stringify(contextPack, null, 2)}` : "";
+    const contextPack = run.contextJson.contextPack as Record<string, unknown> | undefined;
 
     // Build output schema description for the prompt
-    const outputSchemaStr = step.outputSchema
-      ? JSON.stringify(step.outputSchema, null, 2)
-      : "{}";
+    const outputSchemaStr = JSON.stringify(step.outputSchema, null, 2);
 
     // Check for a previous failed attempt error stored by the retry logic.
     const retryErrorKey = `retry_error_${step.id}`;
-    const previousError = (run.contextJson as Record<string, unknown>)[retryErrorKey] as string | undefined;
-    const previousErrorSection = previousError
-      ? `\n\nPREVIOUS ATTEMPT FAILED WITH THIS ERROR — fix it this time:\n${previousError}`
+    const previousError = run.contextJson[retryErrorKey];
+    const previousErrorStr = typeof previousError === "string" ? previousError : undefined;
+    const previousErrorSection = previousErrorStr !== undefined
+      ? `\n\nPREVIOUS ATTEMPT FAILED WITH THIS ERROR — fix it this time:\n${previousErrorStr}`
       : "";
 
     // System prompt with agent context
