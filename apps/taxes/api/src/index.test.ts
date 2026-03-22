@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { WorkspaceSnapshot } from "@taxes/shared";
 
 import { buildApp } from "./app.js";
+import { getPrismaClient } from "./db/client.js";
 import type { TestWorkspaceContext } from "./test/database.js";
 import { createTestWorkspaceContext } from "./test/database.js";
 
@@ -103,6 +104,145 @@ describe("buildApp", () => {
     expect(payload.snapshot.questionnaire.find((prompt) => prompt.key === "optimization-capital-loss-carryover")).toEqual(
       expect.objectContaining({
         currentValue: "yes"
+      })
+    );
+
+    await app.close();
+  });
+
+  it("persists BTC basis profile decisions through the API", async () => {
+    const workspace = await createTestWorkspaceContext("taxes-build-app-bitcoin-basis");
+    workspaces.push(workspace);
+    const app = await buildApp(workspace);
+    const saveResponse = await app.inject({
+      method: "POST",
+      payload: {
+        explanation: "All BTC remains in one wallet, so wallet-based tracking follows that carryforward.",
+        method: "carryforward-single-wallet",
+        taxYear: 2025
+      },
+      url: "/api/bitcoin-basis-profile"
+    });
+    const workspaceResponse = await app.inject({
+      method: "GET",
+      url: "/api/workspace"
+    });
+    const payload: WorkspaceResponse = workspaceResponse.json();
+
+    expect(saveResponse.statusCode).toBe(204);
+    expect(payload.snapshot.bitcoinBasis).toEqual(
+      expect.objectContaining({
+        explanation: "All BTC remains in one wallet, so wallet-based tracking follows that carryforward.",
+        method: "carryforward-single-wallet"
+      })
+    );
+
+    await app.close();
+  });
+
+  it("persists BTC lot picks through the API and reduces remaining lot quantity", async () => {
+    const workspace = await createTestWorkspaceContext("taxes-build-app-bitcoin-lot-selection");
+    workspaces.push(workspace);
+    const prisma = await getPrismaClient(workspace.databaseUrl);
+    await prisma.transactionImportSession.create({
+      data: {
+        id: "session-btc-api-lot-selection",
+        sourceFileName: "btc-history.csv",
+        sourceKind: "csv-upload",
+        sourceLabel: "crypto-wallet-export",
+        status: "completed",
+        taxYear: 2025,
+        transactionCount: 2
+      }
+    });
+    await prisma.ledgerTransaction.createMany({
+      data: [
+        {
+          accountLabel: "Cold storage",
+          assetSymbol: "BTC",
+          cashValueInCents: 180000,
+          entryKind: "buy",
+          id: "tx-btc-api-lot",
+          importSessionId: "session-btc-api-lot-selection",
+          occurredAt: new Date("2024-08-01T10:00:00.000Z"),
+          quantity: "0.05000000",
+          taxYear: 2025
+        },
+        {
+          accountLabel: "Cold storage",
+          assetSymbol: "BTC",
+          cashValueInCents: 150000,
+          entryKind: "sell",
+          id: "tx-btc-api-disposal",
+          importSessionId: "session-btc-api-lot-selection",
+          occurredAt: new Date("2025-02-01T10:00:00.000Z"),
+          quantity: "0.03000000",
+          taxYear: 2025
+        }
+      ]
+    });
+
+    const app = await buildApp(workspace);
+    const saveResponse = await app.inject({
+      method: "POST",
+      payload: {
+        dispositionTransactionId: "tx-btc-api-disposal",
+        lotId: "btc-lot-tx-btc-api-lot",
+        quantity: "0.02000000",
+        selectionMethod: "specific-identification",
+        taxYear: 2025
+      },
+      url: "/api/bitcoin-lot-selections"
+    });
+    const workspaceResponse = await app.inject({
+      method: "GET",
+      url: "/api/workspace"
+    });
+    const payload: WorkspaceResponse = workspaceResponse.json();
+
+    expect(saveResponse.statusCode).toBe(204);
+    expect(payload.snapshot.bitcoinLotSelections).toEqual([
+      expect.objectContaining({
+        dispositionTransactionId: "tx-btc-api-disposal",
+        lotId: "btc-lot-tx-btc-api-lot",
+        quantity: "0.02"
+      })
+    ]);
+    expect(payload.snapshot.bitcoinLots).toEqual([
+      expect.objectContaining({
+        remainingQuantity: "0.03",
+        sourceTransactionId: "tx-btc-api-lot"
+      })
+    ]);
+    expect(payload.snapshot.bitcoinDispositions).toEqual([
+      expect.objectContaining({
+        assignedCostBasis: {
+          amountInCents: 72000,
+          currencyCode: "USD"
+        },
+        realizedGainOrLoss: {
+          amountInCents: 78000,
+          currencyCode: "USD"
+        },
+        selectedQuantity: "0.02",
+        sourceTransactionId: "tx-btc-api-disposal",
+        unassignedQuantity: "0.01"
+      })
+    ]);
+    expect(payload.snapshot.scenarios.find((scenario) => scenario.id === "scenario-specific-id")).toEqual(
+      expect.objectContaining({
+        estimatedFederalTax: {
+          amountInCents: 18720,
+          currencyCode: "USD"
+        }
+      })
+    );
+    expect(payload.snapshot.scenarios.find((scenario) => scenario.id === "scenario-fifo")).toEqual(
+      expect.objectContaining({
+        estimatedFederalTax: {
+          amountInCents: 10080,
+          currencyCode: "USD"
+        }
       })
     );
 

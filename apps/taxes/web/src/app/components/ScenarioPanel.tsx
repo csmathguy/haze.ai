@@ -20,7 +20,7 @@ export function ScenarioPanel({ scenarios }: ScenarioPanelProps) {
         <Stack spacing={2}>
           <Typography variant="h5">Scenario comparison</Typography>
           <Typography color="text.secondary" variant="body2">
-            These templates become meaningful after lots, basis, and acquisition dates are reconciled. The chart is ready for future tax-liability projections.
+            Compare FIFO, highest-basis, and your saved specific-identification picks using the current BTC lot ledger.
           </Typography>
           <BarChart
             dataset={chartData}
@@ -57,6 +57,10 @@ export function ScenarioPanel({ scenarios }: ScenarioPanelProps) {
               </Typography>
               <Typography variant="body2">Method: {scenario.lotSelectionMethod}</Typography>
               <Typography variant="body2">Projected tax: {formatScenarioTax(scenario)}</Typography>
+              <Typography variant="body2">
+                Realized gains: LT {formatScenarioTax({ ...scenario, estimatedFederalTax: scenario.realizedLongTermGain })} | ST{" "}
+                {formatScenarioTax({ ...scenario, estimatedFederalTax: scenario.realizedShortTermGain })}
+              </Typography>
             </Stack>
           </PanelCard>
         ))}

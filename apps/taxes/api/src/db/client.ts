@@ -4,13 +4,12 @@ import {
   getPrismaClient as _getPrismaClient,
   resolveDatabaseFilePath
 } from "@taxes/db";
-export type { PrismaClient } from "@taxes/db";
 
 export { buildPrismaSqliteUrl, resolveDatabaseFilePath };
 
 const DEFAULT_DATABASE_URL = process.env.DATABASE_URL ?? "file:./data/sqlite/taxes.db";
 
-export async function getPrismaClient(databaseUrl: string = DEFAULT_DATABASE_URL) {
+export async function getPrismaClient(databaseUrl: string = DEFAULT_DATABASE_URL): Promise<Awaited<ReturnType<typeof _getPrismaClient>>> {
   return _getPrismaClient(databaseUrl);
 }
 

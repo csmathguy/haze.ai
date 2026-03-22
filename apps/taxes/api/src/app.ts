@@ -5,6 +5,8 @@ import type { FastifyInstance } from "fastify";
 
 import { MAX_UPLOAD_FILE_BYTES, WEB_ALLOWED_ORIGINS } from "./config.js";
 import { disconnectPrismaClient } from "./db/client.js";
+import { registerBitcoinBasisRoutes } from "./routes/bitcoin-basis.js";
+import { registerBitcoinLotSelectionRoutes } from "./routes/bitcoin-lot-selection.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerQuestionnaireRoutes } from "./routes/questionnaire.js";
@@ -30,6 +32,8 @@ export async function buildApp(options: WorkspacePersistenceOptions = {}) {
   });
   registerHealthRoutes(app);
   registerQuestionnaireRoutes(app, options);
+  registerBitcoinBasisRoutes(app, options);
+  registerBitcoinLotSelectionRoutes(app, options);
   registerWorkspaceRoutes(app, options);
   registerDocumentRoutes(app, options);
 
@@ -48,6 +52,8 @@ export async function registerTaxesPlugin(app: FastifyInstance, opts: WorkspaceP
     await disconnectPrismaClient(opts.databaseUrl);
   });
   registerQuestionnaireRoutes(app, opts);
+  registerBitcoinBasisRoutes(app, opts);
+  registerBitcoinLotSelectionRoutes(app, opts);
   registerWorkspaceRoutes(app, opts);
   registerDocumentRoutes(app, opts);
 }
