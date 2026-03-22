@@ -104,6 +104,19 @@ When auto-compacting, always preserve:
 Use `claude --continue` to resume the most recent session, or `claude --resume <session-id>`
 to resume a specific past session. Useful when context was lost mid-workflow.
 
+**When resuming a session mid-workflow, always re-anchor immediately:**
+
+1. Read `.agent-session.json` to recover the active workflow name and run ID.
+2. Log a heartbeat to signal the session is live again:
+   ```bash
+   npm run agent:heartbeat -- --message "session resumed"
+   ```
+3. Check `git status` to confirm which files were modified before context was lost.
+4. Continue from the last incomplete step — do not restart from scratch.
+
+Skipping this anchor means the run will show no heartbeats in `audit:progress` and the
+retrospective will be empty even on a successful run.
+
 ## Troubleshooting
 
 ### Worktree test failure diagnosis

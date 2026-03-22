@@ -27,6 +27,7 @@
 7. When the work maps to planning entities, pass `--project`, `--work-item-id`, `--plan-run-id`, and `--plan-step-id` to `workflow:start` so audit runs can be traced back to plan lineage.
 8. For multi-step agent work inside an active workflow, log explicit skill, tool, hook, or operation spans with `npm run execution:start -- --kind <skill|tool|hook|operation|validation> --name <label>` and close them with `npm run execution:end -- --execution-id <id> --status success|failed`. The `--workflow` flag is optional when `.agent-session.json` is present.
    Log heartbeats at each major milestone with `npm run agent:heartbeat -- --message '<progress note>'` so parallel orchestrators can tail live progress via `npm run audit:progress`.
+   **Minimum heartbeat cadence:** start, after each file modified, after tests pass, after PR opens, before workflow:end. A run with no mid-session heartbeats is non-compliant.
 9. When work moves from one agent to another, record it with `npm run audit:handoff -- --workflow <name> --source-agent <from> --target-agent <to> --summary "<handoff>" --status pending|accepted|completed|blocked`.
 10. Use `npm run dev:audit:api` and `npm run dev:audit:web` when you need the live shared audit monitor while agents are running.
 11. For Prisma schema changes, edit `prisma/schema.prisma`, create a checked-in migration with `npm run prisma:migrate:dev -- --name <change-name>`, and never hand-edit older migration folders unless explicitly instructed.
@@ -120,6 +121,29 @@ Long-running agent sessions accumulate context and can burn tokens unnecessarily
 
 These four elements are load-bearing for resuming interrupted work. Everything else—file contents,
 commit history, exploration paths—can be reconstructed from git and the codebase.
+
+**Session resume anchor (mandatory when continuing a mid-workflow session):**
+
+When a session resumes after compaction or interruption, do this before any code work:
+```bash
+cat .agent-session.json                                         # recover workflow name + run ID
+npm run agent:heartbeat -- --message "session resumed"          # signal the run is live
+git status                                                      # confirm which files were in flight
+```
+A session that resumes without a heartbeat will show a silent gap in `audit:progress` and produce
+an empty retrospective even if the implementation succeeds.
+
+**Retrospective fill-in (required before `workflow:end`):**
+
+Before calling `npm run workflow:end`, fill in the retrospective sections in the file written by
+`workflow:start`. The file is at `artifacts/retrospectives/YYYY-MM-DD/<run-id>.md`. At minimum:
+- **Outcome** — what was delivered and whether it matched the plan
+- **What Went Well** — concrete wins backed by the audit trail
+- **What Didn't Go Well** — process gaps, late lint catches, missing context
+- **Future Tasks To Consider** — follow-on work surfaced during implementation
+
+An empty retrospective means the audit trail has no institutional memory for that run.
+
 - Keep a strict separation between app surfaces under `apps/*/web`, `apps/*/api`, and `packages/shared`.
 - Keep a strict separation between web and api layers, including nested app domains such as `apps/audit/web` and `apps/audit/api`.
 - `packages/shared` must stay framework-light and hold reusable domain types, schemas, and pure helpers.
