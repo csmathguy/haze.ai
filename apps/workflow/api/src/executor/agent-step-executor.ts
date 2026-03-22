@@ -135,9 +135,9 @@ export class AgentStepExecutor {
       skills,
       execution: {
         output: parsed.output,
-        tokenUsage: parsed.tokenUsage,
+        ...(parsed.tokenUsage !== undefined ? { tokenUsage: parsed.tokenUsage } : {}),
         durationMs,
-        reasoning: parsed.reasoning,
+        ...(parsed.reasoning !== undefined ? { reasoning: parsed.reasoning } : {}),
         providerFamily,
         runtimeKind
       }
@@ -176,31 +176,29 @@ export class AgentStepExecutor {
         ? errorInfo.error.message
         : String(errorInfo.error);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    const stepRun = await (db as Record<string, unknown>).workflowStepRun.create(
-      {
-        data: {
-          runId: run.id,
-          stepId: step.id,
-          stepType: "agent",
-          nodeType: "agent",
-          agentId: step.agentId,
-          model: step.model,
-          skillIds: step.skillIds.join(","),
-          inputJson: JSON.stringify({
-            step,
-            runContext: run.contextJson
-          }),
-          errorJson: JSON.stringify({
-            message: errorMessage,
-            code: "AGENT_EXECUTION_ERROR",
-            durationMs
-          }),
-          startedAt: new Date(),
-          completedAt: new Date()
-        }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    const stepRun = await (db as any).workflowStepRun.create({
+      data: {
+        runId: run.id,
+        stepId: step.id,
+        stepType: "agent",
+        nodeType: "agent",
+        agentId: step.agentId,
+        model: step.model,
+        skillIds: step.skillIds.join(","),
+        inputJson: JSON.stringify({
+          step,
+          runContext: run.contextJson
+        }),
+        errorJson: JSON.stringify({
+          message: errorMessage,
+          code: "AGENT_EXECUTION_ERROR",
+          durationMs
+        }),
+        startedAt: new Date(),
+        completedAt: new Date()
       }
-    ) as Promise<WorkflowStepRun>;
+    }) as WorkflowStepRun;
 
     return {
       type: "step-failed",
@@ -356,7 +354,7 @@ Provide your response as JSON matching the output schema. Include reasoning in a
   private collectLines(buffer: string, lines: string[]): void {
     const parts = buffer.split("\n");
     for (let i = 0; i < parts.length - 1; i += 1) {
-      const line = parts[i].trim();
+      const line = parts[i]?.trim() ?? "";
       if (line) {
         lines.push(line);
       }

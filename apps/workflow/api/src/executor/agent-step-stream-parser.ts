@@ -52,9 +52,9 @@ export function parseStreamJson(
   const reasoning = state.reasoning.length > 0 ? state.reasoning : undefined;
   return {
     output: state.output,
-    tokenUsage: state.tokenUsage,
-    durationMs: state.durationMs,
-    reasoning,
+    ...(state.tokenUsage !== undefined ? { tokenUsage: state.tokenUsage } : {}),
+    ...(state.durationMs !== undefined ? { durationMs: state.durationMs } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
     rawLines
   };
 }
@@ -78,6 +78,19 @@ function processStreamLines(
   }
 }
 
+function applyCompleteMessage(
+  msg: Record<string, unknown>,
+  state: { output: unknown; tokenUsage?: TokenUsage; durationMs?: number; reasoning: string }
+): void {
+  state.output = msg.output ?? msg.result;
+  const tokenUsage = msg.tokenUsage as TokenUsage | undefined;
+  if (tokenUsage !== undefined) { state.tokenUsage = tokenUsage; }
+  const durationMs = msg.durationMs as number | undefined;
+  if (durationMs !== undefined) { state.durationMs = durationMs; }
+  const reasoningVal = msg.reasoning;
+  if (typeof reasoningVal === "string") { state.reasoning = reasoningVal; }
+}
+
 function processJsonMessage(
   msg: Record<string, unknown>,
   state: {
@@ -89,13 +102,7 @@ function processJsonMessage(
 ): void {
   const msgType = msg.type;
   if (msgType === "step-complete" || msgType === "complete") {
-    state.output = msg.output ?? msg.result;
-    state.tokenUsage = msg.tokenUsage as TokenUsage | undefined;
-    state.durationMs = msg.durationMs as number | undefined;
-    const reasoningVal = msg.reasoning;
-    if (typeof reasoningVal === "string") {
-      state.reasoning = reasoningVal;
-    }
+    applyCompleteMessage(msg, state);
   } else if (msgType === "text" || msgType === "chunk") {
     processTextChunk(msg, state);
   } else if (msgType === "error") {
