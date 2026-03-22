@@ -2,6 +2,7 @@ import { Alert, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@
 import { alpha } from "@mui/material/styles";
 
 import type { FollowUpActionTone } from "../use-follow-up-action.js";
+import type { ReviewActionTone } from "../use-review-action.js";
 import type { TrustSummary } from "../walkthrough.js";
 
 interface TrustSummaryPanelProps {
@@ -9,7 +10,11 @@ interface TrustSummaryPanelProps {
   readonly followUpActionMessage?: string | null;
   readonly followUpActionTone?: FollowUpActionTone;
   readonly isCreatingFollowUp?: boolean;
+  readonly isSubmittingReviewAction?: boolean;
   readonly onCreateFollowUp?: (() => void) | undefined;
+  readonly onSubmitReviewAction?: ((action: "approve" | "request-changes") => void) | undefined;
+  readonly reviewActionMessage?: string | null;
+  readonly reviewActionTone?: ReviewActionTone;
   readonly summary: TrustSummary;
   readonly totalLaneCount: number;
 }
@@ -19,11 +24,17 @@ export function TrustSummaryPanel({
   followUpActionMessage = null,
   followUpActionTone = "info",
   isCreatingFollowUp = false,
+  isSubmittingReviewAction = false,
   onCreateFollowUp,
+  onSubmitReviewAction,
+  reviewActionMessage = null,
+  reviewActionTone = "info",
   summary,
   totalLaneCount
 }: TrustSummaryPanelProps) {
   const completionPercent = totalLaneCount === 0 ? 0 : Math.round((summary.confirmedLaneCount / totalLaneCount) * 100);
+  const followUpItems = getFollowUpItems(summary);
+  const progressTone = getProgressTone(summary);
 
   return (
     <Paper
@@ -43,19 +54,12 @@ export function TrustSummaryPanel({
               {completionPercent.toString()}%
             </Typography>
           </Stack>
-          <LinearProgress color={summary.statusTone === "success" ? "success" : "secondary"} value={completionPercent} variant="determinate" />
+          <LinearProgress color={progressTone} value={completionPercent} variant="determinate" />
         </Stack>
 
         <DecisionCallout summary={summary} />
         <SummaryBlock items={summary.valueSummary.slice(0, 2)} title="Why this looks ready or blocked" />
-        <SummaryBlock
-          items={
-            summary.followUpQueue.length > 0
-              ? summary.followUpQueue
-              : ["No unresolved follow-up items are blocking the current human decision."]
-          }
-          title="What still needs action"
-        />
+        <SummaryBlock items={followUpItems} title="What still needs action" />
         <FollowUpActionArea
           canCreateFollowUp={canCreateFollowUp}
           followUpActionMessage={followUpActionMessage}
@@ -63,9 +67,25 @@ export function TrustSummaryPanel({
           isCreatingFollowUp={isCreatingFollowUp}
           onCreateFollowUp={onCreateFollowUp}
         />
+        <GitHubActionArea
+          isSubmittingReviewAction={isSubmittingReviewAction}
+          onSubmitReviewAction={onSubmitReviewAction}
+          reviewActionMessage={reviewActionMessage}
+          reviewActionTone={reviewActionTone}
+        />
       </Stack>
     </Paper>
   );
+}
+
+function getFollowUpItems(summary: TrustSummary): string[] {
+  return summary.followUpQueue.length > 0
+    ? summary.followUpQueue
+    : ["No unresolved follow-up items are blocking the current human decision."];
+}
+
+function getProgressTone(summary: TrustSummary): "secondary" | "success" {
+  return summary.statusTone === "success" ? "success" : "secondary";
 }
 
 function TrustSummaryHeader({
@@ -137,11 +157,58 @@ function DecisionCallout({ summary }: { readonly summary: TrustSummary }) {
         <Typography variant="subtitle2">What to do next</Typography>
         <Typography variant="body2">
           {pendingCheckpoint === undefined
-            ? "The walkthrough is covered. If the diff also looks correct, finish in GitHub or record any follow-up work before closing the review."
+            ? "The walkthrough is covered. Send the GitHub review action below or capture any follow-up work before closing the review."
             : pendingCheckpoint.detail}
         </Typography>
       </Stack>
     </Paper>
+  );
+}
+
+function GitHubActionArea({
+  isSubmittingReviewAction,
+  onSubmitReviewAction,
+  reviewActionMessage,
+  reviewActionTone
+}: {
+  readonly isSubmittingReviewAction: boolean;
+  readonly onSubmitReviewAction?: ((action: "approve" | "request-changes") => void) | undefined;
+  readonly reviewActionMessage: string | null;
+  readonly reviewActionTone: ReviewActionTone;
+}) {
+  if (onSubmitReviewAction === undefined) {
+    return reviewActionMessage === null ? null : <Alert severity={reviewActionTone}>{reviewActionMessage}</Alert>;
+  }
+
+  return (
+    <Stack spacing={1}>
+      <Typography variant="subtitle2">Send decision to GitHub</Typography>
+      {reviewActionMessage === null ? null : <Alert severity={reviewActionTone}>{reviewActionMessage}</Alert>}
+      <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
+        <Button
+          disabled={isSubmittingReviewAction}
+          onClick={() => {
+            onSubmitReviewAction("approve");
+          }}
+          variant="contained"
+        >
+          {isSubmittingReviewAction ? "Submitting..." : "Approve in GitHub"}
+        </Button>
+        <Button
+          color="inherit"
+          disabled={isSubmittingReviewAction}
+          onClick={() => {
+            onSubmitReviewAction("request-changes");
+          }}
+          variant="outlined"
+        >
+          Request changes
+        </Button>
+      </Stack>
+      <Typography color="text.secondary" variant="body2">
+        GitHub remains the source of truth. This app sends the review action and records the local workflow event.
+      </Typography>
+    </Stack>
   );
 }
 

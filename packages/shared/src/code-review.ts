@@ -100,6 +100,7 @@ export const CodeReviewAgentReviewStatusSchema = z.enum(["advisory"]);
 export const CodeReviewAgentLensSchema = z.enum(["architecture", "readability", "risk", "testing", "workflow"]);
 export const CodeReviewAgentSuggestedActionSchema = z.enum(["accept-now", "follow-up", "reject"]);
 export const CodeReviewAgentConfidenceSchema = z.enum(["high", "medium", "low"]);
+export const CodeReviewReviewActionSchema = z.enum(["approve", "request-changes"]);
 
 export const CodeReviewAgentFindingSchema = z.object({
   confidence: CodeReviewAgentConfidenceSchema,
@@ -129,6 +130,18 @@ export const CodeReviewReviewBriefSchema = z.object({
   startHere: z.array(z.string().min(1)).min(1),
   summary: z.string().min(1),
   whatThisPrDoes: z.array(z.string().min(1)).min(1)
+});
+
+export const CodeReviewReviewActionRequestSchema = z.object({
+  action: CodeReviewReviewActionSchema,
+  comment: z.string().trim().max(5_000).optional()
+});
+
+export const CodeReviewReviewActionResultSchema = z.object({
+  action: CodeReviewReviewActionSchema,
+  comment: z.string(),
+  submittedAt: z.iso.datetime(),
+  workflowEventId: z.string().min(1)
 });
 
 export const CodeReviewFileExplanationSchema = z.object({
@@ -230,6 +243,9 @@ export type CodeReviewAgentFinding = z.infer<typeof CodeReviewAgentFindingSchema
 export type CodeReviewAgentLens = z.infer<typeof CodeReviewAgentLensSchema>;
 export type CodeReviewAgentReview = z.infer<typeof CodeReviewAgentReviewSchema>;
 export type CodeReviewAgentReviewStatus = z.infer<typeof CodeReviewAgentReviewStatusSchema>;
+export type CodeReviewReviewAction = z.infer<typeof CodeReviewReviewActionSchema>;
+export type CodeReviewReviewActionRequest = z.infer<typeof CodeReviewReviewActionRequestSchema>;
+export type CodeReviewReviewActionResult = z.infer<typeof CodeReviewReviewActionResultSchema>;
 export type CodeReviewAgentSuggestedAction = z.infer<typeof CodeReviewAgentSuggestedActionSchema>;
 export type CodeReviewAuditEvidence = z.infer<typeof CodeReviewAuditEvidenceSchema>;
 export type CodeReviewAuditRunSummary = z.infer<typeof CodeReviewAuditRunSummarySchema>;

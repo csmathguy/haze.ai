@@ -1,3 +1,4 @@
+import { CodeReviewReviewActionRequestSchema } from "@taxes/shared";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 
@@ -17,6 +18,15 @@ export function registerWorkspaceRoutes(app: FastifyInstance, service: CodeRevie
 
     return {
       pullRequest: await service.getPullRequestDetail(params.pullRequestNumber)
+    };
+  });
+
+  app.post("/api/code-review/pull-requests/:pullRequestNumber/review-actions", async (request) => {
+    const params = PullRequestParamsSchema.parse(request.params);
+    const body = CodeReviewReviewActionRequestSchema.parse(request.body);
+
+    return {
+      result: await service.submitReviewAction(params.pullRequestNumber, body)
     };
   });
 }

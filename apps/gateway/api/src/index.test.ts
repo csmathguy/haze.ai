@@ -135,7 +135,8 @@ describe("buildGatewayApp", () => {
       ...ctx,
       codeReviewService: {
         getWorkspace: () => Promise.resolve(stubWorkspace),
-        getPullRequestDetail: () => Promise.reject(new Error("not implemented"))
+        getPullRequestDetail: () => Promise.reject(new Error("not implemented")),
+        submitReviewAction: () => Promise.reject(new Error("not implemented"))
       }
     });
     const response = await app.inject({ method: "GET", url: "/api/code-review/workspace" });

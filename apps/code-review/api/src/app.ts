@@ -13,6 +13,7 @@ interface BuildAppOptions {
   readonly auditDatabaseUrl?: string;
   readonly codeReviewService?: CodeReviewService;
   readonly planningDatabaseUrl?: string;
+  readonly workflowDatabaseUrl?: string;
 }
 
 export async function buildApp(options: BuildAppOptions = {}) {
@@ -39,6 +40,7 @@ export function registerCodeReviewPlugin(app: FastifyInstance, opts: BuildAppOpt
 function buildServiceOptions(opts: BuildAppOptions) {
   return {
     ...(opts.auditDatabaseUrl !== undefined ? { auditDatabaseUrl: opts.auditDatabaseUrl } : {}),
-    ...(opts.planningDatabaseUrl !== undefined ? { planningDatabaseUrl: opts.planningDatabaseUrl } : {})
+    ...(opts.planningDatabaseUrl !== undefined ? { planningDatabaseUrl: opts.planningDatabaseUrl } : {}),
+    ...(opts.workflowDatabaseUrl !== undefined ? { workflowDatabaseUrl: opts.workflowDatabaseUrl } : {})
   };
 }

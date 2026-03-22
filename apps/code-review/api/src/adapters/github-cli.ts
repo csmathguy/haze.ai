@@ -61,7 +61,10 @@ interface GitHubPullRequestApiFile {
 
 export interface GitHubPullRequestReview {
   readonly author: GitHubPullRequestActor;
+  readonly body?: string;
+  readonly id?: number;
   readonly state?: string;
+  readonly submitted_at?: string;
 }
 
 export interface GitHubStatusCheck {
@@ -93,6 +96,10 @@ export interface GitHubPullRequestGateway {
   getPullRequest(pullRequestNumber: number): Promise<GitHubPullRequestDetail>;
   getRepository(): Promise<GitHubRepositoryRef>;
   listPullRequests(): Promise<GitHubPullRequestListEntry[]>;
+  submitPullRequestReview(
+    pullRequestNumber: number,
+    input: { readonly action: "approve" | "request-changes"; readonly comment: string }
+  ): Promise<GitHubPullRequestReview>;
 }
 
 export class GitHubCliPullRequestGateway implements GitHubPullRequestGateway {
@@ -124,6 +131,26 @@ export class GitHubCliPullRequestGateway implements GitHubPullRequestGateway {
     this.repositoryPromise ??= this.loadRepository();
 
     return this.repositoryPromise;
+  }
+
+  async submitPullRequestReview(
+    pullRequestNumber: number,
+    input: { readonly action: "approve" | "request-changes"; readonly comment: string }
+  ): Promise<GitHubPullRequestReview> {
+    const repository = await this.getRepository();
+
+    return this.runJson<GitHubPullRequestReview>([
+      "api",
+      "--method",
+      "POST",
+      `repos/${repository.owner}/${repository.name}/pulls/${pullRequestNumber.toString()}/reviews`,
+      "--header",
+      "Accept: application/vnd.github+json",
+      "--field",
+      `event=${toGitHubReviewEvent(input.action)}`,
+      "--field",
+      `body=${input.comment}`
+    ]);
   }
 
   private async loadRepository(): Promise<GitHubRepositoryRef> {
@@ -198,6 +225,10 @@ function normalizeFileStatus(status: string | undefined): GitHubPullRequestFile[
 
 function normalizePath(filePath: string): string {
   return filePath.replaceAll("\\", "/");
+}
+
+function toGitHubReviewEvent(action: "approve" | "request-changes"): "APPROVE" | "REQUEST_CHANGES" {
+  return action === "approve" ? "APPROVE" : "REQUEST_CHANGES";
 }
 
 export function parseGitHubRepositoryFromRemoteUrl(remoteUrl: string): GitHubRepositoryRef {

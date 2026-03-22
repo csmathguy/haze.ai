@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { CodeReviewPullRequestDetailSchema, CodeReviewWorkspaceSchema } from "@taxes/shared";
+import { CodeReviewPullRequestDetailSchema, CodeReviewReviewActionResultSchema, CodeReviewWorkspaceSchema } from "@taxes/shared";
 
 import { buildApp } from "./app.js";
 
@@ -152,6 +152,14 @@ const fakeService = {
       updatedAt: "2026-03-14T02:59:48.000Z",
       url: "https://github.com/csmathguy/Taxes/pull/25"
     });
+  },
+  submitReviewAction() {
+    return Promise.resolve({
+      action: "approve" as const,
+      comment: "Looks good.",
+      submittedAt: "2026-03-22T12:15:00.000Z",
+      workflowEventId: "evt_123"
+    });
   }
 };
 
@@ -199,6 +207,25 @@ describe("code review app", () => {
     expect(response.statusCode).toBe(200);
     expect(payload.pullRequest.number).toBe(25);
     expect(payload.pullRequest.lanes.some((lane) => lane.id === "validation")).toBe(true);
+
+    await app.close();
+  });
+
+  it("submits a review action for the requested pull request", async () => {
+    const app = await buildApp({ codeReviewService: fakeService });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/code-review/pull-requests/25/review-actions",
+      payload: {
+        action: "approve",
+        comment: "Looks good."
+      }
+    });
+    const payload = z.object({ result: CodeReviewReviewActionResultSchema }).parse(response.json());
+
+    expect(response.statusCode).toBe(200);
+    expect(payload.result.action).toBe("approve");
+    expect(payload.result.workflowEventId).toBe("evt_123");
 
     await app.close();
   });

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { mkdtemp, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -305,6 +306,37 @@ describe("createCodeReviewService", () => {
 
     await expect(service.getPullRequestDetail(29)).rejects.toThrow("Code review pull request 29 refresh failed: gh auth token expired");
   });
+
+  it("submits a review action and records a workflow event id", async () => {
+    const cacheRoot = await createCacheRoot();
+    const gateway = createGateway();
+    const service = createCodeReviewService({
+      cacheStore: createFileCodeReviewCacheStore(cacheRoot),
+      gateway,
+      workflowEventGateway: {
+        createCodeReviewReviewSubmittedEvent: () => Promise.resolve({ eventId: "evt_123" })
+      }
+    });
+
+    const result = await service.submitReviewAction(29, {
+      action: "approve",
+      comment: "Looks good."
+    });
+
+    expect(result).toEqual({
+      action: "approve",
+      comment: "Looks good.",
+      submittedAt: "2026-03-22T12:15:00.000Z",
+      workflowEventId: "evt_123"
+    });
+    expect(gateway.submittedReviews).toEqual([
+      {
+        action: "approve",
+        comment: "Looks good.",
+        pullRequestNumber: 29
+      }
+    ]);
+  });
 });
 
 async function createCacheRoot(): Promise<string> {
@@ -319,6 +351,7 @@ function createGateway(): GitHubPullRequestGateway & {
   detailError: Error | undefined;
   detailTitle: string;
   listCalls: number;
+  submittedReviews: { action: "approve" | "request-changes"; comment: string; pullRequestNumber: number }[];
   workspaceTitle: string;
 } {
   return {
@@ -326,6 +359,7 @@ function createGateway(): GitHubPullRequestGateway & {
     detailError: undefined as Error | undefined,
     detailTitle: "Initial pull request title",
     listCalls: 0,
+    submittedReviews: [],
     workspaceTitle: "Initial pull request title",
     getPullRequest(): Promise<GitHubPullRequestDetail> {
       this.detailCalls += 1;
@@ -394,6 +428,27 @@ function createGateway(): GitHubPullRequestGateway & {
           url: "https://github.com/csmathguy/Taxes/pull/29"
         }
       ]);
+    },
+    submitPullRequestReview(
+      pullRequestNumber: number,
+      input: { readonly action: "approve" | "request-changes"; readonly comment: string }
+    ): Promise<{ author: { is_bot: false; login: string; name: string }; id: number; state: string; submitted_at: string }> {
+      this.submittedReviews.push({
+        action: input.action,
+        comment: input.comment,
+        pullRequestNumber
+      });
+
+      return Promise.resolve({
+        author: {
+          is_bot: false,
+          login: "csmathguy",
+          name: "Zachary Hayes"
+        },
+        id: 92,
+        state: input.action === "approve" ? "APPROVED" : "CHANGES_REQUESTED",
+        submitted_at: "2026-03-22T12:15:00.000Z"
+      });
     }
   };
 }

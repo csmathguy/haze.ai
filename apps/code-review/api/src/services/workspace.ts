@@ -1,9 +1,15 @@
-import type { CodeReviewPullRequestDetail, CodeReviewWorkspace } from "@taxes/shared";
+import type {
+  CodeReviewPullRequestDetail,
+  CodeReviewReviewActionRequest,
+  CodeReviewReviewActionResult,
+  CodeReviewWorkspace
+} from "@taxes/shared";
 
-import { CODE_REVIEW_CACHE_MAX_AGE_MS, CODE_REVIEW_CACHE_ROOT } from "../config.js";
+import { CODE_REVIEW_CACHE_MAX_AGE_MS, CODE_REVIEW_CACHE_ROOT, CODE_REVIEW_WORKFLOW_DATABASE_URL } from "../config.js";
 import { DirectAuditServiceGateway, type AuditWorkItemGateway } from "../adapters/audit-api.js";
 import { GitHubCliPullRequestGateway, type GitHubPullRequestGateway } from "../adapters/github-cli.js";
 import { DirectPlanningServiceGateway, type PlanningWorkItemGateway } from "../adapters/planning-api.js";
+import { DirectWorkflowEventGateway, type WorkflowEventGateway } from "../adapters/workflow-events.js";
 import { createFileCodeReviewCacheStore, type CodeReviewCacheStore } from "./pull-request-cache.js";
 import { buildAgentReview } from "./agent-review.js";
 import { toAuditEvidence, toPlanningWorkItem } from "./pull-request-evidence.js";
@@ -18,6 +24,7 @@ interface CacheEntry<TValue> {
 export interface CodeReviewService {
   getPullRequestDetail(pullRequestNumber: number): Promise<CodeReviewPullRequestDetail>;
   getWorkspace(): Promise<CodeReviewWorkspace>;
+  submitReviewAction(pullRequestNumber: number, request: CodeReviewReviewActionRequest): Promise<CodeReviewReviewActionResult>;
 }
 
 interface CreateCodeReviewServiceOptions {
@@ -29,6 +36,8 @@ interface CreateCodeReviewServiceOptions {
   readonly now?: () => Date;
   readonly planningDatabaseUrl?: string;
   readonly planningGateway?: PlanningWorkItemGateway;
+  readonly workflowDatabaseUrl?: string;
+  readonly workflowEventGateway?: WorkflowEventGateway;
 }
 
 export function createCodeReviewService(options: CreateCodeReviewServiceOptions = {}): CodeReviewService {
@@ -38,6 +47,9 @@ export function createCodeReviewService(options: CreateCodeReviewServiceOptions 
   const auditGateway = options.auditGateway ?? new DirectAuditServiceGateway(options.auditDatabaseUrl);
   const gateway = options.gateway ?? new GitHubCliPullRequestGateway();
   const planningGateway = options.planningGateway ?? new DirectPlanningServiceGateway(options.planningDatabaseUrl);
+  const workflowEventGateway =
+    options.workflowEventGateway ??
+    new DirectWorkflowEventGateway(options.workflowDatabaseUrl ?? CODE_REVIEW_WORKFLOW_DATABASE_URL);
 
   return {
     getPullRequestDetail: async (pullRequestNumber) =>
@@ -88,7 +100,15 @@ export function createCodeReviewService(options: CreateCodeReviewServiceOptions 
           };
         },
         isFresh: (entry) => isFreshEntry(entry, now, cacheMaxAgeMs)
-      })
+      }),
+    submitReviewAction: createSubmitReviewAction({
+      auditGateway,
+      cacheStore,
+      gateway,
+      now,
+      planningGateway,
+      workflowEventGateway
+    })
   };
 }
 
@@ -234,4 +254,98 @@ function wrapCacheMissError(error: unknown, cacheKey: number | "workspace"): Err
 
 function comparePullRequestsByUpdate(left: { updatedAt: string }, right: { updatedAt: string }): number {
   return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+}
+
+function extractLinkedWorkItemId(detail: { body: string; headRefName: string }): string | undefined {
+  const branchMatch = /\b(PLAN-\d+)\b/u.exec(detail.headRefName);
+
+  if (branchMatch?.[1] !== undefined) {
+    return branchMatch[1];
+  }
+
+  const bodyMatch = /\b(PLAN-\d+)\b/u.exec(detail.body);
+
+  return bodyMatch?.[1];
+}
+
+function createSubmitReviewAction(options: {
+  readonly auditGateway: AuditWorkItemGateway;
+  readonly cacheStore: CodeReviewCacheStore;
+  readonly gateway: GitHubPullRequestGateway;
+  readonly now: () => Date;
+  readonly planningGateway: PlanningWorkItemGateway;
+  readonly workflowEventGateway: WorkflowEventGateway;
+}): CodeReviewService["submitReviewAction"] {
+  return async (pullRequestNumber, request) => {
+    const normalizedComment = request.comment?.trim() ?? "";
+    const [repository, currentPullRequest] = await Promise.all([options.gateway.getRepository(), options.gateway.getPullRequest(pullRequestNumber)]);
+    const submittedReview = await options.gateway.submitPullRequestReview(pullRequestNumber, {
+      action: request.action,
+      comment: normalizedComment
+    });
+    const submittedAt = submittedReview.submitted_at ?? options.now().toISOString();
+    const workItemId = extractLinkedWorkItemId(currentPullRequest);
+    const workflowEvent = await options.workflowEventGateway.createCodeReviewReviewSubmittedEvent({
+      action: request.action,
+      comment: normalizedComment,
+      headSha: currentPullRequest.headRefOid,
+      pullRequestNumber,
+      repository: toRepository(repository),
+      submittedAt,
+      ...(submittedReview.id === undefined ? {} : { reviewId: submittedReview.id }),
+      ...(workItemId === undefined ? {} : { workItemId })
+    });
+
+    await refreshPullRequestCaches({
+      auditGateway: options.auditGateway,
+      cacheStore: options.cacheStore,
+      gateway: options.gateway,
+      planningGateway: options.planningGateway,
+      pullRequestNumber
+    }).catch(() => undefined);
+
+    return {
+      action: request.action,
+      comment: normalizedComment,
+      submittedAt,
+      workflowEventId: workflowEvent.eventId
+    };
+  };
+}
+
+async function refreshPullRequestCaches(options: {
+  readonly auditGateway: AuditWorkItemGateway;
+  readonly cacheStore: CodeReviewCacheStore;
+  readonly gateway: GitHubPullRequestGateway;
+  readonly planningGateway: PlanningWorkItemGateway;
+  readonly pullRequestNumber: number;
+}): Promise<void> {
+  const [repository, pullRequest, pullRequests] = await Promise.all([
+    options.gateway.getRepository(),
+    options.gateway.getPullRequest(options.pullRequestNumber),
+    options.gateway.listPullRequests()
+  ]);
+  const normalizedRepository = toRepository(repository);
+  const detail = await enrichPullRequestDetail(
+    toPullRequestDetail(pullRequest, normalizedRepository),
+    options.planningGateway,
+    options.auditGateway
+  );
+  const orderedPullRequests = [...pullRequests].sort(comparePullRequestsByUpdate);
+
+  await Promise.all([
+    options.cacheStore.writePullRequestDetail(options.pullRequestNumber, detail),
+    options.cacheStore.writeWorkspace({
+      generatedAt: detail.updatedAt,
+      localOnly: true,
+      pullRequests: orderedPullRequests.map((entry) => toPullRequestSummary(entry)),
+      purpose:
+        "Review pull requests from this repository in a deterministic order that highlights value, changed boundaries, tests, validation, and merge readiness.",
+      repository: normalizedRepository,
+      showingRecentFallback: orderedPullRequests.every((entry) => entry.state !== "OPEN"),
+      title: "Code Review Studio",
+      trustStatement:
+        "Human review remains the confirmation step. The app should explain the pull request and surface evidence before approval or merge."
+    })
+  ]);
 }
