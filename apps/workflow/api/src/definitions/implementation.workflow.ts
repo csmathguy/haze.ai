@@ -92,6 +92,10 @@ const createWorktreeStep: CommandStep = {
     "{{input.workItemId}}",
     "--summary",
     "{{input.summary}}",
+    "--scope",
+    "apps/",
+    "--scope",
+    "packages/",
     "--merge-main"
   ],
   timeoutMs: 300000,
