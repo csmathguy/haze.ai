@@ -474,7 +474,7 @@ export class StepExecutionHandler {
         contextJson: updatedContextJson
       };
 
-      stepResult = { type: "success", output: result as Record<string, unknown> };
+      stepResult = { type: "success", output: result as unknown as Record<string, unknown> };
       const advanceResult = this.engine.advanceRun(updatedRun, stepResult, definition);
 
       // Return the engine's result but with the updated context already in place
