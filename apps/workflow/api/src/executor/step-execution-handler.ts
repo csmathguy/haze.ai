@@ -24,6 +24,8 @@ import { executeChildWorkflowStep } from "./child-workflow-executor.js";
 import { executeContextPackStep } from "./context-pack-executor.js";
 import { EventBus } from "../event-bus/event-bus.js";
 import * as approvalService from "../services/approval-service.js";
+import { isTokenBudgetExceeded, sumRunTokens } from "./token-budget.js";
+import { applyCaptureStdoutKey } from "./capture-stdout.js";
 
 /** A step from the execute-step effect — typed loosely since it may come from JSON. */
 interface StepLike { type: string; id: string; [key: string]: unknown }
@@ -140,20 +142,24 @@ export class StepExecutionHandler {
   ): Promise<WorkflowRunEffect> {
     const stepRun = await recordStepStart(this.db, runId, step.id, "command");
     let stepResult: StepResult;
+    let updatedRun = run;
 
     try {
       const args = interpolateArgs(step.args as string[] | undefined, run.contextJson);
       const timeoutMs = step.timeoutMs as number | undefined;
+      const worktreePath = typeof run.contextJson.worktreePath === "string" ? run.contextJson.worktreePath : undefined;
       const commandResult = await executeCommandStep({
         stepId: step.id,
         command: step.scriptPath as string,
         args,
-        ...(timeoutMs !== undefined && { timeoutMs })
+        ...(timeoutMs !== undefined && { timeoutMs }),
+        ...(worktreePath !== undefined && { cwd: worktreePath })
       });
 
       await recordStepComplete(this.db, stepRun.id, commandResult);
 
       if (commandResult.success) {
+        updatedRun = await applyCaptureStdoutKey(this.db, run, step.captureStdoutKey as string | undefined, commandResult.stdout);
         stepResult = {
           type: "success",
           output: {
@@ -178,7 +184,7 @@ export class StepExecutionHandler {
       stepResult = { type: "failure", error: { message, code: "EXECUTION_ERROR" } };
     }
 
-    return this.engine.advanceRun(run, stepResult, definition);
+    return this.engine.advanceRun(updatedRun, stepResult, definition);
   }
 
   // ---------------------------------------------------------------------------
@@ -259,6 +265,12 @@ export class StepExecutionHandler {
 
       const effect = await this.agentExecutor.execute(this.db, run, agentStep);
       stepResult = this.parseAgentEffectResult(effect);
+
+      // Token budget circuit breaker: pause run if cumulative tokens exceed maxTokensBudget
+      if (stepResult.type === "success") {
+        const pauseEffect = await this.pauseForTokenBudget(runId, run, step.id, definition.maxTokensBudget);
+        if (pauseEffect !== null) return pauseEffect;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await recordStepFailed(this.db, stepRun.id, message);
@@ -333,13 +345,9 @@ export class StepExecutionHandler {
       where: { runId, stepId: step.id }
     });
 
-    let stepRunId: string;
-    if (existing) {
-      stepRunId = existing.id;
-    } else {
-      const created = await recordStepStart(this.db, runId, step.id, "wait-for-event");
-      stepRunId = created.id;
-    }
+    const stepRunId = existing
+      ? existing.id
+      : (await recordStepStart(this.db, runId, step.id, "wait-for-event")).id;
 
     await executeWaitForEventStep(this.db, stepRunId, {
       type: "wait-for-event",
@@ -377,13 +385,9 @@ export class StepExecutionHandler {
       where: { runId, stepId: step.id }
     });
 
-    let stepRunId: string;
-    if (existing) {
-      stepRunId = existing.id;
-    } else {
-      const created = await recordStepStart(this.db, runId, step.id, "child-workflow");
-      stepRunId = created.id;
-    }
+    const stepRunId = existing
+      ? existing.id
+      : (await recordStepStart(this.db, runId, step.id, "child-workflow")).id;
 
     try {
       await executeChildWorkflowStep(
@@ -462,34 +466,43 @@ export class StepExecutionHandler {
         success: true
       });
 
-      // Merge result into contextJson under the specified output key
-      const updatedContextJson = {
-        ...run.contextJson,
-        [contextPackStep.outputKey]: result
-      };
-
-      // Advance the run with updated context
-      const updatedRun = {
-        ...run,
-        contextJson: updatedContextJson
-      };
-
+      const updatedContextJson = { ...run.contextJson, [contextPackStep.outputKey]: result };
+      const updatedRun = { ...run, contextJson: updatedContextJson };
       stepResult = { type: "success", output: result as unknown as Record<string, unknown> };
       const advanceResult = this.engine.advanceRun(updatedRun, stepResult, definition);
-
-      // Return the engine's result but with the updated context already in place
-      return {
-        ...advanceResult,
-        nextRun: {
-          ...advanceResult.nextRun,
-          contextJson: updatedContextJson
-        }
-      };
+      return { ...advanceResult, nextRun: { ...advanceResult.nextRun, contextJson: updatedContextJson } };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await recordStepFailed(this.db, stepRun.id, message);
       stepResult = { type: "failure", error: { message, code: "CONTEXT_PACK_ERROR" } };
       return this.engine.advanceRun(run, stepResult, definition);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token budget circuit breaker
+  // ---------------------------------------------------------------------------
+
+  private async pauseForTokenBudget(
+    runId: string,
+    run: WorkflowRun,
+    stepId: string,
+    budget: number | undefined
+  ): Promise<WorkflowRunEffect | null> {
+    if (!budget) return null;
+    const exceeded = await isTokenBudgetExceeded(this.db, runId, budget);
+    if (!exceeded) return null;
+    const totalTokens = await sumRunTokens(this.db, runId);
+    await approvalService.createApproval(this.db, {
+      runId,
+      stepId: `${stepId}-token-budget-gate`,
+      prompt: `Token budget exceeded: ${String(totalTokens)} tokens used of ${String(budget)} budget. Review progress and approve to continue or cancel the run.`
+    });
+    await this.eventBus.emit({
+      workflowRunId: runId,
+      eventType: "step.waiting-for-approval",
+      payload: { stepId: `${stepId}-token-budget-gate`, reason: "token-budget-exceeded" }
+    });
+    return { nextRun: { ...run, status: "paused" }, effects: [] };
   }
 }

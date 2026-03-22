@@ -105,8 +105,7 @@ describe("Implementation Workflow Definition", () => {
   it("should have descriptive labels for all steps", () => {
     const steps = implementationWorkflow.steps;
     steps.forEach((step) => {
-      expect(step.label).toBeDefined();
-      expect(step.label.length).toBeGreaterThan(0);
+      expect(step.label).toBeTruthy();
     });
   });
 });

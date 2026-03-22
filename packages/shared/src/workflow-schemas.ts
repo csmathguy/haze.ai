@@ -37,7 +37,8 @@ export const CommandStepSchema = z.object({
   retryPolicy: z.object({
     maxRetries: z.number().int().nonnegative(),
     backoffMs: z.number().int().nonnegative()
-  }).optional()
+  }).optional(),
+  captureStdoutKey: z.string().optional()
 });
 export type CommandStep = z.infer<typeof CommandStepSchema>;
 
