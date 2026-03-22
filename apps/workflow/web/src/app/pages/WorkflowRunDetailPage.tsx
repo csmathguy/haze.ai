@@ -9,18 +9,13 @@ import {
   Button,
   Chip,
   Stack,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow
+  Paper
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Pause as PauseIcon, Cancel as CancelIcon } from "@mui/icons-material";
 
 import { getWorkflowDefinition, getWorkflowRun, type WorkflowRun, type WorkflowDefinition, type WorkflowStepRun } from "../api.js";
 import { WorkflowGraph } from "../../components/WorkflowGraph.js";
+import { StdoutBlock, StepTimeline } from "./StepOutputPanel.js";
 
 const ACTIVE_POLL_MS = 2000;
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
@@ -51,37 +46,6 @@ const formatElapsed = (ms: number): string => {
   const secs = Math.floor((ms % 60_000) / 1000);
   return `${String(mins)}m ${String(secs)}s`;
 };
-
-const getStepRunStatus = (stepRun: WorkflowStepRun): { label: string; color: "error" | "success" | "info" } => {
-  if (stepRun.errorJson) return { label: "Failed", color: "error" };
-  if (stepRun.completedAt) return { label: "Completed", color: "success" };
-  return { label: "Running", color: "info" };
-};
-
-// ---------------------------------------------------------------------------
-// StdoutBlock
-// ---------------------------------------------------------------------------
-
-interface StdoutBlockProps {
-  label: string;
-  content: string;
-  maxHeight?: number;
-  color?: string;
-  bg?: string;
-}
-
-const StdoutBlock: React.FC<StdoutBlockProps> = ({ label, content, maxHeight = 200, color = "grey.100", bg = "grey.900" }) => (
-  <Box sx={{ mt: 1 }}>
-    <Typography variant="overline" color="textSecondary" sx={{ display: "block", mb: 0.5 }}>
-      {label}
-    </Typography>
-    <Box sx={{ p: 1.5, borderRadius: 1, backgroundColor: bg, color, maxHeight, overflow: "auto" }}>
-      <Typography component="pre" sx={{ fontFamily: "monospace", fontSize: "0.75rem", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-        {content}
-      </Typography>
-    </Box>
-  </Box>
-);
 
 // ---------------------------------------------------------------------------
 // LiveActivityPanel helpers
@@ -172,82 +136,6 @@ const LiveActivityPanel: React.FC<LiveActivityPanelProps> = ({ run }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// StepTimelineRow
-// ---------------------------------------------------------------------------
-
-interface StepTimelineRowProps {
-  stepRun: WorkflowStepRun;
-}
-
-const getOutputPreview = (stepRun: WorkflowStepRun): string => {
-  if (stepRun.stdout) {
-    return stepRun.stdout.trim().split("\n").at(-1)?.slice(0, 80) ?? "";
-  }
-  if (stepRun.errorJson) {
-    try {
-      const parsed = JSON.parse(stepRun.errorJson) as { message?: string };
-      return parsed.message?.slice(0, 80) ?? "error";
-    } catch {
-      return stepRun.errorJson.slice(0, 80);
-    }
-  }
-  return "-";
-};
-
-const StepTimelineRow: React.FC<StepTimelineRowProps> = ({ stepRun }) => {
-  const chip = getStepRunStatus(stepRun);
-  const durationMs = stepRun.completedAt
-    ? new Date(stepRun.completedAt).getTime() - new Date(stepRun.startedAt).getTime()
-    : null;
-  const durationLabel = durationMs !== null ? formatElapsed(durationMs) : "running…";
-  const preview = getOutputPreview(stepRun);
-
-  return (
-    <TableRow>
-      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}>{stepRun.stepId}</TableCell>
-      <TableCell sx={{ fontSize: "0.8rem" }}>{stepRun.stepType}</TableCell>
-      <TableCell><Chip label={chip.label} size="small" color={chip.color} variant="filled" /></TableCell>
-      <TableCell sx={{ fontSize: "0.8rem", whiteSpace: "nowrap" }}>{durationLabel}</TableCell>
-      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem", color: "text.secondary", maxWidth: 300 }}>{preview}</TableCell>
-    </TableRow>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// StepTimeline
-// ---------------------------------------------------------------------------
-
-interface StepTimelineProps {
-  stepRuns: WorkflowRun["stepRuns"];
-}
-
-const StepTimeline: React.FC<StepTimelineProps> = ({ stepRuns }) => {
-  if (!stepRuns || stepRuns.length === 0) return null;
-  const sortedRuns = [...stepRuns].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
-
-  return (
-    <>
-      <Typography variant="h6" sx={{ mb: 2 }}>Step Timeline</Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ backgroundColor: "action.hover" }}>
-              <TableCell>Step ID</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Duration</TableCell>
-              <TableCell>Output Preview</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedRuns.map((stepRun) => <StepTimelineRow key={stepRun.id} stepRun={stepRun} />)}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // Polling hook — 2s recursive timeout for active runs

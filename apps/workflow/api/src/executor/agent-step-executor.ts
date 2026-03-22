@@ -36,6 +36,23 @@ interface ExecutionContext {
   readonly reasoning?: string;
   readonly providerFamily: string;
   readonly runtimeKind: string;
+  readonly stderr?: string;
+}
+
+/**
+ * Result from spawnCli including both stdout lines and stderr.
+ */
+interface CliOutput {
+  readonly stdout: string[];
+  readonly stderr: string;
+}
+
+interface SpawnCliOptions {
+  readonly runtimeKind: string;
+  readonly providerFamily: string;
+  readonly prompt: string;
+  readonly timeoutMs: number;
+  readonly cwd?: string;
 }
 
 /**
@@ -116,16 +133,22 @@ export class AgentStepExecutor {
       );
     }
 
+    // Use worktree path as cwd if available in context (set by create-worktree step)
+    const worktreePath = typeof run.contextJson.worktreePath === "string"
+      ? run.contextJson.worktreePath
+      : undefined;
+
     // Spawn CLI and stream output
-    const cliOutput = await this.spawnCli(
+    const cliOutput = await this.spawnCli({
       runtimeKind,
       providerFamily,
       prompt,
-      step.timeoutMs ?? 120000
-    );
+      timeoutMs: step.timeoutMs ?? 120000,
+      ...(worktreePath !== undefined && { cwd: worktreePath })
+    });
 
     // Parse stream-json output
-    const parsed = parseStreamJson(cliOutput, step.outputSchema);
+    const parsed = parseStreamJson(cliOutput.stdout, step.outputSchema);
 
     const durationMs = Date.now() - startTime;
 
@@ -139,7 +162,8 @@ export class AgentStepExecutor {
         durationMs,
         ...(parsed.reasoning !== undefined ? { reasoning: parsed.reasoning } : {}),
         providerFamily,
-        runtimeKind
+        runtimeKind,
+        stderr: cliOutput.stderr
       }
     });
 
@@ -270,26 +294,24 @@ Provide your response as JSON matching the output schema. Include reasoning in a
 
   /**
    * Spawns the CLI subprocess and streams output.
+   * Returns both stdout lines and stderr for full observability.
    */
-  private async spawnCli(
-    runtimeKind: string,
-    providerFamily: string,
-    prompt: string,
-    timeoutMs: number
-  ): Promise<string[]> {
+  private async spawnCli(options: SpawnCliOptions): Promise<CliOutput> {
+    const { runtimeKind, providerFamily, prompt, timeoutMs, cwd } = options;
     const { command, args } = this.getCliCommandAndArgs(
       runtimeKind,
       providerFamily,
       prompt
     );
 
-    return new Promise<string[]>((resolve, reject) => {
+    return new Promise<CliOutput>((resolve, reject) => {
       let timedOut = false;
       const lines: string[] = [];
       let buffer = "";
+      let stderrBuffer = "";
 
       const child: ChildProcess = spawn(command, args, {
-        cwd: process.cwd(),
+        cwd: cwd ?? process.cwd(),
         env: process.env,
         stdio: ["ignore", "pipe", "pipe"]
       });
@@ -308,6 +330,10 @@ Provide your response as JSON matching the output schema. Include reasoning in a
         buffer = this.getRemaining(buffer);
       });
 
+      child.stderr?.on("data", (data: Buffer) => {
+        stderrBuffer += data.toString();
+      });
+
       child.on("close", (code: number | null) => {
         clearTimeout(timeoutHandle);
 
@@ -320,9 +346,9 @@ Provide your response as JSON matching the output schema. Include reasoning in a
           reject(new Error("CLI subprocess timed out"));
         } else if (code !== 0) {
           const exitCode = String(code ?? "unknown");
-          reject(new Error(`CLI subprocess exited with code ${exitCode}`));
+          reject(new Error(`CLI subprocess exited with code ${exitCode}. stderr: ${stderrBuffer.slice(0, 500)}`));
         } else {
-          resolve(lines);
+          resolve({ stdout: lines, stderr: stderrBuffer });
         }
       });
 
@@ -420,6 +446,9 @@ Provide your response as JSON matching the output schema. Include reasoning in a
               totalTokens: context.execution.tokenUsage.totalTokens ?? 0
             })
           : null,
+        ...(context.execution.stderr !== undefined && context.execution.stderr.length > 0
+          ? { stderr: context.execution.stderr }
+          : {}),
         startedAt: new Date(),
         completedAt: new Date()
       }

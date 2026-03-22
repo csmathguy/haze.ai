@@ -115,6 +115,23 @@ const workflowStartHeartbeat: CommandStep = {
   ]
 };
 
+// Phase 2c: Capture worktree path into contextJson so all subsequent steps run in the worktree.
+// Mirrors normalizeTaskId() from tools/agent/lib/parallel-worktree.ts:
+//   taskId = input.toLowerCase().replace(/[^a-z0-9]+/g, "-").trimHyphenEdges()
+// Result stored as contextJson.worktreePath and used as cwd by command and agent steps.
+const captureWorktreePathStep: CommandStep = {
+  type: "command",
+  id: "phase-2-capture-worktree-path",
+  label: "Phase 2: Capture worktree path for subsequent steps",
+  scriptPath: "node",
+  args: [
+    "-e",
+    "const p=require('path');const id=process.argv[1].toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');process.stdout.write(p.resolve('.worktrees',id)+'\\n');",
+    "{{input.workItemId}}"
+  ],
+  captureStdoutKey: "worktreePath"
+};
+
 /**
  * Phase 3: Implementation agent step
  * Dispatches agent to implement changes using red-green-refactor cycle.
@@ -380,6 +397,7 @@ export const implementationWorkflow: WorkflowDefinition = {
     // Phase 2
     createWorktreeStep,
     workflowStartHeartbeat,
+    captureWorktreePathStep,
 
     // Phase 3
     implementationStep,
