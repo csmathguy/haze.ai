@@ -99,9 +99,9 @@ function PullRequestDetailPanel({
   return (
     <Paper sx={{ minHeight: "78vh", p: 0, overflow: "hidden" }} variant="outlined">
       <Stack spacing={0}>
-        <Stack spacing={0.5} sx={{ px: 3, py: 1.5 }}>
+        <Stack spacing={0.35} sx={{ px: 2.5, py: 1.25 }}>
           <Typography variant="subtitle2">Selected pull request</Typography>
-          <Typography variant="h5">
+          <Typography variant="h6">
             {pullRequest === null ? "Choose a review thread" : pullRequest.title}
           </Typography>
           <Typography color="text.secondary" variant="body2">
@@ -111,7 +111,7 @@ function PullRequestDetailPanel({
           </Typography>
         </Stack>
         <Divider />
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 2.5 }}>
           <DrawerContent
             isLoading={isLoading}
             isSelectedDetailLoaded={isSelectedDetailLoaded}

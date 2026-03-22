@@ -1,29 +1,37 @@
+import { useState } from "react";
 import CodeOutlinedIcon from "@mui/icons-material/CodeOutlined";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
+import SplitscreenOutlinedIcon from "@mui/icons-material/SplitscreenOutlined";
+import SubjectOutlinedIcon from "@mui/icons-material/SubjectOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import type { ReactNode } from "react";
-import { Alert, Chip, Paper, Stack, Typography } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
+import { Alert, Chip, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import type { CodeReviewChangedFile } from "@taxes/shared";
+import { buildSplitDiffLines, splitPatch, type DiffViewMode, type SplitDiffLine } from "../diff-presentation.js";
 
 interface FileDiffExplorerProps {
   readonly file: CodeReviewChangedFile | undefined;
 }
 
 export function FileDiffExplorer({ file }: FileDiffExplorerProps) {
+  const [viewMode, setViewMode] = useState<DiffViewMode>("split");
+
   if (file === undefined) {
     return <Alert severity="info">Select a file card to inspect its explanation and diff.</Alert>;
   }
 
   const patchLines = splitPatch(file.patch);
+  const splitLines = buildSplitDiffLines(file.patch);
 
   return (
-    <Paper sx={{ p: 2.75 }} variant="outlined">
-      <Stack spacing={2}>
-        <Stack spacing={1}>
+    <Paper sx={{ p: 2 }} variant="outlined">
+      <Stack spacing={1.75}>
+        <Stack spacing={0.75}>
           <Typography variant="subtitle2">Inline Diff Explorer</Typography>
-          <Typography variant="h3">{file.path}</Typography>
+          <Typography variant="h6">{file.path}</Typography>
           <Stack direction="row" flexWrap="wrap" gap={1}>
             <Chip icon={<CodeOutlinedIcon />} label={file.changeType} size="small" variant="outlined" />
             <Chip label={`+${file.additions.toString()} / -${file.deletions.toString()}`} size="small" variant="outlined" />
@@ -33,40 +41,40 @@ export function FileDiffExplorer({ file }: FileDiffExplorerProps) {
           </Stack>
         </Stack>
 
-        <Stack spacing={1.5}>
+        <Stack spacing={1}>
           <InsightBlock icon={<VisibilityOutlinedIcon color="secondary" fontSize="small" />} items={[file.explanation.summary]} title="What Changed" />
           <InsightBlock icon={<ForumOutlinedIcon color="info" fontSize="small" />} items={[file.explanation.rationale]} title="Rationale" />
           <InsightBlock icon={<VisibilityOutlinedIcon color="success" fontSize="small" />} items={file.explanation.reviewFocus} title="Review Focus" />
         </Stack>
 
         <Stack spacing={1}>
-          <Typography variant="subtitle2">Patch</Typography>
+          <Stack alignItems={{ sm: "center", xs: "flex-start" }} direction={{ sm: "row", xs: "column" }} justifyContent="space-between" spacing={1}>
+            <Typography variant="subtitle2">Patch</Typography>
+            <ToggleButtonGroup
+              color="secondary"
+              exclusive
+              onChange={(_event, nextMode: DiffViewMode | null) => {
+                if (nextMode !== null) {
+                  setViewMode(nextMode);
+                }
+              }}
+              size="small"
+              value={viewMode}
+            >
+              <ToggleButton value="split">
+                <SplitscreenOutlinedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Side by side
+              </ToggleButton>
+              <ToggleButton value="unified">
+                <SubjectOutlinedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Unified
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
           {patchLines.length === 0 ? (
             <Alert severity="info">GitHub did not return patch text for this file. Open the file on GitHub for the raw diff.</Alert>
           ) : (
-            <Paper
-              sx={(theme) => ({
-                backgroundColor: alpha(theme.palette.primary.main, 0.04),
-                borderColor: alpha(theme.palette.primary.main, 0.14),
-                maxHeight: 420,
-                overflow: "auto",
-                p: 1.5
-              })}
-              variant="outlined"
-            >
-              <Stack spacing={0.25}>
-                {patchLines.map((line, index) => (
-                  <Typography
-                    color={line.color}
-                    key={`${file.path}-${index.toString()}`}
-                    sx={{ fontFamily: "var(--mui-fontFamily-monospace, inherit)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-                    variant="body2"
-                  >
-                    {line.value}
-                  </Typography>
-                ))}
-              </Stack>
-            </Paper>
+            <PatchSurface filePath={file.path} patchLines={patchLines} splitLines={splitLines} viewMode={viewMode} />
           )}
         </Stack>
       </Stack>
@@ -95,7 +103,7 @@ function InsightBlock({
             borderColor: alpha(theme.palette.divider, 0.6),
             display: "flex",
             gap: 1,
-            p: 1.25
+            p: 1
           })}
           variant="outlined"
         >
@@ -107,29 +115,117 @@ function InsightBlock({
   );
 }
 
-function splitPatch(patch: string | undefined): { readonly color: "error.main" | "info.main" | "success.main" | "text.primary"; readonly value: string }[] {
-  if (patch === undefined || patch.length === 0) {
-    return [];
-  }
-
-  return patch.split("\n").map((line) => ({
-    color: resolvePatchLineColor(line),
-    value: line
-  }));
+function PatchSurface({
+  filePath,
+  patchLines,
+  splitLines,
+  viewMode
+}: {
+  readonly filePath: string;
+  readonly patchLines: ReturnType<typeof splitPatch>;
+  readonly splitLines: SplitDiffLine[];
+  readonly viewMode: DiffViewMode;
+}) {
+  return (
+    <Paper
+      sx={(theme) => ({
+        backgroundColor: alpha(theme.palette.primary.main, 0.03),
+        borderColor: alpha(theme.palette.primary.main, 0.12),
+        maxHeight: 460,
+        overflow: "auto",
+        p: 1.25
+      })}
+      variant="outlined"
+    >
+      {viewMode === "unified" ? (
+        <Stack spacing={0.25}>
+          {patchLines.map((line, index) => (
+            <Typography
+              color={line.color}
+              key={`${filePath}-${index.toString()}`}
+              sx={{ fontFamily: "var(--mui-fontFamily-monospace, inherit)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+              variant="body2"
+            >
+              {line.value}
+            </Typography>
+          ))}
+        </Stack>
+      ) : (
+        <Stack spacing={0.25}>
+          {splitLines.map((line, index) => (
+            <SplitPatchRow key={`${filePath}-split-${index.toString()}`} line={line} />
+          ))}
+        </Stack>
+      )}
+    </Paper>
+  );
 }
 
-function resolvePatchLineColor(line: string): "error.main" | "info.main" | "success.main" | "text.primary" {
-  if (line.startsWith("@@")) {
+function SplitPatchRow({ line }: { readonly line: SplitDiffLine }) {
+  return (
+    <Stack direction="row" spacing={1}>
+      <PatchCell kind={line.leftKind} value={line.left} />
+      <PatchCell kind={line.rightKind} value={line.right} />
+    </Stack>
+  );
+}
+
+function PatchCell({
+  kind,
+  value
+}: {
+  readonly kind: SplitDiffLine["leftKind"] | SplitDiffLine["rightKind"];
+  readonly value: string | undefined;
+}) {
+  return (
+    <Typography
+      color={resolveCellColor(kind)}
+      sx={(theme) => ({
+        backgroundColor: resolveCellBackground(theme, kind),
+        borderRadius: 1,
+        flex: 1,
+        fontFamily: "var(--mui-fontFamily-monospace, inherit)",
+        minHeight: 22,
+        px: 1,
+        py: 0.25,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word"
+      })}
+      variant="body2"
+    >
+      {value ?? " "}
+    </Typography>
+  );
+}
+
+function resolveCellColor(kind: SplitDiffLine["leftKind"] | SplitDiffLine["rightKind"]) {
+  if (kind === "hunk") {
     return "info.main";
   }
 
-  if (line.startsWith("+")) {
-    return "success.main";
-  }
-
-  if (line.startsWith("-")) {
+  if (kind === "delete") {
     return "error.main";
   }
 
+  if (kind === "add") {
+    return "success.main";
+  }
+
   return "text.primary";
+}
+
+function resolveCellBackground(theme: Theme, kind: SplitDiffLine["leftKind"] | SplitDiffLine["rightKind"]) {
+  if (kind === "delete") {
+    return alpha(theme.palette.error.main, 0.08);
+  }
+
+  if (kind === "add") {
+    return alpha(theme.palette.success.main, 0.08);
+  }
+
+  if (kind === "hunk") {
+    return alpha(theme.palette.info.main, 0.08);
+  }
+
+  return alpha(theme.palette.background.paper, 0.48);
 }

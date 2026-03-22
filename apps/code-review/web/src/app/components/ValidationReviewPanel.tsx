@@ -67,8 +67,8 @@ export function ValidationReviewPanel({
         summary={trustSummary}
         totalLaneCount={totalLaneCount}
       />
-      <Paper sx={{ p: 2.5 }} variant="outlined">
-        <Stack spacing={1.5}>
+      <Paper sx={{ p: 2 }} variant="outlined">
+        <Stack spacing={1.25}>
           <Stack spacing={0.5}>
             <Typography variant="subtitle2">Decision support</Typography>
             <Typography color="text.secondary" variant="body2">

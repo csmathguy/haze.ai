@@ -41,11 +41,11 @@ export function TrustSummaryPanel({
     <Paper
       sx={(theme) => ({
         backgroundColor: alpha(theme.palette.background.paper, 0.94),
-        p: 2.5
+        p: 2
       })}
       variant="outlined"
     >
-      <Stack spacing={2.25}>
+      <Stack spacing={1.75}>
         <TrustSummaryHeader summary={summary} totalLaneCount={totalLaneCount} />
 
         <Stack spacing={0.8}>
@@ -100,7 +100,7 @@ function TrustSummaryHeader({
     <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={1}>
       <div>
         <Typography variant="subtitle2">Final Decision</Typography>
-        <Typography variant="h3">{summary.statusLabel}</Typography>
+        <Typography variant="h6">{summary.statusLabel}</Typography>
       </div>
       <Chip
         color={summary.statusTone}
@@ -131,7 +131,7 @@ function FollowUpActionArea({
   return (
     <>
       {followUpActionMessage === null ? null : <Alert severity={followUpActionTone}>{followUpActionMessage}</Alert>}
-      <Button disabled={isCreatingFollowUp || !canCreateFollowUp} onClick={onCreateFollowUp} variant="contained">
+      <Button disabled={isCreatingFollowUp || !canCreateFollowUp} onClick={onCreateFollowUp} size="small" variant="outlined">
         {isCreatingFollowUp ? "Creating follow-up..." : "Create follow-up work item"}
       </Button>
       {canCreateFollowUp ? null : (
@@ -191,7 +191,8 @@ function GitHubActionArea({
           onClick={() => {
             onSubmitReviewAction("approve");
           }}
-          variant="contained"
+          size="small"
+          variant="outlined"
         >
           {isSubmittingReviewAction ? "Submitting..." : "Approve in GitHub"}
         </Button>
@@ -201,7 +202,8 @@ function GitHubActionArea({
           onClick={() => {
             onSubmitReviewAction("merge");
           }}
-          variant="contained"
+          size="small"
+          variant="outlined"
         >
           {isSubmittingReviewAction ? "Submitting..." : "Merge via GitHub"}
         </Button>
@@ -211,6 +213,7 @@ function GitHubActionArea({
           onClick={() => {
             onSubmitReviewAction("request-changes");
           }}
+          size="small"
           variant="outlined"
         >
           Request changes

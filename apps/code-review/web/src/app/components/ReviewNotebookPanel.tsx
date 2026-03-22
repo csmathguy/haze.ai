@@ -17,13 +17,13 @@ interface ReviewNotebookPanelProps {
 
 export function ReviewNotebookPanel({ entry, isFinalStage = false, laneTitle, onChange }: ReviewNotebookPanelProps) {
   return (
-    <Paper sx={{ p: 2.5 }} variant="outlined">
-      <Stack spacing={2.25}>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Review Companion</Typography>
-          <Typography variant="h3">What to do in this step</Typography>
+    <Paper sx={{ p: 2 }} variant="outlined">
+      <Stack spacing={1.75}>
+        <Stack spacing={0.75}>
+          <Typography variant="subtitle2">Review notes</Typography>
+          <Typography variant="h6">Local draft for this browser session</Typography>
           <Typography color="text.secondary" variant="body2">
-            Mark your progress, write one short note to carry forward, and only open the extra fields if this step still feels unclear.
+            These notes are not saved to the server yet. Use them as temporary scratch space while you review this step.
           </Typography>
         </Stack>
 
@@ -74,10 +74,10 @@ function NotebookFields({
   return (
     <Stack spacing={1.5}>
       <TextField
-        helperText={`Leave a short note about ${laneTitle.toLowerCase()} so the reviewer knows what to remember before moving on.`}
+        helperText={`Leave a short local note about ${laneTitle.toLowerCase()} before moving on.`}
         label="Carry-forward note"
         multiline
-        minRows={3}
+        minRows={2}
         onChange={(event) => {
           onChange({ notes: event.target.value });
         }}
@@ -97,7 +97,7 @@ function NotebookFields({
             <TextField
               label="Questions or concerns"
               multiline
-              minRows={3}
+              minRows={2}
               onChange={(event) => {
                 onChange({ concerns: event.target.value });
               }}
@@ -106,7 +106,7 @@ function NotebookFields({
             <TextField
               label="Confidence notes"
               multiline
-              minRows={3}
+              minRows={2}
               onChange={(event) => {
                 onChange({ confirmations: event.target.value });
               }}
@@ -132,7 +132,7 @@ function FollowUpField({
       helperText="One follow-up per line works well for future work items or refactor ideas."
       label="Follow-up candidates"
       multiline
-      minRows={4}
+      minRows={3}
       onChange={(event) => {
         onChange({ followUps: event.target.value });
       }}
@@ -156,10 +156,13 @@ function StatusButton({
     <Button
       onClick={onClick}
       startIcon={icon}
+      size="small"
       sx={(theme) => ({
         backgroundColor: isActive ? alpha(theme.palette.secondary.main, 0.1) : undefined,
         borderColor: isActive ? alpha(theme.palette.secondary.main, 0.4) : undefined,
-        justifyContent: "flex-start"
+        justifyContent: "flex-start",
+        px: 1.25,
+        py: 0.6
       })}
       variant={isActive ? "contained" : "outlined"}
     >
