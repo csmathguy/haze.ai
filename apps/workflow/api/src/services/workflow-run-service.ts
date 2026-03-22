@@ -22,6 +22,11 @@ export interface ListRunsOptions {
   limit?: number | undefined;
 }
 
+export interface CleanupRunsOptions {
+  olderThanDays: number;
+  statuses: string[];
+}
+
 export async function startRun(
   prisma: PrismaClient,
   data: StartRunInput
@@ -239,6 +244,97 @@ export async function cancelRun(
   return {
     run: updatedRun,
     effects: effect.effects as unknown[]
+  };
+}
+
+export async function cleanupRuns(
+  prisma: PrismaClient,
+  options: CleanupRunsOptions
+): Promise<{ deletedRunCount: number; deletedStepRunCount: number; deletedApprovalCount: number }> {
+  const cutoff = new Date(Date.now() - options.olderThanDays * 24 * 60 * 60 * 1000);
+  const runsToDelete = await prisma.workflowRun.findMany({
+    where: {
+      completedAt: {
+        lt: cutoff
+      },
+      status: {
+        in: options.statuses
+      }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (runsToDelete.length === 0) {
+    return {
+      deletedApprovalCount: 0,
+      deletedRunCount: 0,
+      deletedStepRunCount: 0
+    };
+  }
+
+  const runIds = runsToDelete.map((run) => run.id);
+  const [deletedStepRuns, deletedApprovals, deletedRuns] = await prisma.$transaction([
+    prisma.workflowStepRun.deleteMany({
+      where: {
+        runId: {
+          in: runIds
+        }
+      }
+    }),
+    prisma.workflowApproval.deleteMany({
+      where: {
+        runId: {
+          in: runIds
+        }
+      }
+    }),
+    prisma.workflowRun.deleteMany({
+      where: {
+        id: {
+          in: runIds
+        }
+      }
+    })
+  ]);
+
+  return {
+    deletedApprovalCount: deletedApprovals.count,
+    deletedRunCount: deletedRuns.count,
+    deletedStepRunCount: deletedStepRuns.count
+  };
+}
+
+export async function deleteRun(
+  prisma: PrismaClient,
+  runId: string
+): Promise<{ deletedRunCount: number; deletedStepRunCount: number; deletedApprovalCount: number }> {
+  const run = await prisma.workflowRun.findUnique({
+    where: { id: runId },
+    select: { id: true }
+  });
+
+  if (run === null) {
+    throw new Error("Workflow run not found: " + runId);
+  }
+
+  const [deletedStepRuns, deletedApprovals, deletedRuns] = await prisma.$transaction([
+    prisma.workflowStepRun.deleteMany({
+      where: { runId }
+    }),
+    prisma.workflowApproval.deleteMany({
+      where: { runId }
+    }),
+    prisma.workflowRun.deleteMany({
+      where: { id: runId }
+    })
+  ]);
+
+  return {
+    deletedApprovalCount: deletedApprovals.count,
+    deletedRunCount: deletedRuns.count,
+    deletedStepRunCount: deletedStepRuns.count
   };
 }
 

@@ -1,25 +1,23 @@
 import { getPrismaClient as getPlanningPrismaClient, createWorkItem } from "@taxes/plan-api";
 import type { CreateWorkItemDraftInput } from "@taxes/shared";
 
+export interface CreateFollowUpWorkItemOptions {
+  runId: string;
+  runContextJson: Record<string, unknown>;
+  failedStepId?: string;
+  failureReason?: string;
+  planningDatabaseUrl?: string;
+}
+
 /**
  * Creates a follow-up work item in the planning backlog when a workflow run fails permanently.
  * Extracts context from the failed run and creates a "Fix failed run for PLAN-XXX" item.
- *
- * @param runId - The workflow run ID that failed
- * @param runContextJson - The context JSON from the run, which may contain workItemId
- * @param failedStepId - The ID of the step that caused the failure (optional)
- * @param failureReason - A description of why the run failed (optional)
- * @param planningDatabaseUrl - The URL for the planning database
  */
 export async function createFollowUpWorkItemForFailedRun(
-  runId: string,
-  runContextJson: Record<string, unknown>,
-  failedStepId: string | undefined,
-  failureReason: string | undefined,
-  planningDatabaseUrl?: string
+  options: CreateFollowUpWorkItemOptions
 ): Promise<void> {
+  const { runId, runContextJson, failedStepId, failureReason, planningDatabaseUrl } = options;
   try {
-    // Skip if no planning database URL is provided
     if (!planningDatabaseUrl) {
       console.warn(
         `No planning database URL provided, skipping follow-up item creation for run ${runId}`
@@ -27,34 +25,20 @@ export async function createFollowUpWorkItemForFailedRun(
       return;
     }
 
-    // Extract workItemId from context
     const workItemId = extractWorkItemId(runContextJson);
     if (!workItemId) {
-      // No linked work item — skip follow-up creation per acceptance criteria
       return;
     }
 
-    // Check if a follow-up item already exists to prevent duplicates
     const existingFollowUp = await checkForExistingFollowUp(workItemId, planningDatabaseUrl);
     if (existingFollowUp) {
-      // Follow-up already exists — skip
       return;
     }
 
-    // Build the follow-up work item
-    const followUpInput = buildFollowUpWorkItem(
-      workItemId,
-      runId,
-      failedStepId,
-      failureReason,
-      runContextJson
-    );
+    const followUpInput = buildFollowUpWorkItem({ workItemId, runId, failedStepId, failureReason, runContextJson });
 
-    // Create the work item using the planning service
     await createWorkItem(followUpInput, { databaseUrl: planningDatabaseUrl });
   } catch (error) {
-    // Log but don't throw — follow-up creation is fire-and-forget so a failed run
-    // doesn't cause a second failure
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(
       `Failed to create follow-up work item for run ${runId}: ${errorMsg}`
@@ -92,24 +76,17 @@ async function checkForExistingFollowUp(
   planningDatabaseUrl: string
 ): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     const planningDb = await getPlanningPrismaClient(planningDatabaseUrl);
     try {
-      // Search for existing follow-up items with matching title pattern
-      const existingItem = await (planningDb as Record<string, unknown>).planWorkItem
-        .findFirst({
-          where: {
-            title: {
-              contains: `Fix failed run for ${workItemId}`
-            }
-          }
-        });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+      const existingItem = await (planningDb as any).planWorkItem.findFirst({
+        where: { title: { contains: `Fix failed run for ${workItemId}` } }
+      });
       return existingItem !== null;
     } finally {
       await (planningDb as Record<string, unknown>).$disconnect();
     }
   } catch (error) {
-    // If we can't check for duplicates, log and allow creation (fail open)
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.warn(
       `Could not check for existing follow-up item for ${workItemId}: ${errorMsg}`
@@ -118,22 +95,22 @@ async function checkForExistingFollowUp(
   }
 }
 
-/**
- * Builds the follow-up work item input based on the failed run context.
- */
+export interface BuildFollowUpWorkItemOptions {
+  workItemId: string;
+  runId: string;
+  failedStepId?: string;
+  failureReason?: string;
+  runContextJson: Record<string, unknown>;
+}
+
 function buildFollowUpWorkItem(
-  workItemId: string,
-  runId: string,
-  failedStepId: string | undefined,
-  failureReason: string | undefined,
-  runContextJson: Record<string, unknown>
+  opts: BuildFollowUpWorkItemOptions
 ): CreateWorkItemDraftInput {
+  const { workItemId, runId, failedStepId, failureReason, runContextJson } = opts;
   const stepName = failedStepId ?? "unknown step";
 
-  // Build the follow-up title
   const title = `Fix failed run for ${workItemId}: ${stepName}`;
 
-  // Build the summary with context
   const summaryParts: string[] = [
     `Workflow run ${runId} failed during execution.`,
     `Original work item: ${workItemId}.`,
@@ -144,15 +121,16 @@ function buildFollowUpWorkItem(
     summaryParts.push(`Error: ${failureReason}`);
   }
 
-  // Add any error details from context if available
   const errorContext = runContextJson.error as Record<string, unknown> | undefined;
-  if (errorContext && errorContext.message) {
-    summaryParts.push(`Details: ${String(errorContext.message)}`);
+  if (errorContext) {
+    const message = typeof errorContext.message === "string" ? errorContext.message : undefined;
+    if (message) {
+      summaryParts.push(`Details: ${message}`);
+    }
   }
 
   const summary = summaryParts.join(" ");
 
-  // Return the work item input
   return {
     title,
     summary,

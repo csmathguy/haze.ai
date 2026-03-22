@@ -78,11 +78,33 @@ function processStreamLines(
   }
 }
 
+/** Parse a string result from the CLI — try direct JSON, then extract last `{...}` block. */
+function parseStringOutput(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const lastBrace = raw.lastIndexOf("{");
+    if (lastBrace === -1) return raw;
+    try {
+      return JSON.parse(raw.slice(lastBrace));
+    } catch {
+      return raw;
+    }
+  }
+}
+
 function applyCompleteMessage(
   msg: Record<string, unknown>,
   state: { output: unknown; tokenUsage?: TokenUsage; durationMs?: number; reasoning: string }
 ): void {
-  state.output = msg.output ?? msg.result;
+  const raw = msg.output ?? msg.result;
+  // Claude CLI emits the agent's text response as a string in msg.result.
+  // If it looks like JSON, parse it so the output schema validator receives an object.
+  if (typeof raw === "string") {
+    state.output = parseStringOutput(raw);
+  } else {
+    state.output = raw;
+  }
   const tokenUsage = msg.tokenUsage as TokenUsage | undefined;
   if (tokenUsage !== undefined) { state.tokenUsage = tokenUsage; }
   const durationMs = msg.durationMs as number | undefined;
@@ -101,7 +123,9 @@ function processJsonMessage(
   }
 ): void {
   const msgType = msg.type;
-  if (msgType === "step-complete" || msgType === "complete") {
+  // "result" is the Claude CLI stream-json final event (--output-format stream-json).
+  // "step-complete" / "complete" are legacy names kept for backward compatibility.
+  if (msgType === "result" || msgType === "step-complete" || msgType === "complete") {
     applyCompleteMessage(msg, state);
   } else if (msgType === "text" || msgType === "chunk") {
     processTextChunk(msg, state);

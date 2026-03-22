@@ -126,23 +126,7 @@ function registerRunSummaryRoute(app: FastifyInstance, databaseUrl?: string): vo
         ])
       ]);
 
-      const formatRun = (run: typeof activeRuns[0]) => {
-        const lastStepRun = run.workflowStepRuns[0];
-        const isStalled = run.status === "waiting" &&
-          (now.getTime() - new Date(run.updatedAt).getTime()) > stalledThresholdMs;
-        const pendingApproval = pendingApprovals.find((a) => a.runId === run.id);
-        return {
-          id: run.id,
-          definitionName: run.definitionName,
-          status: run.status,
-          currentStep: run.currentStep ?? lastStepRun?.stepId ?? null,
-          startedAt: run.startedAt.toISOString(),
-          elapsedMs: now.getTime() - new Date(run.startedAt).getTime(),
-          isStalled,
-          pendingApprovalId: pendingApproval?.id ?? null,
-          workItemId: run.workItemId ?? null
-        };
-      };
+      const formatRun = (run: typeof activeRuns[0]) => formatRunSummary(run, now, stalledThresholdMs, pendingApprovals);
 
       return {
         counts: { running: counts[0], waiting: counts[1], failed: counts[2], completed: counts[3] },
@@ -150,6 +134,81 @@ function registerRunSummaryRoute(app: FastifyInstance, databaseUrl?: string): vo
         recentRuns: recentRuns.map(formatRun)
       };
     } finally { await prisma.$disconnect(); }
+  });
+}
+
+function formatRunSummary(
+  run: {
+    id: string;
+    definitionName: string;
+    status: string;
+    currentStep: string | null;
+    startedAt: Date;
+    updatedAt: Date;
+    completedAt: Date | null;
+    workItemId: string | null;
+    workflowStepRuns: { stepId: string }[];
+  },
+  now: Date,
+  stalledThresholdMs: number,
+  pendingApprovals: { id: string; runId: string }[]
+): {
+  completedAt: string | null;
+  currentStep: string | null;
+  definitionName: string;
+  elapsedMs: number;
+  id: string;
+  isStalled: boolean;
+  pendingApprovalId: string | null;
+  startedAt: string;
+  status: string;
+  workItemId: string | null;
+} {
+  const lastStepRun = run.workflowStepRuns[0];
+  const endTime = run.completedAt ?? now;
+  const isStalled = isWaitingRunStalled(run.status, run.updatedAt, now, stalledThresholdMs);
+  const pendingApproval = pendingApprovals.find((approval) => approval.runId === run.id);
+
+  return {
+    completedAt: run.completedAt?.toISOString() ?? null,
+    currentStep: run.currentStep ?? lastStepRun?.stepId ?? null,
+    definitionName: run.definitionName,
+    elapsedMs: endTime.getTime() - new Date(run.startedAt).getTime(),
+    id: run.id,
+    isStalled,
+    pendingApprovalId: pendingApproval?.id ?? null,
+    startedAt: run.startedAt.toISOString(),
+    status: run.status,
+    workItemId: run.workItemId ?? null
+  };
+}
+
+function isWaitingRunStalled(status: string, updatedAt: Date, now: Date, stalledThresholdMs: number): boolean {
+  return status === "waiting" && (now.getTime() - new Date(updatedAt).getTime()) > stalledThresholdMs;
+}
+
+function registerRunCleanupRoute(app: FastifyInstance, databaseUrl?: string): void {
+  app.post("/api/workflow/runs/cleanup", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = z.object({
+        olderThanDays: z.coerce.number().int().positive().max(3650).default(14),
+        statuses: z.array(z.string().min(1)).default(["completed", "cancelled"])
+      }).parse(request.body);
+      const prisma = await getWorkflowPrismaClient(databaseUrl);
+      try {
+        const cleanup = await workflowRunService.cleanupRuns(prisma, body);
+        reply.code(200);
+        return cleanup;
+      } finally {
+        await prisma.$disconnect();
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        reply.code(400);
+        return { error: "Invalid request body", details: error.issues };
+      }
+      throw error;
+    }
   });
 }
 
@@ -203,6 +262,8 @@ function registerRunDetailRoutes(app: FastifyInstance, databaseUrl?: string): vo
     }
   });
 
+  registerDeleteRunHistoryRoute(app, databaseUrl);
+
   app.patch("/api/workflow/runs/:id/pause", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { id } = z.object({ id: z.string() }).parse(request.params);
@@ -215,6 +276,22 @@ function registerRunDetailRoutes(app: FastifyInstance, databaseUrl?: string): vo
         });
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         return { run };
+      } finally { await prisma.$disconnect(); }
+    } catch (error) {
+      if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid request params", details: error.issues }; }
+      if (error instanceof Error && error.message.includes("not found")) { reply.code(404); return { error: error.message }; }
+      throw error;
+    }
+  });
+}
+
+function registerDeleteRunHistoryRoute(app: FastifyInstance, databaseUrl?: string): void {
+  app.delete("/api/workflow/runs/:id/history", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { id } = z.object({ id: z.string() }).parse(request.params);
+      const prisma = await getWorkflowPrismaClient(databaseUrl);
+      try {
+        return await workflowRunService.deleteRun(prisma, id);
       } finally { await prisma.$disconnect(); }
     } catch (error) {
       if (error instanceof z.ZodError) { reply.code(400); return { error: "Invalid request params", details: error.issues }; }
@@ -247,6 +324,7 @@ function registerStepRunRoutes(app: FastifyInstance, databaseUrl?: string): void
 function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
   registerRunListAndCreateRoutes(app, databaseUrl);
   registerRunSummaryRoute(app, databaseUrl);
+  registerRunCleanupRoute(app, databaseUrl);
   registerRunDetailRoutes(app, databaseUrl);
   registerStepRunRoutes(app, databaseUrl);
 }

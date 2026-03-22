@@ -7,12 +7,23 @@ import type { ChildProcess } from "child_process";
  * We resolve to the .cmd name and set shell:true only for those commands, leaving native
  * executables (git, etc.) unaffected.
  */
-const WINDOWS_CMD_COMMANDS = new Set(["npm", "npx", "node", "pnpm", "yarn", "bun"]);
+// "node" is intentionally excluded — it ships as node.exe (a native binary), not a .cmd wrapper.
+// Only package-manager launcher scripts that are .cmd files need shell:true.
+const WINDOWS_CMD_COMMANDS = new Set(["npm", "npx", "pnpm", "yarn", "bun"]);
 function resolveCommand(cmd: string): { command: string; shell: boolean } {
   if (process.platform === "win32" && WINDOWS_CMD_COMMANDS.has(cmd)) {
     return { command: `${cmd}.cmd`, shell: true };
   }
   return { command: cmd, shell: false };
+}
+
+/**
+ * When spawn is called with shell:true, args are joined with spaces without quoting.
+ * On Windows cmd.exe this causes multi-word args to be word-split.
+ * Wrap any arg that contains a space in double-quotes so the shell treats it as one token.
+ */
+function quoteArgsForShell(args: string[]): string[] {
+  return args.map((a) => (a.includes(" ") ? `"${a}"` : a));
 }
 
 export interface CommandStepInput {
@@ -53,7 +64,9 @@ export async function executeCommandStep(
     let exitCode = 0;
 
     const { command, shell } = resolveCommand(input.command);
-    const child: ChildProcess = spawn(command, input.args ?? [], {
+    const rawArgs = input.args ?? [];
+    const spawnArgs = shell ? quoteArgsForShell(rawArgs) : rawArgs;
+    const child: ChildProcess = spawn(command, spawnArgs, {
       cwd,
       env,
       stdio: ["ignore", "pipe", "pipe"],

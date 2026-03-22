@@ -7,6 +7,7 @@ import { getWorkflowPrismaClient, disconnectWorkflowPrismaClient } from "./db/cl
 import { WorkflowWorker } from "./event-bus/workflow-worker.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerWorkflowRoutes, type WorkflowPersistenceOptions } from "./routes/workflow.js";
+import { seedDatabase } from "./seed/index.js";
 
 // Re-export executor modules for use throughout the application
 export * from "./executor/index.js";
@@ -24,6 +25,7 @@ export async function buildApp(options: WorkflowPersistenceOptions = {}) {
 
   app.addHook("onReady", async () => {
     const db = await getWorkflowPrismaClient(options.databaseUrl);
+    await seedDatabase(db);
     worker = new WorkflowWorker({
       pollIntervalMs: options.pollIntervalMs ?? 1000,
       batchSize: 10,
@@ -54,6 +56,7 @@ export function registerWorkflowPlugin(
 
   app.addHook("onReady", async () => {
     const db = await getWorkflowPrismaClient(opts.databaseUrl);
+    await seedDatabase(db);
     worker = new WorkflowWorker({
       pollIntervalMs: opts.pollIntervalMs ?? 1000,
       batchSize: 10,

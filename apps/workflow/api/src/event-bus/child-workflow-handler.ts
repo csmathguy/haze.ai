@@ -24,6 +24,158 @@ interface ParentRunData {
   completedAt: Date | null;
 }
 
+async function loadParentRunAndDefinition(
+  db: PrismaClient,
+  parentRunId: string
+): Promise<{ parentRun: ParentRunData | null; parentDef: WorkflowDefinition | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+  const parentRun: ParentRunData | null = await (db as any).workflowRun.findUnique({
+    where: { id: parentRunId }
+  });
+
+  if (!parentRun) return { parentRun: null, parentDef: null };
+
+  const parentDefObj = await workflowDefinitionService.getDefinitionByName(db, parentRun.definitionName);
+  if (!parentDefObj) return { parentRun, parentDef: null };
+
+  const parentDefJson = JSON.parse(parentDefObj.definitionJson) as Record<string, unknown>;
+  const parentDef: WorkflowDefinition = {
+    name: parentDefObj.name,
+    version: parentDefObj.version,
+    triggers: JSON.parse(parentDefObj.triggerEvents) as string[],
+    inputSchema: {} as never,
+    steps: (parentDefJson.steps ?? []) as never[]
+  };
+
+  return { parentRun, parentDef };
+}
+
+async function findChildStepRun(
+  db: PrismaClient,
+  parentRunId: string,
+  childRunId: string
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+  const childStepRun: { stepId: string; inputJson: string | null } | null = await (db as any).workflowStepRun.findFirst({
+    where: { runId: parentRunId, stepType: "child-workflow" }
+  });
+
+  if (!childStepRun) return false;
+
+  const stepInputData = JSON.parse(childStepRun.inputJson ?? "{}") as Record<string, unknown>;
+  return stepInputData.childRunId === childRunId;
+}
+
+async function processCompletedChild(
+  db: PrismaClient,
+  parentRun: ParentRunData,
+  childRun: ChildRunData,
+  parentDef: WorkflowDefinition
+): Promise<void> {
+  const parentContextJson = parentRun.contextJson
+    ? (JSON.parse(parentRun.contextJson) as Record<string, unknown>)
+    : {};
+
+  const parentRunState = {
+    id: parentRun.id,
+    definitionName: parentRun.definitionName,
+    version: parentRun.version,
+    status: parentRun.status as "running" | "pending" | "paused" | "waiting" | "failed" | "completed" | "cancelled",
+    currentStepId: parentRun.currentStep ?? undefined,
+    contextJson: parentContextJson,
+    correlationId: parentRun.correlationId ?? undefined,
+    parentRunId: parentRun.parentRunId ?? undefined,
+    startedAt: parentRun.startedAt.toISOString(),
+    updatedAt: parentRun.updatedAt.toISOString(),
+    completedAt: parentRun.completedAt?.toISOString()
+  };
+
+  const childContextJson = childRun.contextJson
+    ? (JSON.parse(childRun.contextJson) as Record<string, unknown>)
+    : {};
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+  const childStepRun: { stepId: string } | null = await (db as any).workflowStepRun.findFirst({
+    where: { runId: parentRun.id, stepType: "child-workflow" }
+  });
+
+  if (!childStepRun) return;
+
+  const mergedContextJson = {
+    ...parentContextJson,
+    [childStepRun.stepId]: childContextJson
+  };
+
+  const parentRunStateWithMergedContext = {
+    ...parentRunState,
+    contextJson: mergedContextJson
+  };
+
+  const engine = new WorkflowEngine();
+  const stepResult = { type: "success" as const };
+  const advanceResult = engine.advanceRun(parentRunStateWithMergedContext, stepResult, parentDef);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+  await (db as any).workflowRun.update({
+    where: { id: parentRun.id },
+    data: {
+      status: advanceResult.nextRun.status,
+      currentStep: advanceResult.nextRun.currentStepId ?? null,
+      contextJson: JSON.stringify(advanceResult.nextRun.contextJson),
+      updatedAt: new Date(advanceResult.nextRun.updatedAt),
+      completedAt: advanceResult.nextRun.completedAt ? new Date(advanceResult.nextRun.completedAt) : null
+    }
+  });
+}
+
+async function processFailedChild(
+  db: PrismaClient,
+  parentRun: ParentRunData,
+  childRun: ChildRunData,
+  parentDef: WorkflowDefinition
+): Promise<void> {
+  const parentContextJson = parentRun.contextJson
+    ? (JSON.parse(parentRun.contextJson) as Record<string, unknown>)
+    : {};
+
+  const parentRunState = {
+    id: parentRun.id,
+    definitionName: parentRun.definitionName,
+    version: parentRun.version,
+    status: parentRun.status as "running" | "pending" | "paused" | "waiting" | "failed" | "completed" | "cancelled",
+    currentStepId: parentRun.currentStep ?? undefined,
+    contextJson: parentContextJson,
+    correlationId: parentRun.correlationId ?? undefined,
+    parentRunId: parentRun.parentRunId ?? undefined,
+    startedAt: parentRun.startedAt.toISOString(),
+    updatedAt: parentRun.updatedAt.toISOString(),
+    completedAt: parentRun.completedAt?.toISOString()
+  };
+
+  const engine = new WorkflowEngine();
+  const stepResult = {
+    type: "failure" as const,
+    error: {
+      message: `Child workflow failed: ${childRun.id}`,
+      code: "CHILD_WORKFLOW_FAILED"
+    }
+  };
+
+  const advanceResult = engine.advanceRun(parentRunState, stepResult, parentDef);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+  await (db as any).workflowRun.update({
+    where: { id: parentRun.id },
+    data: {
+      status: advanceResult.nextRun.status,
+      currentStep: advanceResult.nextRun.currentStepId ?? null,
+      contextJson: JSON.stringify(advanceResult.nextRun.contextJson),
+      updatedAt: new Date(advanceResult.nextRun.updatedAt),
+      completedAt: advanceResult.nextRun.completedAt ? new Date(advanceResult.nextRun.completedAt) : null
+    }
+  });
+}
+
 /**
  * Scans all completed/failed child runs and resumes their parent workflows.
  * For each completed child with a parent:
@@ -33,7 +185,6 @@ interface ParentRunData {
  * 4. Update parent run and apply effects
  */
 export async function resumeParentForCompletedChildren(db: PrismaClient): Promise<void> {
-  // Find all child runs that are completed/failed and have a parentRunId
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
   const childRuns: ChildRunData[] = await (db as any).workflowRun.findMany({
     where: {
@@ -45,124 +196,17 @@ export async function resumeParentForCompletedChildren(db: PrismaClient): Promis
   for (const childRun of childRuns) {
     if (!childRun.parentRunId) continue;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-    const parentRun: ParentRunData | null = await (db as any).workflowRun.findUnique({
-      where: { id: childRun.parentRunId }
-    });
+    const { parentRun, parentDef } = await loadParentRunAndDefinition(db, childRun.parentRunId);
 
-    // Parent must exist and be in waiting state
-    if (!parentRun || parentRun.status !== "waiting") continue;
+    if (!parentRun?.status || parentRun.status !== "waiting" || !parentDef) continue;
 
-    // Get the parent's workflow definition
-    const parentDef = await workflowDefinitionService.getDefinitionByName(db, parentRun.definitionName);
-    if (!parentDef) continue;
-
-    const parentDefJson = JSON.parse(parentDef.definitionJson) as Record<string, unknown>;
-    const workflowDefinition: WorkflowDefinition = {
-      name: parentDef.name,
-      version: parentDef.version,
-      triggers: JSON.parse(parentDef.triggerEvents) as string[],
-      inputSchema: {} as never,
-      steps: (parentDefJson.steps ?? []) as never[]
-    };
-
-    // Find the step that spawned this child (by matching childRunId in step inputs)
-    const childRunId = childRun.id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-    const childStepRun: { stepId: string; inputJson: string | null } | null = await (db as any).workflowStepRun.findFirst({
-      where: { runId: childRun.parentRunId, stepType: "child-workflow" }
-    });
-
-    if (!childStepRun) continue;
-
-    // Verify this step ran the specific child
-    const stepInputData = JSON.parse(childStepRun.inputJson ?? "{}") as Record<string, unknown>;
-    if (stepInputData.childRunId !== childRunId) continue;
-
-    // Build the parent's current state
-    const parentContextJson = parentRun.contextJson
-      ? (JSON.parse(parentRun.contextJson) as Record<string, unknown>)
-      : {};
-
-    const parentRunState = {
-      id: parentRun.id,
-      definitionName: parentRun.definitionName,
-      version: parentRun.version,
-      status: parentRun.status as "running" | "pending" | "paused" | "waiting" | "failed" | "completed" | "cancelled",
-      currentStepId: parentRun.currentStep ?? undefined,
-      contextJson: parentContextJson,
-      correlationId: parentRun.correlationId ?? undefined,
-      parentRunId: parentRun.parentRunId ?? undefined,
-      startedAt: parentRun.startedAt.toISOString(),
-      updatedAt: parentRun.updatedAt.toISOString(),
-      completedAt: parentRun.completedAt?.toISOString()
-    };
-
-    // Build the step result based on child status
-    const childContextJson = childRun.contextJson
-      ? (JSON.parse(childRun.contextJson) as Record<string, unknown>)
-      : {};
+    const childRunMatches = await findChildStepRun(db, childRun.parentRunId, childRun.id);
+    if (!childRunMatches) continue;
 
     if (childRun.status === "completed") {
-      // Success: merge child output into parent context under step ID, then advance
-      const engine = new WorkflowEngine();
-
-      // Merge child context directly under the step ID so parent context has
-      // parentContext[stepId] = childContextJson (not nested under "step_" prefix)
-      const mergedContextJson = {
-        ...parentContextJson,
-        [childStepRun.stepId]: childContextJson
-      };
-
-      const parentRunStateWithMergedContext = {
-        ...parentRunState,
-        contextJson: mergedContextJson
-      };
-
-      // No output passed so engine.advanceRun won't add step_<id> key on top
-      const stepResult = {
-        type: "success" as const
-      };
-
-      const advanceResult = engine.advanceRun(parentRunStateWithMergedContext, stepResult, workflowDefinition);
-
-      // Update parent run with new state
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      await (db as any).workflowRun.update({
-        where: { id: parentRun.id },
-        data: {
-          status: advanceResult.nextRun.status,
-          currentStep: advanceResult.nextRun.currentStepId ?? null,
-          contextJson: JSON.stringify(advanceResult.nextRun.contextJson),
-          updatedAt: new Date(advanceResult.nextRun.updatedAt),
-          completedAt: advanceResult.nextRun.completedAt ? new Date(advanceResult.nextRun.completedAt) : null
-        }
-      });
+      await processCompletedChild(db, parentRun, childRun, parentDef);
     } else if (childRun.status === "failed") {
-      // Failure: propagate child error to parent
-      const engine = new WorkflowEngine();
-      const stepResult = {
-        type: "failure" as const,
-        error: {
-          message: `Child workflow failed: ${childRun.id}`,
-          code: "CHILD_WORKFLOW_FAILED"
-        }
-      };
-
-      const advanceResult = engine.advanceRun(parentRunState, stepResult, workflowDefinition);
-
-      // Update parent run to failed state
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      await (db as any).workflowRun.update({
-        where: { id: parentRun.id },
-        data: {
-          status: advanceResult.nextRun.status,
-          currentStep: advanceResult.nextRun.currentStepId ?? null,
-          contextJson: JSON.stringify(advanceResult.nextRun.contextJson),
-          updatedAt: new Date(advanceResult.nextRun.updatedAt),
-          completedAt: advanceResult.nextRun.completedAt ? new Date(advanceResult.nextRun.completedAt) : null
-        }
-      });
+      await processFailedChild(db, parentRun, childRun, parentDef);
     }
   }
 }

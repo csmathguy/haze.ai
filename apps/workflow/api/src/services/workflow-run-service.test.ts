@@ -52,7 +52,13 @@ describe("WorkflowRunService", () => {
     expect(result.run.definitionName).toBe(definition.name);
     expect(result.run.status).toBe("running");
     expect(result.effects.length).toBeGreaterThan(0);
-    const hasExecuteStep = result.effects.some((e: Record<string, unknown>) => e.type === "execute-step");
+    const hasExecuteStep = result.effects.some((effect) => {
+      if (typeof effect !== "object" || effect === null || !("type" in effect)) {
+        return false;
+      }
+
+      return effect.type === "execute-step";
+    });
     expect(hasExecuteStep).toBe(true);
   });
 
@@ -166,7 +172,7 @@ describe("WorkflowRunService", () => {
     expect(result.effects).toBeDefined();
     const contextJson = typeof result.run.contextJson === "string"
       ? (JSON.parse(result.run.contextJson) as Record<string, unknown>)
-      : (result.run.contextJson as Record<string, unknown>);
+      : {};
     const lastEvent = contextJson.lastEvent as Record<string, unknown>;
     expect(lastEvent.type).toBe("approval.given");
   });
@@ -310,5 +316,116 @@ describe("WorkflowRunService", () => {
 
     const formatted = workflowRunService.formatRunForApi(fetched);
     expect(formatted.workItemId).toBe("PLAN-236");
+  });
+
+  it("cleanupRuns() removes only old completed or cancelled runs", async () => {
+    const definition = await workflowDefinitionService.createDefinition(prisma, {
+      name: `test-cleanup-runs-${String(Date.now())}`,
+      version: "1.0",
+      description: "Test cleanup",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          { type: "command", id: "step-1", label: "Step", scriptPath: "/bin/echo", args: ["ok"] }
+        ]
+      }
+    });
+
+    const { run: completedRun } = await workflowRunService.startRun(prisma, {
+      definitionName: definition.name,
+      input: {}
+    });
+    const { run: failedRun } = await workflowRunService.startRun(prisma, {
+      definitionName: definition.name,
+      input: {}
+    });
+
+    await prisma.workflowRun.update({
+      where: { id: completedRun.id },
+      data: {
+        status: "completed",
+        completedAt: new Date("2025-01-01T00:00:00.000Z"),
+        startedAt: new Date("2025-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2025-01-01T00:00:00.000Z")
+      }
+    });
+    await prisma.workflowRun.update({
+      where: { id: failedRun.id },
+      data: {
+        status: "failed",
+        completedAt: new Date("2025-01-01T00:00:00.000Z"),
+        startedAt: new Date("2025-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2025-01-01T00:00:00.000Z")
+      }
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await (prisma as any).workflowStepRun.create({
+      data: {
+        runId: completedRun.id,
+        stepId: "step-1",
+        stepType: "command",
+        nodeType: "deterministic",
+        retryCount: 0
+      }
+    });
+
+    const cleanup = await workflowRunService.cleanupRuns(prisma, {
+      olderThanDays: 14,
+      statuses: ["completed", "cancelled"]
+    });
+
+    expect(cleanup.deletedRunCount).toBe(1);
+    expect(cleanup.deletedStepRunCount).toBe(1);
+
+    const deletedRun = await workflowRunService.getRun(prisma, completedRun.id);
+    const keptRun = await workflowRunService.getRun(prisma, failedRun.id);
+    expect(deletedRun).toBeNull();
+    expect(keptRun?.status).toBe("failed");
+  });
+
+  it("deleteRun() permanently removes a single run and its related records", async () => {
+    const definition = await workflowDefinitionService.createDefinition(prisma, {
+      name: `test-delete-run-${String(Date.now())}`,
+      version: "1.0",
+      description: "Test delete run",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          { type: "command", id: "step-1", label: "Step", scriptPath: "/bin/echo", args: ["ok"] }
+        ]
+      }
+    });
+
+    const { run } = await workflowRunService.startRun(prisma, {
+      definitionName: definition.name,
+      input: {}
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await (prisma as any).workflowStepRun.create({
+      data: {
+        runId: run.id,
+        stepId: "step-1",
+        stepType: "command",
+        nodeType: "deterministic",
+        retryCount: 0
+      }
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await (prisma as any).workflowApproval.create({
+      data: {
+        runId: run.id,
+        stepId: "step-1",
+        status: "pending",
+        prompt: "approve?"
+      }
+    });
+
+    const deleted = await workflowRunService.deleteRun(prisma, run.id);
+
+    expect(deleted.deletedRunCount).toBe(1);
+    expect(deleted.deletedStepRunCount).toBe(1);
+    expect(deleted.deletedApprovalCount).toBe(1);
+    expect(await workflowRunService.getRun(prisma, run.id)).toBeNull();
   });
 });

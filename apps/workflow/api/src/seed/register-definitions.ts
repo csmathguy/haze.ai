@@ -34,7 +34,7 @@ function definitionToCreateInput(
 
 /**
  * Register all workflow definitions from the definitions directory.
- * This is idempotent—definitions are only created if they don't exist.
+ * Upserts on every startup so code changes are immediately reflected in the DB.
  */
 export async function registerWorkflowDefinitions(
   prisma: PrismaClient
@@ -42,27 +42,25 @@ export async function registerWorkflowDefinitions(
   const definitions = [implementationWorkflow, conflictRepairWorkflow, planningWorkflow];
 
   for (const definition of definitions) {
+    const createInput = definitionToCreateInput(definition);
     const existing = await prisma.workflowDefinition.findFirst({
-      where: {
-        name: definition.name,
-        version: definition.version
-      }
+      where: { name: definition.name, version: definition.version }
     });
 
     if (existing) {
-      console.warn(
-        `Workflow definition ${definition.name}@${definition.version} already exists, skipping`
-      );
-      continue;
+      await prisma.workflowDefinition.update({
+        where: { id: existing.id },
+        data: {
+          description: createInput.description ?? null,
+          triggerEvents: JSON.stringify(createInput.triggers),
+          definitionJson: JSON.stringify(createInput.definitionJson),
+          updatedAt: new Date()
+        }
+      });
+      console.warn(`Updated workflow definition ${definition.name}@${definition.version}`);
+    } else {
+      await createDefinition(prisma, createInput);
+      console.warn(`Registered workflow definition ${definition.name}@${definition.version}`);
     }
-
-    const createInput = definitionToCreateInput(definition);
-    console.warn(
-      `Registering workflow definition ${definition.name}@${definition.version}...`
-    );
-    await createDefinition(prisma, createInput);
-    console.warn(
-      `Successfully registered workflow definition ${definition.name}@${definition.version}`
-    );
   }
 }

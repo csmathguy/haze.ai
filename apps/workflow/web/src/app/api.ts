@@ -187,6 +187,7 @@ const RunSummarySchema = z.object({
   status: z.string(),
   currentStep: z.string().nullable(),
   startedAt: z.string(),
+  completedAt: z.string().nullable(),
   elapsedMs: z.number(),
   isStalled: z.boolean(),
   pendingApprovalId: z.string().nullable(),
@@ -245,4 +246,51 @@ export async function approveWorkflowRun(approvalId: string, respondedBy = "flee
   if (!response.ok) {
     throw new Error(`Failed to approve workflow run: ${response.statusText}`);
   }
+}
+
+export async function cleanupWorkflowRuns(olderThanDays: number, statuses: string[]): Promise<{
+  deletedApprovalCount: number;
+  deletedRunCount: number;
+  deletedStepRunCount: number;
+}> {
+  const response = await fetch("/api/workflow/runs/cleanup", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      olderThanDays,
+      statuses
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to clean up workflow runs: ${response.statusText}`);
+  }
+
+  return await response.json() as {
+    deletedApprovalCount: number;
+    deletedRunCount: number;
+    deletedStepRunCount: number;
+  };
+}
+
+export async function deleteWorkflowRun(runId: string): Promise<{
+  deletedApprovalCount: number;
+  deletedRunCount: number;
+  deletedStepRunCount: number;
+}> {
+  const response = await fetch(`/api/workflow/runs/${encodeURIComponent(runId)}/history`, {
+    method: "DELETE"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete workflow run: ${response.statusText}`);
+  }
+
+  return await response.json() as {
+    deletedApprovalCount: number;
+    deletedRunCount: number;
+    deletedStepRunCount: number;
+  };
 }

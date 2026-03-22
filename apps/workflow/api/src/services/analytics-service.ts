@@ -78,6 +78,105 @@ function parseTokenUsage(tokenUsageJson: string | null | undefined): TokenUsage 
   return { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 }
 
+function computeStepMetrics(
+  stepRuns: ({ errorJson: string | null; completedAt: Date | null; startedAt: Date; retryCount: number } & Record<string, unknown>)[],
+  stepData: { stepId: string; stepType: string }
+): { metrics: StepMetrics; successCount: number; failureCount: number } {
+  const totalRuns = stepRuns.length;
+  const successCount = stepRuns.filter((r) => !r.errorJson).length;
+  const failureCount = stepRuns.filter((r) => r.errorJson).length;
+  const successRate = totalRuns > 0 ? successCount / totalRuns : 0;
+
+  const durations = stepRuns
+    .filter((r) => r.completedAt !== null)
+    // completedAt is non-null after the filter above; cast is safe
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    .map((r) => r.completedAt!.getTime() - r.startedAt.getTime())
+    .sort((a, b) => a - b);
+
+  const medianDurationMs = computeMedian(durations);
+  const p95DurationMs = computeP95(durations);
+
+  const avgRetryCount =
+    totalRuns > 0 ? stepRuns.reduce((sum, r) => sum + r.retryCount, 0) / totalRuns : 0;
+
+  const tokenUsages = stepRuns.map((r) => parseTokenUsage((r as Record<string, unknown>).tokenUsageJson as string | null | undefined));
+  const avgInputTokens =
+    totalRuns > 0 ? tokenUsages.reduce((sum, t) => sum + t.inputTokens, 0) / totalRuns : 0;
+  const avgOutputTokens =
+    totalRuns > 0 ? tokenUsages.reduce((sum, t) => sum + t.outputTokens, 0) / totalRuns : 0;
+
+  return {
+    metrics: {
+      stepId: stepData.stepId,
+      stepType: stepData.stepType,
+      totalRuns,
+      successCount,
+      failureCount,
+      successRate,
+      medianDurationMs,
+      p95DurationMs,
+      avgRetryCount,
+      avgInputTokens,
+      avgOutputTokens
+    },
+    successCount,
+    failureCount
+  };
+}
+
+function computeHealthScore(definitionSuccessRate: number): number {
+  let healthScore = Math.round(definitionSuccessRate * 100);
+  if (definitionSuccessRate >= 0.9) {
+    healthScore = 100;
+  } else if (definitionSuccessRate >= 0.8) {
+    healthScore = 85;
+  } else if (definitionSuccessRate >= 0.7) {
+    healthScore = 70;
+  }
+  return healthScore;
+}
+
+type StepRunWithRun = Awaited<ReturnType<PrismaClient["workflowStepRun"]["findMany"]>>[number] & { run: { definitionName: string } };
+
+function groupByDefinition(stepRuns: StepRunWithRun[]): Map<string, StepRunWithRun[]> {
+  const map = new Map<string, StepRunWithRun[]>();
+  for (const stepRun of stepRuns) {
+    const defName = stepRun.run.definitionName;
+    const existing = map.get(defName);
+    if (existing) {
+      existing.push(stepRun);
+    } else {
+      map.set(defName, [stepRun]);
+    }
+  }
+  return map;
+}
+
+function computeDefinitionResult(definitionName: string, runs: StepRunWithRun[]): DefinitionMetrics {
+  const stepMap = new Map<string, { stepId: string; stepType: string; runs: StepRunWithRun[] }>();
+  for (const stepRun of runs) {
+    const existing = stepMap.get(stepRun.stepId);
+    if (existing) {
+      existing.runs.push(stepRun);
+    } else {
+      stepMap.set(stepRun.stepId, { stepId: stepRun.stepId, stepType: stepRun.stepType, runs: [stepRun] });
+    }
+  }
+
+  const stepMetrics: StepMetrics[] = [];
+  let totalDefinitionSuccesses = 0;
+  for (const [, stepData] of stepMap) {
+    const { metrics, successCount } = computeStepMetrics(stepData.runs, stepData);
+    stepMetrics.push(metrics);
+    totalDefinitionSuccesses += successCount;
+  }
+
+  const totalRuns = runs.length;
+  const successRate = totalRuns > 0 ? totalDefinitionSuccesses / totalRuns : 0;
+  return { definitionName, totalRuns, successRate, healthScore: computeHealthScore(successRate), steps: stepMetrics };
+}
+
 /**
  * Get workflow analytics for one or all workflow definitions
  */
@@ -85,137 +184,21 @@ export async function getWorkflowAnalytics(
   db: PrismaClient,
   options: GetAnalyticsOptions = {}
 ): Promise<DefinitionMetrics[]> {
-  const since = options.since ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+  const since = options.since ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Build where clause dynamically
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const whereClause: any = {
-    startedAt: { gte: since }
+  const whereClause = {
+    startedAt: { gte: since },
+    ...(options.definitionName !== undefined
+      ? { run: { definitionName: options.definitionName } }
+      : {})
   };
-  if (options.definitionName) {
-    whereClause.run = { definitionName: options.definitionName };
-  }
 
-  // Fetch all step runs with their parent run info
   const stepRuns = await db.workflowStepRun.findMany({
     where: whereClause,
-    include: {
-      run: true
-    }
-  });
+    include: { run: true }
+  }) as StepRunWithRun[];
 
-  // Group by definition name
-  const definitionMap = new Map<string, typeof stepRuns>();
-  for (const stepRun of stepRuns) {
-    const defName = stepRun.run.definitionName;
-    if (!definitionMap.has(defName)) {
-      definitionMap.set(defName, []);
-    }
-    definitionMap.get(defName)!.push(stepRun);
-  }
-
-  // Build metrics for each definition
-  const results: DefinitionMetrics[] = [];
-  for (const [definitionName, runs] of definitionMap) {
-    // Group step runs by step ID and step type
-    const stepMap = new Map<
-      string,
-      { stepId: string; stepType: string; runs: typeof stepRuns }
-    >();
-    for (const stepRun of runs) {
-      const key = `${stepRun.stepId}`;
-      if (!stepMap.has(key)) {
-        stepMap.set(key, {
-          stepId: stepRun.stepId,
-          stepType: stepRun.stepType,
-          runs: []
-        });
-      }
-      stepMap.get(key)!.runs.push(stepRun);
-    }
-
-    // Compute metrics per step
-    const stepMetrics: StepMetrics[] = [];
-    let totalDefinitionSuccesses = 0;
-    let totalDefinitionFailures = 0;
-
-    for (const [, stepData] of stepMap) {
-      const stepRuns = stepData.runs;
-      const totalRuns = stepRuns.length;
-      const successCount = stepRuns.filter((r) => !r.errorJson).length;
-      const failureCount = stepRuns.filter((r) => r.errorJson).length;
-      const successRate = totalRuns > 0 ? successCount / totalRuns : 0;
-
-      // Compute durations (ms)
-      const durations = stepRuns
-        .filter((r) => r.completedAt && r.startedAt)
-        .map((r) => new Date(r.completedAt!).getTime() - new Date(r.startedAt).getTime())
-        .sort((a, b) => a - b);
-
-      const medianDurationMs = computeMedian(durations);
-      const p95DurationMs = computeP95(durations);
-
-      // Average retry count
-      const avgRetryCount =
-        totalRuns > 0 ? stepRuns.reduce((sum, r) => sum + r.retryCount, 0) / totalRuns : 0;
-
-      // Average token usage
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tokenUsages = stepRuns.map((r) => parseTokenUsage((r as any).tokenUsageJson));
-      const avgInputTokens =
-        totalRuns > 0 ? tokenUsages.reduce((sum, t) => sum + t.inputTokens, 0) / totalRuns : 0;
-      const avgOutputTokens =
-        totalRuns > 0
-          ? tokenUsages.reduce((sum, t) => sum + t.outputTokens, 0) / totalRuns
-          : 0;
-
-      stepMetrics.push({
-        stepId: stepData.stepId,
-        stepType: stepData.stepType,
-        totalRuns,
-        successCount,
-        failureCount,
-        successRate,
-        medianDurationMs,
-        p95DurationMs,
-        avgRetryCount,
-        avgInputTokens,
-        avgOutputTokens
-      });
-
-      totalDefinitionSuccesses += successCount;
-      totalDefinitionFailures += failureCount;
-    }
-
-    // Compute definition-level health score (weighted by run count)
-    const totalDefinitionRuns = runs.length;
-    const definitionSuccessRate =
-      totalDefinitionRuns > 0
-        ? totalDefinitionSuccesses / totalDefinitionRuns
-        : 0;
-
-    // Health score: 0-100, based on success rate
-    // >= 90% success = 100
-    // >= 80% success = 80
-    // >= 70% success = 60
-    // < 70% success = max(0, 40 + (successRate - 0.5) * 100)
-    let healthScore = Math.round(definitionSuccessRate * 100);
-    if (definitionSuccessRate >= 0.9) {
-      healthScore = 100;
-    } else if (definitionSuccessRate >= 0.8) {
-      healthScore = 85;
-    } else if (definitionSuccessRate >= 0.7) {
-      healthScore = 70;
-    }
-
-    results.push({
-      definitionName,
-      totalRuns: totalDefinitionRuns,
-      successRate: definitionSuccessRate,
-      healthScore,
-      steps: stepMetrics
-    });
-  }
-
+  const definitionMap = groupByDefinition(stepRuns);
+  const results = [...definitionMap].map(([name, runs]) => computeDefinitionResult(name, runs));
   return results.sort((a, b) => a.definitionName.localeCompare(b.definitionName));
 }

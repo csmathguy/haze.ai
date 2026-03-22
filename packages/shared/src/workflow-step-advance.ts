@@ -18,15 +18,27 @@ export type ExecuteParallelFn = (run: WorkflowRun, step: ParallelStep) => Workfl
 
 // -- handleStepFailure helpers (split to stay under complexity limit) ----------
 
+interface RetryEffectOptions {
+  retryCountKey: string;
+  currentRetryCount: number;
+  currentStep: WorkflowDefinition["steps"][number] | undefined;
+  failureReason?: string | undefined;
+}
+
 function buildRetryEffect(
   nextRun: WorkflowRun,
-  retryCountKey: string,
-  currentRetryCount: number,
-  currentStep: WorkflowDefinition["steps"][number] | undefined
+  opts: RetryEffectOptions
 ): WorkflowRunEffect {
+  const { retryCountKey, currentRetryCount, currentStep, failureReason } = opts;
+  // Store the failure reason under retry_error_<stepId> so the next attempt can see it.
+  const errorKey = retryCountKey.replace("retry_count_", "retry_error_");
   const updatedRun = {
     ...nextRun,
-    contextJson: { ...nextRun.contextJson, [retryCountKey]: currentRetryCount + 1 }
+    contextJson: {
+      ...nextRun.contextJson,
+      [retryCountKey]: currentRetryCount + 1,
+      ...(failureReason !== undefined ? { [errorKey]: failureReason } : {})
+    }
   };
   const effects: WorkflowEffect[] = [];
   if (currentStep) {
@@ -95,7 +107,6 @@ function findStepById(
   return undefined;
 }
 
-/** Handles step failure with retry logic. */
 export function handleStepFailure(
   run: WorkflowRun,
   stepResult: StepResult,
@@ -103,7 +114,7 @@ export function handleStepFailure(
   now: string
 ): WorkflowRunEffect {
   const nextRun: WorkflowRun = { ...run, updatedAt: now };
-  const currentStep = definition.steps.find((s) => s.id === run.currentStepId);
+  const currentStep = findStepById(definition.steps, run.currentStepId);
   const retryPolicy = currentStep && "retryPolicy" in currentStep
     ? currentStep.retryPolicy
     : definition.retryPolicy;
@@ -113,7 +124,8 @@ export function handleStepFailure(
   const currentRetryCount = typeof rawCount === "number" ? rawCount : 0;
 
   if (retryPolicy && currentRetryCount < retryPolicy.maxRetries) {
-    return buildRetryEffect(nextRun, retryCountKey, currentRetryCount, currentStep);
+    const failureReason = stepResult.type === "failure" ? stepResult.error.message : undefined;
+    return buildRetryEffect(nextRun, { retryCountKey, currentRetryCount, currentStep, failureReason });
   }
 
   return buildFailEffect(nextRun, now, stepResult);

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { PrismaClient } from "@taxes/db";
 import { getPrismaClient } from "@taxes/db";
@@ -59,13 +58,13 @@ describe("FailedRunFollowUpService", () => {
         input: { workItemId }
       };
 
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
+        runContextJson: runContext,
         failedStepId,
         failureReason,
-        testPlanningDbUrl
-      );
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify follow-up item was created
       const createdItem = await planningPrisma.planWorkItem.findFirst({
@@ -87,13 +86,13 @@ describe("FailedRunFollowUpService", () => {
         input: {} // No workItemId
       };
 
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
-        "step-execute",
-        "Some error",
-        testPlanningDbUrl
-      );
+        runContextJson: runContext,
+        failedStepId: "step-execute",
+        failureReason: "Some error",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify no item was created
       const items = await planningPrisma.planWorkItem.findMany();
@@ -109,23 +108,21 @@ describe("FailedRunFollowUpService", () => {
         input: { workItemId }
       };
 
-      // Create first follow-up item
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
+        runContextJson: runContext,
         failedStepId,
-        "Error message",
-        testPlanningDbUrl
-      );
+        failureReason: "Error message",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
-      // Attempt to create again with same workItemId
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
+        runContextJson: runContext,
         failedStepId,
-        "Different error message",
-        testPlanningDbUrl
-      );
+        failureReason: "Different error message",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify only one item exists
       const items = await planningPrisma.planWorkItem.findMany({
@@ -141,15 +138,13 @@ describe("FailedRunFollowUpService", () => {
         input: { workItemId }
       };
 
-      // Should not throw, should just return early
       await expect(
-        createFollowUpWorkItemForFailedRun(
+        createFollowUpWorkItemForFailedRun({
           runId,
-          runContext,
-          "step-id",
-          "error",
-          undefined
-        )
+          runContextJson: runContext,
+          failedStepId: "step-id",
+          failureReason: "error"
+        })
       ).resolves.not.toThrow();
 
       // Verify nothing was created
@@ -164,13 +159,13 @@ describe("FailedRunFollowUpService", () => {
         workItemId // Direct property, not nested in input
       };
 
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
-        "step-deploy",
-        "Deployment failed",
-        testPlanningDbUrl
-      );
+        runContextJson: runContext,
+        failedStepId: "step-deploy",
+        failureReason: "Deployment failed",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify follow-up item was created
       const createdItem = await planningPrisma.planWorkItem.findFirst({
@@ -188,13 +183,12 @@ describe("FailedRunFollowUpService", () => {
         input: { workItemId }
       };
 
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
-        undefined, // No failed step ID
-        "Generic error",
-        testPlanningDbUrl
-      );
+        runContextJson: runContext,
+        failureReason: "Generic error",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify follow-up item was created with "unknown step"
       const createdItem = await planningPrisma.planWorkItem.findFirst({
@@ -216,13 +210,13 @@ describe("FailedRunFollowUpService", () => {
         }
       };
 
-      await createFollowUpWorkItemForFailedRun(
+      await createFollowUpWorkItemForFailedRun({
         runId,
-        runContext,
+        runContextJson: runContext,
         failedStepId,
-        "Validation error",
-        testPlanningDbUrl
-      );
+        failureReason: "Validation error",
+        planningDatabaseUrl: testPlanningDbUrl
+      });
 
       // Verify error details are in summary
       const createdItem = await planningPrisma.planWorkItem.findFirst({

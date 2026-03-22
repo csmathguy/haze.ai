@@ -31,7 +31,7 @@ function mapInputFromParentContext(
 
   const result: Record<string, unknown> = {};
   for (const [key, template] of Object.entries(inputMapping)) {
-    // Simple interpolation: replace {{key.path}} with context values
+    // eslint-disable-next-line sonarjs/slow-regex
     const interpolated = template.replace(/\{\{([^}]+)\}\}/g, (_match, path: string) => {
       const parts = path.trim().split(".");
       let current: unknown = parentContextJson;
@@ -69,7 +69,7 @@ async function checkForCircularReferences(
 
   // Walk up the parent chain
   let ancestorRunId: string | null = currentRunId;
-  let visited = new Set<string>();
+  const visited = new Set<string>();
 
   while (ancestorRunId && !visited.has(ancestorRunId)) {
     visited.add(ancestorRunId);
@@ -88,6 +88,15 @@ async function checkForCircularReferences(
   }
 }
 
+export interface ExecuteChildWorkflowStepOptions {
+  db: PrismaClient;
+  parentRunId: string;
+  parentDefinitionName: string;
+  stepRunId: string;
+  step: ChildWorkflowStepConfig;
+  parentContextJson: Record<string, unknown>;
+}
+
 /**
  * Executes a child-workflow step:
  * 1. Validates the child workflow exists
@@ -96,13 +105,9 @@ async function checkForCircularReferences(
  * 4. Records the step and returns waiting state
  */
 export async function executeChildWorkflowStep(
-  db: PrismaClient,
-  parentRunId: string,
-  parentDefinitionName: string,
-  stepRunId: string,
-  step: ChildWorkflowStepConfig,
-  parentContextJson: Record<string, unknown>
+  options: ExecuteChildWorkflowStepOptions
 ): Promise<ChildWorkflowResult> {
+  const { db, parentRunId, parentDefinitionName, stepRunId, step, parentContextJson } = options;
   const childWorkflowName = step.workflowName;
 
   // Check for circular references

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { PrismaClient, WorkflowStepRun, Agent, Skill } from "@taxes/db";
 import type { AgentStep, WorkflowRun } from "@taxes/shared";
 import { parseStreamJson } from "./agent-step-stream-parser.js";
-import type { TokenUsage } from "./agent-step-stream-parser.js";
+import type { TokenUsage, CliStreamResult } from "./agent-step-stream-parser.js";
+import type { ZodType } from "zod";
 
 /**
  * Step execution result emitted by the CLI (stream-json format).
@@ -98,10 +99,12 @@ export class AgentStepExecutor {
   ): Promise<StepExecutionEffect> {
     const startTime = Date.now();
 
-    // Load the agent from registry
-    const agent = await db.agent.findUnique({
-      where: { id: step.agentId }
-    });
+    // Load the agent from registry.
+    // agentId in step definitions is the agent's name (e.g. "implementer"), not its cuid.
+    // Try by id first for forward-compat, then fall back to name lookup.
+    const agent =
+      (await db.agent.findUnique({ where: { id: step.agentId } })) ??
+      (await db.agent.findFirst({ where: { name: step.agentId } }));
 
     if (!agent) {
       throw new Error(`Agent not found: ${step.agentId}`);
@@ -110,14 +113,8 @@ export class AgentStepExecutor {
     // Verify skills are allowed
     this.verifyAllowedSkills(agent, step);
 
-    // Load skill definitions
-    const skills = await db.skill.findMany({
-      where: {
-        id: {
-          in: step.skillIds
-        }
-      }
-    });
+    // Load skill definitions (try by id first, fall back to name lookup).
+    const skills = await this.loadSkills(db, step.skillIds);
 
     // Build the prompt from skill definitions
     const prompt = this.buildPrompt(agent, skills, step, run);
@@ -145,8 +142,8 @@ export class AgentStepExecutor {
       ...(worktreePath !== undefined && { cwd: worktreePath })
     });
 
-    // Parse stream-json output
-    const parsed = parseStreamJson(cliOutput.stdout, step.outputSchema);
+    // Parse stream-json output; on failure, include stdout sample for diagnostics
+    const parsed = this.parseCli(cliOutput.stdout, cliOutput.stderr, step.outputSchema);
 
     const durationMs = Date.now() - startTime;
 
@@ -169,6 +166,29 @@ export class AgentStepExecutor {
       type: "step-completed",
       stepRun
     };
+  }
+
+  private async loadSkills(db: PrismaClient, skillIds: string[]): Promise<Skill[]> {
+    const byId = await db.skill.findMany({ where: { id: { in: skillIds } } });
+    const foundIds = new Set(byId.map((s) => s.id));
+    const missingNames = skillIds.filter((sid) => !foundIds.has(sid));
+    const byName = missingNames.length > 0
+      ? await db.skill.findMany({ where: { name: { in: missingNames } } })
+      : [];
+    return [...byId, ...byName];
+  }
+
+  /** Parses CLI stdout with diagnostic context on failure. */
+  private parseCli(stdout: string[], stderr: string, outputSchema: ZodType): CliStreamResult {
+    try {
+      return parseStreamJson(stdout, outputSchema);
+    } catch (parseError) {
+      const stdoutSample = stdout.slice(-20).join("\n").slice(0, 2000);
+      const base = parseError instanceof Error ? parseError.message : String(parseError);
+      const diagErr = new Error(`${base} (last stdout lines: ${stdoutSample}; stderr: ${stderr.slice(0, 500)})`);
+      diagErr.cause = parseError instanceof Error ? parseError : new Error(String(parseError));
+      throw diagErr;
+    }
   }
 
   private verifyAllowedSkills(agent: Agent, step: AgentStep): void {
@@ -260,31 +280,61 @@ export class AgentStepExecutor {
     }).join("\n\n---\n\n");
 
     // Extract contextPack from contextJson if available (from prior ContextPackStep)
-    const contextPack = (run.contextJson as Record<string, unknown> | null)?.contextPack as Record<string, unknown> | undefined;
-    const contextPackInfo = contextPack ? `\n\nWork Item Context:
-${JSON.stringify(contextPack, null, 2)}` : "";
+    const contextPack = run.contextJson.contextPack as Record<string, unknown> | undefined;
+
+    // Build output schema description for the prompt
+    const outputSchemaStr = JSON.stringify(step.outputSchema, null, 2);
+
+    // Check for a previous failed attempt error stored by the retry logic.
+    const retryErrorKey = `retry_error_${step.id}`;
+    const previousError = run.contextJson[retryErrorKey];
+    const previousErrorStr = typeof previousError === "string" ? previousError : undefined;
+    const previousErrorSection = previousErrorStr !== undefined
+      ? `\n\nPREVIOUS ATTEMPT FAILED WITH THIS ERROR — fix it this time:\n${previousErrorStr}`
+      : "";
+
+    // Format just the task-relevant fields for the prompt (exclude gitDiff to avoid misleading the agent)
+    const taskContext = contextPack
+      ? {
+          workItemId: contextPack.workItemId,
+          workItemTitle: contextPack.workItemTitle,
+          workItemSummary: contextPack.workItemSummary,
+          acceptanceCriteria: contextPack.acceptanceCriteria,
+          tasks: contextPack.tasks
+        }
+      : run.contextJson;
 
     // System prompt with agent context
-    const systemPrompt = `You are an agent executing the following step in a workflow.
+    const systemPrompt = `You are an implementation agent executing a bounded task inside a git worktree.
 
 Agent: ${agent.name}
 Step: ${step.label}
-Model: ${step.model}
+
+IMPORTANT RULES:
+1. Make ONLY the code changes needed to complete this task. Do not run tsc, eslint, or any validation — the workflow handles those automatically after you finish.
+2. Do NOT commit or push anything — the workflow handles git commit and PR creation.
+3. You are working in a dedicated git worktree. Any existing commits on this branch are infrastructure changes NOT related to your task. Your task has NOT been implemented yet — determine what to implement from the workItemSummary and tasks fields below.
+4. When your implementation is COMPLETE, your FINAL MESSAGE must be ONLY a raw JSON object (no markdown code blocks, no explanation before or after). The JSON must match this schema:
+${outputSchemaStr}
 
 Available Skills:
 ${skillsSection}
 
-Workflow Context:
-${JSON.stringify(run.contextJson, null, 2)}${contextPackInfo}
+Work Item Context:
+${JSON.stringify(taskContext, null, 2)}${previousErrorSection}`;
 
-Please execute the requested tasks and return structured JSON output.`;
+    // User prompt with specific task instructions
+    const userPrompt = `Complete the implementation for step "${step.label}" (step id: ${step.id}).
 
-    // User prompt with step details
-    const userPrompt = `Execute step "${step.label}" (${step.id}).
+After making all code changes, respond with ONLY this JSON object as your final message (replace the placeholder values):
+{
+  "filesChanged": ["list absolute paths of every file you modified or created"],
+  "testsAdded": false,
+  "refactoringApplied": false,
+  "summary": "one sentence describing what you changed and why"
+}
 
-Requested Skills: ${step.skillIds.join(", ")}
-
-Provide your response as JSON matching the output schema. Include reasoning in a "reasoning" field.`;
+Do not include any text before or after the JSON. Do not wrap it in markdown code blocks.`;
 
     // Combine for the full prompt (will be passed to claude -p or codex exec)
     return `${systemPrompt}\n\n---\n\n${userPrompt}`;
@@ -363,9 +413,19 @@ Provide your response as JSON matching the output schema. Include reasoning in a
     prompt: string
   ): { command: string; args: string[] } {
     if (providerFamily === "anthropic" && runtimeKind === "claude-code-subagent") {
+      // On Windows, "claude" is installed as claude.cmd (a batch file) and cannot be spawned
+      // directly without shell:true. To avoid shell-quoting the prompt (which may contain
+      // special characters), we invoke cmd.exe explicitly with /c so that args are passed
+      // as individual array elements without any shell re-interpretation.
+      if (process.platform === "win32") {
+        return {
+          command: "cmd.exe",
+          args: ["/c", "claude.cmd", "-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"]
+        };
+      }
       return {
         command: "claude",
-        args: ["-p", prompt, "--output-format", "stream-json"]
+        args: ["-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"]
       };
     }
     if (providerFamily === "openai" && runtimeKind === "codex-subagent") {

@@ -21,6 +21,10 @@ This is an inference from the source set and the current codebase. Official npm 
 - `npm run dev:env -- --environment all --dry-run`
   - prints the launch plan without starting processes
 
+For single-service workspace commands such as `npm run dev:workflow:web` or `npm run dev:taxes:api`, the shared `tools/runtime/run-npm.cjs` wrapper now reclaims the fixed localhost port for that workspace before starting the new process. This keeps Vite and API restarts from failing on stale listeners after a previous session was left running.
+
+The workflow UI uses the standalone workflow API during local development. Start both with `npm run dev:workflow:api` and `npm run dev:workflow:web` when working on the workflow surface; the workflow web Vite proxy targets `http://127.0.0.1:3181` by default rather than the gateway.
+
 ## Repo refresh helper
 
 `npm run repo:refresh` chains `git fetch origin main`, `git pull origin main`, and `npm install` (using the pinned `tools/runtime/run-npm.cjs` helper) before restarting the named environment(s). After install, it runs dependency integrity probes for critical `@mui/material` and `@mui/icons-material` files; if any probe fails, it removes the affected package folder and runs one repair install pass before continuing. By default it launches `--environment all`, which includes the workflow web frontend and the gateway API in addition to the product UIs and APIs. You can pass `--environment`/`--env` multiple times or comma-separated to run a subset, override the branch/remote with `--branch`/`--remote`, or stop before the services start with `--skip-dev`.

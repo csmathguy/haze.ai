@@ -9,11 +9,31 @@ import {
   Button,
   Chip,
   Stack,
-  Paper
+  Paper,
+  IconButton,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
-import { ArrowBack as ArrowBackIcon, Pause as PauseIcon, Cancel as CancelIcon } from "@mui/icons-material";
+import {
+  ArrowBack as ArrowBackIcon,
+  Pause as PauseIcon,
+  Cancel as CancelIcon,
+  MoreVert as MoreVertIcon,
+  Delete as DeleteIcon
+} from "@mui/icons-material";
 
-import { getWorkflowDefinition, getWorkflowRun, type WorkflowRun, type WorkflowDefinition, type WorkflowStepRun } from "../api.js";
+import {
+  deleteWorkflowRun,
+  getWorkflowDefinition,
+  getWorkflowRun,
+  type WorkflowRun,
+  type WorkflowDefinition,
+  type WorkflowStepRun
+} from "../api.js";
 import { WorkflowGraph } from "../../components/WorkflowGraph.js";
 import { StdoutBlock, StepTimeline } from "./StepOutputPanel.js";
 
@@ -91,10 +111,11 @@ function getActivityState(run: WorkflowRun): ActivityState | null {
 
   const stepId = latestStep?.stepId ?? "-";
   const outputs = getStepOutputs(latestStep);
+  const endTime = run.completedAt ? new Date(run.completedAt).getTime() : Date.now();
   return {
     isActive: !TERMINAL_STATUSES.has(run.status),
     activeStepId: run.currentStep ?? stepId,
-    elapsedMs: Date.now() - new Date(run.startedAt).getTime(),
+    elapsedMs: endTime - new Date(run.startedAt).getTime(),
     truncatedStdout: truncateOutput(outputs.stdout, 2000, true),
     truncatedStderr: truncateOutput(outputs.stderr, 1000, true),
     truncatedError: truncateOutput(outputs.errorJson, 800, false)
@@ -217,6 +238,62 @@ const useRunActions = (id: string | undefined) => {
   return { actionLoading, actionError, handlePause, handleCancel };
 };
 
+const RunOverflowMenu: React.FC<{
+  actionLoading: boolean;
+  onDelete: () => Promise<void>;
+}> = ({ actionLoading, onDelete }) => {
+  const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  return (
+    <>
+      <IconButton
+        aria-label="run actions"
+        onClick={(event) => { setAnchorElement(event.currentTarget); }}
+        sx={{ ml: "auto" }}
+      >
+        <MoreVertIcon />
+      </IconButton>
+      <Menu
+        anchorEl={anchorElement}
+        open={anchorElement !== null}
+        onClose={() => { setAnchorElement(null); }}
+      >
+        <MenuItem
+          onClick={() => {
+            setAnchorElement(null);
+            setDeleteDialogOpen(true);
+          }}
+        >
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          Delete Run
+        </MenuItem>
+      </Menu>
+      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); }}>
+        <DialogTitle>Delete this run?</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" variant="body2">
+            This permanently removes the run, its step history, and related approvals. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setDeleteDialogOpen(false); }}>Cancel</Button>
+          <Button
+            color="error"
+            disabled={actionLoading}
+            onClick={() => {
+              void onDelete().finally(() => { setDeleteDialogOpen(false); });
+            }}
+            variant="contained"
+          >
+            {actionLoading ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+};
+
 interface RunActionButtonsProps {
   readonly actionLoading: boolean;
   readonly handleCancel: () => Promise<void>;
@@ -292,6 +369,30 @@ const RunMetadataPanel: React.FC<RunMetadataPanelProps> = ({ run }) => (
   </Paper>
 );
 
+function useDeleteRun(runId: string | undefined, navigate: ReturnType<typeof useNavigate>) {
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async (): Promise<void> => {
+    if (!runId) {
+      return;
+    }
+
+    try {
+      setDeleteLoading(true);
+      setDeleteError(null);
+      await deleteWorkflowRun(runId);
+      navigate("/fleet");
+    } catch (deleteRunError) {
+      setDeleteError(deleteRunError instanceof Error ? deleteRunError.message : "Failed to delete run");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  return { deleteError, deleteLoading, handleDelete };
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -301,6 +402,7 @@ export const WorkflowRunDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { run, loading, error } = useFetchWorkflowRun(id);
   const { actionLoading, actionError, handlePause, handleCancel } = useRunActions(id);
+  const { deleteError, deleteLoading, handleDelete } = useDeleteRun(id, navigate);
   const [definition, setDefinition] = useState<WorkflowDefinition | null>(null);
   const [loadedDefinitionName, setLoadedDefinitionName] = useState<string | null>(null);
 
@@ -328,7 +430,7 @@ export const WorkflowRunDetailPage: React.FC = () => {
   if (error ?? !run) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => { navigate("/runs"); }} sx={{ mb: 2 }}>Back</Button>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => { navigate("/fleet"); }} sx={{ mb: 2 }}>Back</Button>
         <Alert severity="error">{error ?? "Run not found"}</Alert>
       </Container>
     );
@@ -336,19 +438,25 @@ export const WorkflowRunDetailPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => { navigate("/runs"); }} sx={{ mb: 2 }}>Back</Button>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => { navigate("/fleet"); }} sx={{ mb: 2 }}>Back</Button>
 
       {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
+      {deleteError && <Alert severity="error" sx={{ mb: 2 }}>{deleteError}</Alert>}
 
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3, flexWrap: "wrap" }}>
           <Typography variant="h4">Run Details</Typography>
           <Chip label={run.status} color={getStatusColor(run.status)} variant="filled" />
           <RunActionButtons actionLoading={actionLoading} handleCancel={handleCancel} handlePause={handlePause} status={run.status} />
+          <RunOverflowMenu
+            actionLoading={deleteLoading}
+            onDelete={handleDelete}
+          />
         </Box>
 
         <RunMetadataPanel run={run} />
         <LiveActivityPanel run={run} />
+        <StepTimeline stepRuns={run.stepRuns} />
 
         {definition && (
           <>
@@ -361,8 +469,6 @@ export const WorkflowRunDetailPage: React.FC = () => {
             </Paper>
           </>
         )}
-
-        <StepTimeline stepRuns={run.stepRuns} />
       </Box>
     </Container>
   );

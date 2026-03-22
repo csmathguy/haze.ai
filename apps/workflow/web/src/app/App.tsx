@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 import { WorkflowDefinitionListPage } from "./pages/WorkflowDefinitionListPage.js";
 import { WorkflowDefinitionDetailPage } from "./pages/WorkflowDefinitionDetailPage.js";
-import { WorkflowRunListPage } from "./pages/WorkflowRunListPage.js";
 import { WorkflowRunDetailPage } from "./pages/WorkflowRunDetailPage.js";
 import { AnalyticsPage } from "./pages/AnalyticsPage.js";
 import { FleetDashboard } from "./pages/FleetDashboard.js";
@@ -14,7 +13,7 @@ export const WorkflowRoutes: React.FC = () => {
       <Route path="/fleet" element={<FleetDashboard />} />
       <Route path="/definitions" element={<WorkflowDefinitionListPage />} />
       <Route path="/definitions/:name" element={<WorkflowDefinitionDetailPage />} />
-      <Route path="/runs" element={<WorkflowRunListPage />} />
+      <Route path="/runs" element={<Navigate to="/fleet" replace />} />
       <Route path="/runs/:id" element={<WorkflowRunDetailPage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
       <Route path="/" element={<Navigate to="/fleet" replace />} />

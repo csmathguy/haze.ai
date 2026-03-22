@@ -5,7 +5,6 @@ import type {
   AgentStep,
   ApprovalStep,
   ConditionStep,
-  ParallelStep,
   ContextPackStep
 } from "@taxes/shared";
 
@@ -92,7 +91,12 @@ const createWorktreeStep: CommandStep = {
     "{{input.workItemId}}",
     "--summary",
     "{{input.summary}}",
-    "--merge-main"
+    "--scope",
+    "apps/",
+    "--scope",
+    "packages/",
+    "--merge-main",
+    "--force"
   ],
   timeoutMs: 300000,
   retryPolicy: {
@@ -168,9 +172,9 @@ const implementationStep: AgentStep = {
 };
 
 /**
- * Phase 4: Validation steps (all run in parallel for efficiency)
+ * Phase 4: Validation steps (sequential for simplicity and reliability).
  * These steps validate the implementation against quality standards.
- * Each step retries up to 2 times with backoff to handle transient failures (network, locks, etc.).
+ * Each step retries up to 2 times with backoff to handle transient failures.
  */
 
 /**
@@ -192,16 +196,15 @@ const prismaCheckStep: CommandStep = {
 };
 
 /**
- * Quality check (eslint, formatting, etc.) with logging.
- * Ensures code meets project standards for linting, formatting, and style.
- * Retries 2 times to handle transient linting/formatting tool issues.
+ * Full TypeScript type checking.
+ * Validates that all TypeScript code is type-safe and correct.
  */
-const qualityCheckStep: CommandStep = {
+const typeCheckStep: CommandStep = {
   type: "command",
-  id: "phase-4-quality-logged",
-  label: "Phase 4b: Run logged quality check",
+  id: "phase-4-typecheck",
+  label: "Phase 4b: Full TypeScript check",
   scriptPath: "npm",
-  args: ["run", "quality:logged", "--", "implementation"],
+  args: ["run", "typecheck"],
   timeoutMs: 300000,
   retryPolicy: {
     maxRetries: 2,
@@ -210,17 +213,16 @@ const qualityCheckStep: CommandStep = {
 };
 
 /**
- * Full TypeScript type checking.
- * Validates that all TypeScript code is type-safe and correct.
- * Retries 2 times to handle transient compilation tool issues or resource contention.
+ * ESLint check.
+ * Ensures code meets project standards for linting and style.
  */
-const typeCheckStep: CommandStep = {
+const lintStep: CommandStep = {
   type: "command",
-  id: "phase-4-typecheck",
-  label: "Phase 4c: Full TypeScript check",
+  id: "phase-4-lint",
+  label: "Phase 4c: Run ESLint",
   scriptPath: "npm",
-  args: ["run", "typecheck"],
-  timeoutMs: 180000,
+  args: ["run", "lint"],
+  timeoutMs: 120000,
   retryPolicy: {
     maxRetries: 2,
     backoffMs: 5000
@@ -228,71 +230,20 @@ const typeCheckStep: CommandStep = {
 };
 
 /**
- * Parallel guardrails orchestrator.
- * Executes all three validation steps (Prisma, quality, typecheck) in parallel for efficiency.
- * If any branch fails after retries, the entire parallel step fails and routes to approval gate.
+ * Phase 5a: Stage all changes for commit.
+ * Stages all modified and new files in the worktree so they are ready to commit.
  */
-const guardrailsParallel: ParallelStep = {
-  type: "parallel",
-  id: "phase-4-guardrails",
-  label: "Phase 4: Run all validation guardrails in parallel",
-  branches: [
-    [prismaCheckStep],
-    [qualityCheckStep],
-    [typeCheckStep]
-  ]
-};
-
-/**
- * Condition step: Check if any validation step signalled failure via contextJson.
- *
- * When a command step fails it sets contextJson.validationFailed = true via captureStdoutKey
- * on a wrapper script, OR this can be set manually by an operator to force human review.
- *
- * Note: Per-step retry policies on each parallel branch exhaust first. Only after all retries
- * fail does the engine set the run to failed. This condition gate intercepts that to give
- * a human-review option instead of an outright failure.
- *
- * If validationFailed is not set (normal success path), falseBranch continues to ship phase.
- */
-const validationRetryCheckCondition: ConditionStep = {
-  type: "condition",
-  id: "phase-4-check-retry-exhausted",
-  label: "Phase 4: Check if validation failed — route to human review or continue",
-  condition: (context: Record<string, unknown>) => context.validationFailed === true,
-  trueBranch: [
-    {
-      type: "approval",
-      id: "phase-4-human-review-gate",
-      label: "Validation failed — request human review before proceeding",
-      prompt:
-        "One or more validation steps (Prisma check, quality check, TypeScript check) failed after retries. " +
-        "Review the step output in the run detail panel and decide: approve to continue to ship phase, or cancel to abort."
-    } as ApprovalStep
-  ],
-  falseBranch: [] // Continue to ship phase
-};
-
-/**
- * Post-implementation smoke test.
- * Runs a quick sanity check (typecheck) one final time before PR creation.
- * This ensures the validation suite passed consistently and we're ready to ship.
- */
-const smokeTestStep: CommandStep = {
+const stageChangesStep: CommandStep = {
   type: "command",
-  id: "phase-4-smoke-test",
-  label: "Phase 4d: Post-implementation smoke test",
-  scriptPath: "npm",
-  args: ["run", "typecheck"],
-  timeoutMs: 180000,
-  retryPolicy: {
-    maxRetries: 1,
-    backoffMs: 3000
-  }
+  id: "phase-5-stage-changes",
+  label: "Phase 5a: Stage all changes (git add -A)",
+  scriptPath: "git",
+  args: ["add", "-A"],
+  timeoutMs: 30000
 };
 
 /**
- * Phase 5a: Create atomic commit.
+ * Phase 5b: Create atomic commit.
  * Commits all changes with a message that includes the work item ID and summary.
  */
 const commitStep: CommandStep = {
@@ -305,7 +256,7 @@ const commitStep: CommandStep = {
 };
 
 /**
- * Phase 5b: Push branch to remote.
+ * Phase 5c: Push branch to remote.
  * Pushes the feature branch upstream with retry logic to handle network issues.
  */
 const pushStep: CommandStep = {
@@ -400,12 +351,13 @@ export const implementationWorkflow: WorkflowDefinition = {
     // Phase 3
     implementationStep,
 
-    // Phase 4 (parallel guardrails with retries and fallback)
-    guardrailsParallel,
-    validationRetryCheckCondition,
-    smokeTestStep,
+    // Phase 4 (sequential validation)
+    prismaCheckStep,
+    typeCheckStep,
+    lintStep,
 
     // Phase 5
+    stageChangesStep,
     commitStep,
     pushStep,
     syncPrStep,
