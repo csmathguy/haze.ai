@@ -71,7 +71,7 @@ export function createCodeReviewService(options: CreateCodeReviewServiceOptions 
 
           const normalizedRepository = toRepository(repositoryResult.value);
           const pullRequests = pullRequestsResult.status === "fulfilled" ? pullRequestsResult.value : [];
-          const orderedPullRequests = [...pullRequests].sort(comparePullRequests);
+          const orderedPullRequests = [...pullRequests].sort(comparePullRequestsByUpdate);
 
           return {
             generatedAt: now().toISOString(),
@@ -203,17 +203,6 @@ function wrapCacheMissError(error: unknown, cacheKey: number | "workspace"): Err
   return new Error("Code review refresh failed.");
 }
 
-function comparePullRequests(left: { state: string; updatedAt: string }, right: { state: string; updatedAt: string }): number {
-  return getStateRank(left.state) - getStateRank(right.state) || Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-}
-
-function getStateRank(state: string): number {
-  switch (state) {
-    case "OPEN":
-      return 0;
-    case "MERGED":
-      return 1;
-    default:
-      return 2;
-  }
+function comparePullRequestsByUpdate(left: { updatedAt: string }, right: { updatedAt: string }): number {
+  return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
 }

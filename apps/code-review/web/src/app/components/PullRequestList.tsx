@@ -3,7 +3,7 @@ import { alpha } from "@mui/material/styles";
 
 import type { CodeReviewPullRequestSummary } from "@taxes/shared";
 
-import { formatPullRequestState } from "../index.js";
+import { formatPullRequestState, formatPullRequestStatusDetail } from "../index.js";
 
 interface PullRequestListProps {
   readonly onSelect: (pullRequestNumber: number) => void;
@@ -36,7 +36,7 @@ export function PullRequestList({ onSelect, pullRequests, selectedPullRequestNum
                   <TableCell>PR</TableCell>
                   <TableCell>Story</TableCell>
                   <TableCell>Planning</TableCell>
-                  <TableCell>State</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell>Updated</TableCell>
                 </TableRow>
               </TableHead>
@@ -119,7 +119,7 @@ function PullRequestRow({
         )}
       </TableCell>
       <TableCell sx={{ minWidth: 128 }}>
-        <Chip color={stateColor} label={formatPullRequestState(pullRequest.state, pullRequest.isDraft)} size="small" variant={isSelected ? "filled" : "outlined"} />
+        <PullRequestStatusCell isSelected={isSelected} pullRequest={pullRequest} stateColor={stateColor} />
       </TableCell>
       <TableCell sx={{ minWidth: 180 }}>
         <Typography color="text.secondary" variant="body2">
@@ -136,4 +136,28 @@ function resolveStateColor(pullRequest: CodeReviewPullRequestSummary): "default"
   }
 
   return pullRequest.state === "OPEN" ? "success" : "default";
+}
+
+function PullRequestStatusCell({
+  isSelected,
+  pullRequest,
+  stateColor
+}: {
+  readonly isSelected: boolean;
+  readonly pullRequest: CodeReviewPullRequestSummary;
+  readonly stateColor: "default" | "success" | "warning";
+}) {
+  return (
+    <Stack spacing={0.8}>
+      <Chip
+        color={stateColor}
+        label={formatPullRequestState(pullRequest.state, pullRequest.isDraft)}
+        size="small"
+        variant={isSelected ? "filled" : "outlined"}
+      />
+      <Typography color="text.secondary" variant="body2">
+        {formatPullRequestStatusDetail(pullRequest.state, pullRequest.isDraft)}
+      </Typography>
+    </Stack>
+  );
 }

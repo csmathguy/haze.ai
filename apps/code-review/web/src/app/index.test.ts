@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countPullRequestsByState, formatPullRequestState, summarizeLaneEvidence } from "./index.js";
+import { countPullRequestsByState, formatPullRequestState, formatPullRequestStatusDetail, summarizeLaneEvidence } from "./index.js";
 
 describe("countPullRequestsByState", () => {
   it("counts pull requests by state", () => {
@@ -49,6 +49,15 @@ describe("formatPullRequestState", () => {
     expect(formatPullRequestState("OPEN", false)).toBe("Open");
     expect(formatPullRequestState("MERGED", false)).toBe("Merged");
     expect(formatPullRequestState("CLOSED", true)).toBe("Draft");
+  });
+});
+
+describe("formatPullRequestStatusDetail", () => {
+  it("returns scan-friendly status detail", () => {
+    expect(formatPullRequestStatusDetail("OPEN", false)).toBe("Active review thread");
+    expect(formatPullRequestStatusDetail("MERGED", false)).toBe("Merged to base branch");
+    expect(formatPullRequestStatusDetail("CLOSED", false)).toBe("Closed without merge");
+    expect(formatPullRequestStatusDetail("OPEN", true)).toBe("Waiting for review readiness");
   });
 });
 
