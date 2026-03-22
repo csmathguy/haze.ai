@@ -239,20 +239,8 @@ export const WorkflowGraph: React.FC<WorkflowGraphProps> = ({ definition, runOve
   };
 
   return (
-    <Box sx={{ display: "flex", height: "100%", minHeight: 600, width: "100%" }}>
-      <Box
-        sx={{
-          flex: 1,
-          height: "100%",
-          minHeight: 600,
-          position: "relative",
-          "& > .react-flow": {
-            height: "600px !important",
-            minHeight: "600px !important",
-            width: "100%"
-          }
-        }}
-      >
+    <Box sx={{ width: "100%" }}>
+      <Box sx={{ height: 600, width: "100%", position: "relative" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
