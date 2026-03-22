@@ -9,6 +9,7 @@ export interface StartRunInput {
   definitionName: string;
   input?: unknown;
   parentRunId?: string;
+  workItemId?: string;
 }
 
 export interface SignalRunInput {
@@ -56,6 +57,7 @@ export async function startRun(
       currentStep: effect.nextRun.currentStepId ?? null,
       contextJson: JSON.stringify(effect.nextRun.contextJson),
       parentRunId: data.parentRunId ?? null,
+      workItemId: data.workItemId ?? null,
       startedAt: new Date(effect.nextRun.startedAt),
       updatedAt: new Date(effect.nextRun.updatedAt)
     }
@@ -291,6 +293,7 @@ export function formatRunForApi(run: WorkflowRunWithStepRuns): Record<string, un
     contextJson: run.contextJson,
     correlationId: run.correlationId,
     parentRunId: run.parentRunId,
+    workItemId: run.workItemId,
     startedAt: run.startedAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
     completedAt: run.completedAt?.toISOString() ?? null,

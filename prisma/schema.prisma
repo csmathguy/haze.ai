@@ -556,6 +556,7 @@ model WorkflowRun {
   contextJson      String?
   correlationId    String?
   parentRunId      String?
+  workItemId       String?
   startedAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   completedAt      DateTime?
@@ -565,6 +566,7 @@ model WorkflowRun {
   @@index([status])
   @@index([correlationId])
   @@index([parentRunId])
+  @@index([workItemId])
   @@index([startedAt])
 }
 

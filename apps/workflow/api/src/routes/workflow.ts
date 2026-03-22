@@ -8,62 +8,20 @@ import * as approvalService from "../services/approval-service.js";
 import * as skillService from "../services/skill-service.js";
 import * as workflowDefinitionService from "../services/workflow-definition-service.js";
 import * as workflowRunService from "../services/workflow-run-service.js";
+import {
+  AgentCreateSchema,
+  RespondApprovalBodySchema,
+  SkillCreateSchema,
+  WorkflowDefinitionCreateSchema,
+  WorkflowRunCreateSchema,
+  WorkflowRunListParamsSchema,
+  WorkflowRunSignalSchema
+} from "./workflow-schemas.js";
 
 export interface WorkflowPersistenceOptions {
   readonly databaseUrl?: string;
   readonly pollIntervalMs?: number;
 }
-
-const AgentCreateSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  model: z.string().optional(),
-  tier: z.string().optional(),
-  allowedSkillIds: z.string().optional(),
-  version: z.string().optional(),
-  metadata: z.string().optional()
-});
-
-const SkillCreateSchema = z.object({
-  name: z.string().min(1),
-  version: z.string().optional(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  inputSchema: z.string().optional(),
-  outputSchema: z.string().optional(),
-  executionMode: z.string().optional(),
-  permissions: z.string().optional()
-});
-
-const WorkflowDefinitionCreateSchema = z.object({
-  name: z.string().min(1),
-  version: z.string().min(1),
-  description: z.string().optional(),
-  triggers: z.array(z.string().min(1)),
-  definitionJson: z.record(z.string(), z.unknown())
-});
-
-const WorkflowRunCreateSchema = z.object({
-  definitionName: z.string().min(1),
-  input: z.unknown().optional()
-});
-
-const WorkflowRunSignalSchema = z.object({
-  type: z.string().min(1),
-  correlationKey: z.string().optional(),
-  payload: z.record(z.string(), z.unknown()).optional()
-});
-
-const WorkflowRunListParamsSchema = z.object({
-  status: z.string().optional(),
-  limit: z.coerce.number().int().positive().default(50)
-});
-
-const RespondApprovalBodySchema = z.object({
-  decision: z.enum(["approved", "rejected"]),
-  respondedBy: z.string().min(1),
-  notes: z.string().optional()
-});
 
 function registerDefinitionRoutes(app: FastifyInstance, databaseUrl?: string): void {
   app.post("/api/workflow/definitions", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -110,7 +68,7 @@ function registerRunListAndCreateRoutes(app: FastifyInstance, databaseUrl?: stri
       const body = WorkflowRunCreateSchema.parse(request.body);
       const prisma = await getWorkflowPrismaClient(databaseUrl);
       try {
-        const result = await workflowRunService.startRun(prisma, { definitionName: body.definitionName, ...(body.input !== undefined ? { input: body.input } : {}) });
+        const result = await workflowRunService.startRun(prisma, { definitionName: body.definitionName, ...(body.input !== undefined ? { input: body.input } : {}), ...(body.workItemId !== undefined ? { workItemId: body.workItemId } : {}) });
         reply.code(201);
         return { run: result.run, effects: result.effects };
       } finally { await prisma.$disconnect(); }
@@ -135,64 +93,43 @@ function registerRunListAndCreateRoutes(app: FastifyInstance, databaseUrl?: stri
     }
   });
 
-  app.get("/api/workflow/runs/summary", async (request: FastifyRequest, reply: FastifyReply) => {
+}
+
+function registerRunSummaryRoute(app: FastifyInstance, databaseUrl?: string): void {
+  app.get("/api/workflow/runs/summary", async () => {
     const prisma = await getWorkflowPrismaClient(databaseUrl);
     try {
       const now = new Date();
-      const stalledThresholdMs = 5 * 60 * 1000; // 5 minutes
+      const stalledThresholdMs = 5 * 60 * 1000;
 
-      // Get all active runs (not completed/failed)
-      const activeRuns = await prisma.workflowRun.findMany({
-        where: {
-          status: {
-            in: ["pending", "running", "waiting"]
-          }
-        },
-        include: {
-          workflowStepRuns: {
-            orderBy: { startedAt: "desc" },
-            take: 1
-          }
-        },
-        orderBy: { startedAt: "desc" },
-        take: 100
-      });
-
-      // Get recent completed/failed runs (last 10)
-      const recentRuns = await prisma.workflowRun.findMany({
-        where: {
-          status: {
-            in: ["completed", "failed", "cancelled"]
-          }
-        },
-        include: {
-          workflowStepRuns: {
-            orderBy: { startedAt: "desc" },
-            take: 1
-          }
-        },
-        orderBy: { completedAt: "desc" },
-        take: 10
-      });
-
-      // Get all pending approvals
-      const pendingApprovals = await prisma.workflowApproval.findMany({
-        where: { status: "pending" }
-      });
-
-      // Count runs by status
-      const counts = await Promise.all([
-        prisma.workflowRun.count({ where: { status: "running" } }),
-        prisma.workflowRun.count({ where: { status: "waiting" } }),
-        prisma.workflowRun.count({ where: { status: "failed" } }),
-        prisma.workflowRun.count({ where: { status: "completed" } })
+      const runInclude = { workflowStepRuns: { orderBy: { startedAt: "desc" as const }, take: 1 } };
+      const [activeRuns, recentRuns, pendingApprovals, counts] = await Promise.all([
+        prisma.workflowRun.findMany({
+          where: { status: { in: ["pending", "running", "waiting"] } },
+          include: runInclude,
+          orderBy: { startedAt: "desc" },
+          take: 100
+        }),
+        prisma.workflowRun.findMany({
+          where: { status: { in: ["completed", "failed", "cancelled"] } },
+          include: runInclude,
+          orderBy: { completedAt: "desc" },
+          take: 10
+        }),
+        prisma.workflowApproval.findMany({ where: { status: "pending" } }),
+        Promise.all([
+          prisma.workflowRun.count({ where: { status: "running" } }),
+          prisma.workflowRun.count({ where: { status: "waiting" } }),
+          prisma.workflowRun.count({ where: { status: "failed" } }),
+          prisma.workflowRun.count({ where: { status: "completed" } })
+        ])
       ]);
 
       const formatRun = (run: typeof activeRuns[0]) => {
         const lastStepRun = run.workflowStepRuns[0];
-        const isStalled = run.status === "waiting" && (now.getTime() - new Date(run.updatedAt).getTime()) > stalledThresholdMs;
-        const pendingApproval = pendingApprovals.find(a => a.runId === run.id);
-
+        const isStalled = run.status === "waiting" &&
+          (now.getTime() - new Date(run.updatedAt).getTime()) > stalledThresholdMs;
+        const pendingApproval = pendingApprovals.find((a) => a.runId === run.id);
         return {
           id: run.id,
           definitionName: run.definitionName,
@@ -206,12 +143,7 @@ function registerRunListAndCreateRoutes(app: FastifyInstance, databaseUrl?: stri
       };
 
       return {
-        counts: {
-          running: counts[0],
-          waiting: counts[1],
-          failed: counts[2],
-          completed: counts[3]
-        },
+        counts: { running: counts[0], waiting: counts[1], failed: counts[2], completed: counts[3] },
         activeRuns: activeRuns.map(formatRun),
         recentRuns: recentRuns.map(formatRun)
       };
@@ -292,6 +224,7 @@ function registerStepRunRoutes(app: FastifyInstance, databaseUrl?: string): void
 
 function registerRunRoutes(app: FastifyInstance, databaseUrl?: string): void {
   registerRunListAndCreateRoutes(app, databaseUrl);
+  registerRunSummaryRoute(app, databaseUrl);
   registerRunDetailRoutes(app, databaseUrl);
   registerStepRunRoutes(app, databaseUrl);
 }
@@ -432,16 +365,16 @@ function registerAnalyticsRoutes(app: FastifyInstance, databaseUrl?: string): vo
     try {
       const params = z.object({
         definitionName: z.string().optional(),
-        since: z.string().datetime().optional()
+        since: z.iso.datetime().optional()
       }).parse(request.query);
       const prisma = await getWorkflowPrismaClient(databaseUrl);
       try {
         const since = params.since ? new Date(params.since) : undefined;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const analytics = await analyticsService.getWorkflowAnalytics(prisma, {
+        const analyticsOptions: analyticsService.GetAnalyticsOptions = {
           ...(params.definitionName !== undefined ? { definitionName: params.definitionName } : {}),
           ...(since !== undefined ? { since } : {})
-        } as any);
+        };
+        const analytics = await analyticsService.getWorkflowAnalytics(prisma, analyticsOptions);
         return { analytics };
       } finally { await prisma.$disconnect(); }
     } catch (error) {
