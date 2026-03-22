@@ -10,6 +10,7 @@ import { WalkthroughDeck } from "./WalkthroughDeck.js";
 interface PullRequestDetailDrawerProps {
   readonly isLoading: boolean;
   readonly onClose: () => void;
+  readonly onReviewSubmitted: () => Promise<void>;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
   readonly selectedLaneId: ReviewLaneId;
   readonly selectedPullRequestNumber: number | null;
@@ -19,6 +20,7 @@ interface PullRequestDetailDrawerProps {
 export function PullRequestDetailDrawer({
   isLoading,
   onClose,
+  onReviewSubmitted,
   pullRequest,
   selectedLaneId,
   selectedPullRequestNumber,
@@ -33,6 +35,7 @@ export function PullRequestDetailDrawer({
     return (
       <PullRequestDetailPanel
         isLoading={isLoading}
+        onReviewSubmitted={onReviewSubmitted}
         pullRequest={pullRequest}
         selectedLaneId={selectedLaneId}
         selectedPullRequestNumber={selectedPullRequestNumber}
@@ -64,6 +67,7 @@ export function PullRequestDetailDrawer({
           <DrawerContent
             isLoading={isLoading}
             isSelectedDetailLoaded={isSelectedDetailLoaded}
+            onReviewSubmitted={onReviewSubmitted}
             pullRequest={pullRequest}
             selectedLaneId={selectedLaneId}
             selectedPullRequestNumber={selectedPullRequestNumber}
@@ -77,12 +81,14 @@ export function PullRequestDetailDrawer({
 
 function PullRequestDetailPanel({
   isLoading,
+  onReviewSubmitted,
   pullRequest,
   selectedLaneId,
   selectedPullRequestNumber,
   setSelectedLaneId
 }: {
   readonly isLoading: boolean;
+  readonly onReviewSubmitted: () => Promise<void>;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
   readonly selectedLaneId: ReviewLaneId;
   readonly selectedPullRequestNumber: number | null;
@@ -109,6 +115,7 @@ function PullRequestDetailPanel({
           <DrawerContent
             isLoading={isLoading}
             isSelectedDetailLoaded={isSelectedDetailLoaded}
+            onReviewSubmitted={onReviewSubmitted}
             pullRequest={pullRequest}
             selectedLaneId={selectedLaneId}
             selectedPullRequestNumber={selectedPullRequestNumber}
@@ -156,6 +163,7 @@ function DrawerHeader({
 function DrawerContent({
   isLoading,
   isSelectedDetailLoaded,
+  onReviewSubmitted,
   pullRequest,
   selectedLaneId,
   selectedPullRequestNumber,
@@ -163,6 +171,7 @@ function DrawerContent({
 }: {
   readonly isLoading: boolean;
   readonly isSelectedDetailLoaded: boolean;
+  readonly onReviewSubmitted: () => Promise<void>;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
   readonly selectedLaneId: ReviewLaneId;
   readonly selectedPullRequestNumber: number | null;
@@ -187,7 +196,12 @@ function DrawerContent({
   return (
     <Stack spacing={2}>
       <ReviewStartPanel pullRequest={pullRequest} stageTitle={getWalkthroughStageCopy(selectedLaneId).title} />
-      <WalkthroughDeck pullRequest={pullRequest} selectedLaneId={selectedLaneId} setSelectedLaneId={setSelectedLaneId} />
+      <WalkthroughDeck
+        onReviewSubmitted={onReviewSubmitted}
+        pullRequest={pullRequest}
+        selectedLaneId={selectedLaneId}
+        setSelectedLaneId={setSelectedLaneId}
+      />
     </Stack>
   );
 }

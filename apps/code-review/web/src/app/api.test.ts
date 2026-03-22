@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace } from "./api.js";
+import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace, submitCodeReviewAction } from "./api.js";
 
 interface MockFetchResponse {
   readonly json?: () => Promise<unknown>;
@@ -138,5 +138,36 @@ describe("code review app api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchCodeReviewWorkspace()).rejects.toThrow("Code review workspace response was invalid.");
+  });
+
+  it("submits an approve action for a pull request", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<MockFetchResponse>>().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          result: {
+            action: "approve",
+            comment: "Looks good.",
+            submittedAt: "2026-03-22T12:15:00.000Z",
+            workflowEventId: "evt_123"
+          }
+        }),
+      ok: true
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitCodeReviewAction(25, "approve", "Looks good.");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/code-review/pull-requests/25/review-actions", {
+      body: JSON.stringify({
+        action: "approve",
+        comment: "Looks good."
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    });
+    expect(result.workflowEventId).toBe("evt_123");
   });
 });

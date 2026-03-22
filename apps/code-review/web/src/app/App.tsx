@@ -102,6 +102,8 @@ function useCodeReviewController() {
   return {
     errorMessage,
     isPullRequestLoading,
+    loadWorkspace,
+    loadPullRequest,
     pullRequest,
     selectedLaneId,
     selectedPullRequestNumber,
@@ -130,6 +132,12 @@ function DesktopReviewLayout({
       <Grid size={{ lg: 8, xl: 8.5, xs: 12 }}>
         <PullRequestDetailDrawer
           isLoading={controller.isPullRequestLoading}
+          onReviewSubmitted={async () => {
+            await Promise.all([
+              controller.loadWorkspace(),
+              controller.selectedPullRequestNumber === null ? Promise.resolve() : controller.loadPullRequest(controller.selectedPullRequestNumber)
+            ]);
+          }}
           onClose={() => {
             controller.setSelectedPullRequestNumber(null);
           }}
@@ -172,6 +180,12 @@ function MobileReviewDrawer({
   return (
     <PullRequestDetailDrawer
       isLoading={controller.isPullRequestLoading}
+      onReviewSubmitted={async () => {
+        await Promise.all([
+          controller.loadWorkspace(),
+          controller.selectedPullRequestNumber === null ? Promise.resolve() : controller.loadPullRequest(controller.selectedPullRequestNumber)
+        ]);
+      }}
       onClose={() => {
         controller.setSelectedPullRequestNumber(null);
       }}

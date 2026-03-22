@@ -15,9 +15,10 @@ import {
   type ReviewNotebook,
   type ReviewNotebookEntry
 } from "../walkthrough.js";
+import { buildValidationReviewProps, type ValidationReviewProps } from "../walkthrough-validation.js";
 import { buildReviewStagePresentation } from "../review-stage.js";
-import { buildReviewEvidencePresentation } from "../review-evidence.js";
 import { useFollowUpAction, type FollowUpActionTone } from "../use-follow-up-action.js";
+import { useReviewAction, type ReviewActionTone } from "../use-review-action.js";
 import { FileDiffExplorer } from "./FileDiffExplorer.js";
 import { ReviewNotebookPanel } from "./ReviewNotebookPanel.js";
 import { SelectionRail, type SelectionRailItem } from "./SelectionRail.js";
@@ -25,12 +26,13 @@ import { ValidationReviewPanel } from "./ValidationReviewPanel.js";
 import { WalkthroughNarrativePanel } from "./WalkthroughNarrativePanel.js";
 
 interface WalkthroughDeckProps {
+  readonly onReviewSubmitted: () => Promise<void>;
   readonly pullRequest: CodeReviewPullRequestDetail;
   readonly selectedLaneId: ReviewLaneId;
   readonly setSelectedLaneId: (laneId: ReviewLaneId) => void;
 }
 
-export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId }: WalkthroughDeckProps) {
+export function WalkthroughDeck({ onReviewSubmitted, pullRequest, selectedLaneId, setSelectedLaneId }: WalkthroughDeckProps) {
   const orderedLanes = orderWalkthroughLanes(pullRequest.lanes);
   const [notebook, setNotebook] = useState<ReviewNotebook>(() => createReviewNotebook(orderedLanes));
   const { followUpActionMessage, followUpActionTone, handleCreateFollowUp, isCreatingFollowUp, resetFollowUpAction } = useFollowUpAction(
@@ -38,6 +40,12 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
     notebook,
     setNotebook
   );
+  const {
+    actionMessage: reviewActionMessage,
+    actionTone: reviewActionTone,
+    isSubmitting: isSubmittingReviewAction,
+    submitAction
+  } = useReviewAction(pullRequest.number, onReviewSubmitted);
 
   useEffect(() => {
     setNotebook(createReviewNotebook(orderedLanes));
@@ -90,10 +98,14 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
           followUpActionMessage={followUpActionMessage}
           followUpActionTone={followUpActionTone}
           isCreatingFollowUp={isCreatingFollowUp}
+          isSubmittingReviewAction={isSubmittingReviewAction}
           laneCount={orderedLanes.length}
           onCreateFollowUp={handleCreateFollowUp}
+          onSubmitReviewAction={submitAction}
           onUpdateEntry={updateEntry}
           pullRequest={pullRequest}
+          reviewActionMessage={reviewActionMessage}
+          reviewActionTone={reviewActionTone}
           trustSummary={trustSummary}
         />
       </Stack>
@@ -182,10 +194,14 @@ function WalkthroughBody({
   followUpActionMessage,
   followUpActionTone,
   isCreatingFollowUp,
+  isSubmittingReviewAction,
   laneCount,
   onCreateFollowUp,
+  onSubmitReviewAction,
   onUpdateEntry,
   pullRequest,
+  reviewActionMessage,
+  reviewActionTone,
   trustSummary
 }: {
   readonly activeEntry: ReviewNotebookEntry;
@@ -195,95 +211,122 @@ function WalkthroughBody({
   readonly followUpActionMessage: string | null;
   readonly followUpActionTone: FollowUpActionTone;
   readonly isCreatingFollowUp: boolean;
+  readonly isSubmittingReviewAction: boolean;
   readonly laneCount: number;
   readonly onCreateFollowUp: () => Promise<void>;
+  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
   readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
   readonly pullRequest: CodeReviewPullRequestDetail;
+  readonly reviewActionMessage: string | null;
+  readonly reviewActionTone: ReviewActionTone;
   readonly trustSummary: ReturnType<typeof buildTrustSummary>;
 }) {
   const laneSections = buildLaneSections(activeLane);
-  const fileItems = activeSection.files.map((file) => ({
-    subtitle: file.explanation.summary,
-    title: file.path
-  }));
-  const stagePresentation = buildReviewStagePresentation(pullRequest, activeLane.id);
   const validationReviewProps = buildValidationReviewProps({
     activeEntry,
     activeLane,
     followUpActionMessage,
     followUpActionTone,
     isCreatingFollowUp,
+    isSubmittingReviewAction,
     onCreateFollowUp,
+    onSubmitReviewAction,
     pullRequest,
+    reviewActionMessage,
+    reviewActionTone,
     totalLaneCount: laneCount,
     trustSummary
   });
+  const fileItems = createFileItems(activeSection.files);
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ lg: 8, xs: 12 }}>
-        <WalkthroughContentColumn
-          pullRequest={pullRequest}
-          activeLane={activeLane}
-          activeSectionTitle={activeSection.title}
-          fileItems={fileItems}
-          laneSections={laneSections}
-          onUpdateEntry={onUpdateEntry}
-          selectedFilePath={activeFile?.path}
-          stagePresentation={stagePresentation}
-        />
-        <FileDiffExplorer file={activeFile} />
-      </Grid>
-      <Grid size={{ lg: 4, xs: 12 }}>
-        <Stack spacing={2}>
-          <ReviewNotebookPanel
-            entry={activeEntry}
-            isFinalStage={validationReviewProps.isVisible}
-            laneTitle={getWalkthroughStageCopy(activeLane.id).title}
-            onChange={(patch) => {
-              onUpdateEntry(activeLane.id, patch);
-            }}
-          />
-          <ValidationReviewPanel {...validationReviewProps} />
-        </Stack>
-      </Grid>
+      <WalkthroughMainColumn
+        activeFile={activeFile}
+        activeLane={activeLane}
+        activeSectionTitle={activeSection.title}
+        fileItems={fileItems}
+        laneSections={laneSections}
+        onUpdateEntry={onUpdateEntry}
+        pullRequest={pullRequest}
+      />
+      <WalkthroughSidebar
+        activeEntry={activeEntry}
+        activeLaneId={activeLane.id}
+        onUpdateEntry={onUpdateEntry}
+        validationReviewProps={validationReviewProps}
+      />
     </Grid>
   );
 }
 
-function buildValidationReviewProps({
-  activeEntry,
+function WalkthroughMainColumn({
+  activeFile,
   activeLane,
-  followUpActionMessage,
-  followUpActionTone,
-  isCreatingFollowUp,
-  onCreateFollowUp,
-  pullRequest,
-  totalLaneCount,
-  trustSummary
+  activeSectionTitle,
+  fileItems,
+  laneSections,
+  onUpdateEntry,
+  pullRequest
+}: {
+  readonly activeFile: ReturnType<typeof getSelectedFile>;
+  readonly activeLane: ReviewLane;
+  readonly activeSectionTitle: string;
+  readonly fileItems: SelectionRailItem[];
+  readonly laneSections: ReturnType<typeof buildLaneSections>;
+  readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
+  readonly pullRequest: CodeReviewPullRequestDetail;
+}) {
+  return (
+    <Grid size={{ lg: 8, xs: 12 }}>
+      <WalkthroughContentColumn
+        pullRequest={pullRequest}
+        activeLane={activeLane}
+        activeSectionTitle={activeSectionTitle}
+        fileItems={fileItems}
+        laneSections={laneSections}
+        onUpdateEntry={onUpdateEntry}
+        selectedFilePath={activeFile?.path}
+        stagePresentation={buildReviewStagePresentation(pullRequest, activeLane.id)}
+      />
+      <FileDiffExplorer file={activeFile} />
+    </Grid>
+  );
+}
+
+function createFileItems(files: ReviewLane["files"]): SelectionRailItem[] {
+  return files.map((file) => ({
+    subtitle: file.explanation.summary,
+    title: file.path
+  }));
+}
+
+function WalkthroughSidebar({
+  activeEntry,
+  activeLaneId,
+  onUpdateEntry,
+  validationReviewProps
 }: {
   readonly activeEntry: ReviewNotebookEntry;
-  readonly activeLane: ReviewLane;
-  readonly followUpActionMessage: string | null;
-  readonly followUpActionTone: FollowUpActionTone;
-  readonly isCreatingFollowUp: boolean;
-  readonly onCreateFollowUp: () => Promise<void>;
-  readonly pullRequest: CodeReviewPullRequestDetail;
-  readonly totalLaneCount: number;
-  readonly trustSummary: ReturnType<typeof buildTrustSummary>;
+  readonly activeLaneId: ReviewLaneId;
+  readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
+  readonly validationReviewProps: ValidationReviewProps;
 }) {
-  return {
-    ...(pullRequest.agentReview === undefined ? {} : { agentReview: pullRequest.agentReview }),
-    canCreateFollowUp: activeEntry.followUps.trim().length > 0,
-    evidencePresentation: buildReviewEvidencePresentation(pullRequest),
-    followUpActionMessage,
-    followUpActionTone,
-    isCreatingFollowUp,
-    isVisible: activeLane.id === "validation",
-    onCreateFollowUp,
-    totalLaneCount,
-    trustSummary
-  };
+  return (
+    <Grid size={{ lg: 4, xs: 12 }}>
+      <Stack spacing={2}>
+        <ReviewNotebookPanel
+          entry={activeEntry}
+          isFinalStage={validationReviewProps.isVisible}
+          laneTitle={getWalkthroughStageCopy(activeLaneId).title}
+          onChange={(patch) => {
+            onUpdateEntry(activeLaneId, patch);
+          }}
+        />
+        <ValidationReviewPanel {...validationReviewProps} />
+      </Stack>
+    </Grid>
+  );
 }
 
 function WalkthroughContentColumn({

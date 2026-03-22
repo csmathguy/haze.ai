@@ -5,6 +5,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Paper, Stack, Typography
 
 import type { FollowUpActionTone } from "../use-follow-up-action.js";
 import type { ReviewEvidencePresentation } from "../review-evidence.js";
+import type { ReviewActionTone } from "../use-review-action.js";
 import type { TrustSummary } from "../walkthrough.js";
 import { AgentReviewPanel } from "./AgentReviewPanel.js";
 import { ReviewEvidencePanel } from "./ReviewEvidencePanel.js";
@@ -17,8 +18,12 @@ interface ValidationReviewPanelProps {
   readonly followUpActionMessage: string | null;
   readonly followUpActionTone: FollowUpActionTone;
   readonly isCreatingFollowUp: boolean;
+  readonly isSubmittingReviewAction: boolean;
   readonly isVisible: boolean;
   readonly onCreateFollowUp: () => Promise<void>;
+  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
+  readonly reviewActionMessage: string | null;
+  readonly reviewActionTone: ReviewActionTone;
   readonly totalLaneCount: number;
   readonly trustSummary: TrustSummary;
 }
@@ -30,8 +35,12 @@ export function ValidationReviewPanel({
   followUpActionMessage,
   followUpActionTone,
   isCreatingFollowUp,
+  isSubmittingReviewAction,
   isVisible,
   onCreateFollowUp,
+  onSubmitReviewAction,
+  reviewActionMessage,
+  reviewActionTone,
   totalLaneCount,
   trustSummary
 }: ValidationReviewPanelProps) {
@@ -46,9 +55,15 @@ export function ValidationReviewPanel({
         followUpActionMessage={followUpActionMessage}
         followUpActionTone={followUpActionTone}
         isCreatingFollowUp={isCreatingFollowUp}
+        isSubmittingReviewAction={isSubmittingReviewAction}
         onCreateFollowUp={() => {
           void onCreateFollowUp();
         }}
+        onSubmitReviewAction={(action) => {
+          void onSubmitReviewAction(action);
+        }}
+        reviewActionMessage={reviewActionMessage}
+        reviewActionTone={reviewActionTone}
         summary={trustSummary}
         totalLaneCount={totalLaneCount}
       />
