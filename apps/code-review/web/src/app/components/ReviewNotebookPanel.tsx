@@ -1,8 +1,9 @@
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
 import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
 import ErrorOutlineOutlinedIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import type { ReactNode } from "react";
-import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Button, Paper, Stack, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import type { ReviewNotebookEntry } from "../walkthrough.js";
@@ -17,12 +18,12 @@ interface ReviewNotebookPanelProps {
 export function ReviewNotebookPanel({ entry, isFinalStage = false, laneTitle, onChange }: ReviewNotebookPanelProps) {
   return (
     <Paper sx={{ p: 2.5 }} variant="outlined">
-      <Stack spacing={2}>
+      <Stack spacing={2.25}>
         <Stack spacing={1}>
-          <Typography variant="subtitle2">Stage Notes</Typography>
-          <Typography variant="h3">{laneTitle}</Typography>
+          <Typography variant="subtitle2">Review Companion</Typography>
+          <Typography variant="h3">What to do in this step</Typography>
           <Typography color="text.secondary" variant="body2">
-            Capture what increased confidence, what still needs follow-up, and what the reviewer should carry into the next checkpoint.
+            Mark your progress, write one short note to carry forward, and only open the extra fields if this step still feels unclear.
           </Typography>
         </Stack>
 
@@ -53,7 +54,7 @@ export function ReviewNotebookPanel({ entry, isFinalStage = false, laneTitle, on
           />
         </Stack>
 
-        <NotebookFields entry={entry} isFinalStage={isFinalStage} onChange={onChange} />
+        <NotebookFields entry={entry} isFinalStage={isFinalStage} laneTitle={laneTitle} onChange={onChange} />
       </Stack>
     </Paper>
   );
@@ -62,43 +63,60 @@ export function ReviewNotebookPanel({ entry, isFinalStage = false, laneTitle, on
 function NotebookFields({
   entry,
   isFinalStage,
+  laneTitle,
   onChange
 }: {
   readonly entry: ReviewNotebookEntry;
   readonly isFinalStage: boolean;
+  readonly laneTitle: string;
   readonly onChange: (patch: Partial<ReviewNotebookEntry>) => void;
 }) {
   return (
-    <>
+    <Stack spacing={1.5}>
       <TextField
-        label="Questions or concerns"
+        helperText={`Leave a short note about ${laneTitle.toLowerCase()} so the reviewer knows what to remember before moving on.`}
+        label="Carry-forward note"
         multiline
         minRows={3}
-        onChange={(event) => {
-          onChange({ concerns: event.target.value });
-        }}
-        value={entry.concerns}
-      />
-      <TextField
-        label="Confidence notes"
-        multiline
-        minRows={3}
-        onChange={(event) => {
-          onChange({ confirmations: event.target.value });
-        }}
-        value={entry.confirmations}
-      />
-      <TextField
-        label="Lane notes"
-        multiline
-        minRows={4}
         onChange={(event) => {
           onChange({ notes: event.target.value });
         }}
         value={entry.notes}
       />
+      <Accordion disableGutters elevation={0} sx={{ "&::before": { display: "none" }, border: 1, borderColor: "divider", borderRadius: 1.5 }}>
+        <AccordionSummary expandIcon={<ExpandMoreOutlinedIcon />}>
+          <Stack spacing={0.25}>
+            <Typography variant="subtitle2">Need more detail?</Typography>
+            <Typography color="text.secondary" variant="body2">
+              Open this only if you want to capture separate concerns or confidence notes.
+            </Typography>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={1.5}>
+            <TextField
+              label="Questions or concerns"
+              multiline
+              minRows={3}
+              onChange={(event) => {
+                onChange({ concerns: event.target.value });
+              }}
+              value={entry.concerns}
+            />
+            <TextField
+              label="Confidence notes"
+              multiline
+              minRows={3}
+              onChange={(event) => {
+                onChange({ confirmations: event.target.value });
+              }}
+              value={entry.confirmations}
+            />
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
       {isFinalStage ? <FollowUpField followUps={entry.followUps} onChange={onChange} /> : null}
-    </>
+    </Stack>
   );
 }
 

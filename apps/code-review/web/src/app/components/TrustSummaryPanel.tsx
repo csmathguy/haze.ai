@@ -1,6 +1,3 @@
-import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
-import PendingOutlinedIcon from "@mui/icons-material/PendingOutlined";
-import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Alert, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
@@ -49,27 +46,15 @@ export function TrustSummaryPanel({
           <LinearProgress color={summary.statusTone === "success" ? "success" : "secondary"} value={completionPercent} variant="determinate" />
         </Stack>
 
-        <SummaryBlock items={summary.valueSummary} title="Value added" />
-
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Evidence checkpoints</Typography>
-          {summary.evidenceCheckpoints.map((checkpoint) => (
-            <CheckpointRow
-              detail={checkpoint.detail}
-              key={checkpoint.label}
-              label={checkpoint.label}
-              status={checkpoint.status}
-            />
-          ))}
-        </Stack>
-
+        <DecisionCallout summary={summary} />
+        <SummaryBlock items={summary.valueSummary.slice(0, 2)} title="Why this looks ready or blocked" />
         <SummaryBlock
           items={
             summary.followUpQueue.length > 0
               ? summary.followUpQueue
-              : ["No unresolved follow-up items are blocking a human decision in the current review session."]
+              : ["No unresolved follow-up items are blocking the current human decision."]
           }
-          title="Follow-up queue"
+          title="What still needs action"
         />
         <FollowUpActionArea
           canCreateFollowUp={canCreateFollowUp}
@@ -137,15 +122,9 @@ function FollowUpActionArea({
   );
 }
 
-function CheckpointRow({
-  detail,
-  label,
-  status
-}: {
-  readonly detail: string;
-  readonly label: string;
-  readonly status: TrustSummary["evidenceCheckpoints"][number]["status"];
-}) {
+function DecisionCallout({ summary }: { readonly summary: TrustSummary }) {
+  const pendingCheckpoint = summary.evidenceCheckpoints.find((checkpoint) => checkpoint.status !== "complete");
+
   return (
     <Paper
       sx={(theme) => ({
@@ -154,42 +133,16 @@ function CheckpointRow({
       })}
       variant="outlined"
     >
-      <Stack alignItems="flex-start" direction="row" spacing={1.25}>
-        <Chip
-          color={toCheckpointChipColor(status)}
-          icon={toCheckpointIcon(status)}
-          label={label}
-          size="small"
-          variant="outlined"
-        />
-        <Typography sx={{ pt: 0.35 }} variant="body2">
-          {detail}
+      <Stack spacing={0.75}>
+        <Typography variant="subtitle2">What to do next</Typography>
+        <Typography variant="body2">
+          {pendingCheckpoint === undefined
+            ? "The walkthrough is covered. If the diff also looks correct, finish in GitHub or record any follow-up work before closing the review."
+            : pendingCheckpoint.detail}
         </Typography>
       </Stack>
     </Paper>
   );
-}
-
-function toCheckpointChipColor(status: TrustSummary["evidenceCheckpoints"][number]["status"]): "secondary" | "success" | "warning" {
-  switch (status) {
-    case "complete":
-      return "success";
-    case "attention":
-      return "warning";
-    case "pending":
-      return "secondary";
-  }
-}
-
-function toCheckpointIcon(status: TrustSummary["evidenceCheckpoints"][number]["status"]) {
-  switch (status) {
-    case "complete":
-      return <CheckCircleOutlineOutlinedIcon />;
-    case "attention":
-      return <WarningAmberOutlinedIcon />;
-    case "pending":
-      return <PendingOutlinedIcon />;
-  }
 }
 
 function SummaryBlock({ items, title }: { readonly items: string[]; readonly title: string }) {

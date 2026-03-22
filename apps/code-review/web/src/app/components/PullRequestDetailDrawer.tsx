@@ -3,7 +3,8 @@ import { Alert, Box, Divider, Drawer, IconButton, Paper, Stack, Typography, useM
 import { alpha, useTheme } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, ReviewLaneId } from "@taxes/shared";
 
-import { PullRequestOverviewPanel } from "./PullRequestOverviewPanel.js";
+import { getWalkthroughStageCopy } from "../walkthrough.js";
+import { ReviewStartPanel } from "./ReviewStartPanel.js";
 import { WalkthroughDeck } from "./WalkthroughDeck.js";
 
 interface PullRequestDetailDrawerProps {
@@ -185,7 +186,7 @@ function DrawerContent({
 
   return (
     <Stack spacing={2}>
-      <PullRequestOverviewPanel pullRequest={pullRequest} />
+      <ReviewStartPanel pullRequest={pullRequest} stageTitle={getWalkthroughStageCopy(selectedLaneId).title} />
       <WalkthroughDeck pullRequest={pullRequest} selectedLaneId={selectedLaneId} setSelectedLaneId={setSelectedLaneId} />
     </Stack>
   );
