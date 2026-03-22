@@ -17,6 +17,10 @@ const FINAL_DECISION_OPTIONS: readonly ReviewStageDecisionOption[] = [
     title: "Approve in GitHub"
   },
   {
+    description: "The PR is ready to land and the reviewer wants to merge it from this guided review surface.",
+    title: "Merge via GitHub"
+  },
+  {
     description: "The change is directionally good, but you want concrete follow-up work captured before closing the review.",
     title: "Create follow-up work"
   },

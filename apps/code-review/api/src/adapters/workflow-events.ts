@@ -11,6 +11,13 @@ export interface WorkflowEventGateway {
     readonly reviewId?: number;
     readonly workItemId?: string;
   }): Promise<{ readonly eventId: string }>;
+  createCodeReviewMergeSubmittedEvent(input: {
+    readonly pullRequestNumber: number;
+    readonly repository: { readonly name: string; readonly owner: string; readonly url: string };
+    readonly submittedAt: string;
+    readonly headSha?: string;
+    readonly workItemId?: string;
+  }): Promise<{ readonly eventId: string }>;
 }
 
 export class DirectWorkflowEventGateway implements WorkflowEventGateway {
@@ -36,6 +43,31 @@ export class DirectWorkflowEventGateway implements WorkflowEventGateway {
         payload: JSON.stringify(input),
         source: "code-review",
         type: "code-review.pull-request.review-submitted"
+      }
+    });
+
+    return {
+      eventId: event.id
+    };
+  }
+
+  async createCodeReviewMergeSubmittedEvent(input: {
+    readonly pullRequestNumber: number;
+    readonly repository: { readonly name: string; readonly owner: string; readonly url: string };
+    readonly submittedAt: string;
+    readonly headSha?: string;
+    readonly workItemId?: string;
+  }): Promise<{ readonly eventId: string }> {
+    const prisma = await getPrismaClient(this.databaseUrl);
+    const event = await prisma.workflowEvent.create({
+      data: {
+        correlationId: input.workItemId ?? `pr-${input.pullRequestNumber.toString()}`,
+        metadata: JSON.stringify({
+          submittedAt: input.submittedAt
+        }),
+        payload: JSON.stringify(input),
+        source: "code-review",
+        type: "code-review.pull-request.merge-submitted"
       }
     });
 

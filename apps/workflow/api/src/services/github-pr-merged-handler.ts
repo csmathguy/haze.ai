@@ -33,14 +33,7 @@ export class GitHubPrMergedHandler {
       throw new Error("Failed to parse event payload", { cause: parseError });
     }
 
-    // Extract PR body from the GitHub payload structure
-    const prBody = this.extractPrBody(payload);
-    if (!prBody) {
-      return 0;
-    }
-
-    // Extract PLAN-XXX references from the PR body
-    const planReferences = this.extractPlanReferences(prBody);
+    const planReferences = this.extractPlanReferences(payload);
     if (planReferences.length === 0) {
       return 0;
     }
@@ -87,23 +80,16 @@ export class GitHubPrMergedHandler {
     return updatedCount;
   }
 
-  private extractPrBody(payload: Record<string, unknown>): string | null {
-    // GitHub webhook payload structure for pull_request events
-    // payload.pull_request.body contains the PR description
+  private extractPlanReferences(payload: Record<string, unknown>): string[] {
     const pr = payload.pull_request as Record<string, unknown> | undefined;
     if (!pr) {
-      return null;
+      return [];
     }
 
-    const body = pr.body as string | null | undefined;
-    return body ?? null;
-  }
-
-  /**
-   * Extract all PLAN-XXX references from text.
-   * Returns array of work item IDs (e.g., ["PLAN-167", "PLAN-166"])
-   */
-  private extractPlanReferences(text: string): string[] {
+    const body = typeof pr.body === "string" ? pr.body : "";
+    const head = pr.head as Record<string, unknown> | undefined;
+    const branchName = typeof head?.ref === "string" ? head.ref : "";
+    const text = `${body}\n${branchName}`;
     const pattern = /PLAN-(\d+)/g;
     const matches: string[] = [];
     let match: RegExpExecArray | null = pattern.exec(text);

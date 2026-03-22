@@ -96,6 +96,7 @@ export interface GitHubPullRequestGateway {
   getPullRequest(pullRequestNumber: number): Promise<GitHubPullRequestDetail>;
   getRepository(): Promise<GitHubRepositoryRef>;
   listPullRequests(): Promise<GitHubPullRequestListEntry[]>;
+  mergePullRequest(pullRequestNumber: number): Promise<{ readonly merged: boolean }>;
   submitPullRequestReview(
     pullRequestNumber: number,
     input: { readonly action: "approve" | "request-changes"; readonly comment: string }
@@ -150,6 +151,21 @@ export class GitHubCliPullRequestGateway implements GitHubPullRequestGateway {
       `event=${toGitHubReviewEvent(input.action)}`,
       "--field",
       `body=${input.comment}`
+    ]);
+  }
+
+  async mergePullRequest(pullRequestNumber: number): Promise<{ readonly merged: boolean }> {
+    const repository = await this.getRepository();
+
+    return this.runJson<{ readonly merged: boolean }>([
+      "api",
+      "--method",
+      "PUT",
+      `repos/${repository.owner}/${repository.name}/pulls/${pullRequestNumber.toString()}/merge`,
+      "--header",
+      "Accept: application/vnd.github+json",
+      "--field",
+      "merge_method=merge"
     ]);
   }
 

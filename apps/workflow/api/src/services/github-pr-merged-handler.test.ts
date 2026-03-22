@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
 import type { PrismaClient } from "@taxes/db";
 import { getPrismaClient } from "@taxes/db";
@@ -180,6 +180,39 @@ describe("GitHubPrMergedHandler", () => {
 
     expect(count).toBe(0);
     expect(mockPlanningDb.planWorkItem.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("extracts PLAN-XXX references from the head branch name when the body does not contain one", async () => {
+    const { getPrismaClient: getMockPlanClient } = await import("@taxes/plan-api");
+    vi.mocked(getMockPlanClient).mockResolvedValue(mockPlanningDb as never);
+
+    const handler = new GitHubPrMergedHandler(workflowPrisma);
+
+    const realEvent = await workflowPrisma.workflowEvent.create({
+      data: {
+        type: "github.pull_request.merged",
+        source: "github",
+        payload: JSON.stringify({
+          pull_request: {
+            number: 127,
+            title: "Branch-linked work item",
+            body: "No explicit work item in the body.",
+            head: {
+              ref: "feature/PLAN-54-merge-bridge"
+            },
+            merged: true
+          }
+        })
+      }
+    });
+
+    const count = await handler.handleEvent(realEvent);
+
+    expect(count).toBe(1);
+    expect(mockPlanningDb.planWorkItem.updateMany).toHaveBeenCalledWith({
+      where: { id: "PLAN-54" },
+      data: { status: "done", updatedAt: expect.any(Date) }
+    });
   });
 
   it("handles work item not found gracefully", async () => {

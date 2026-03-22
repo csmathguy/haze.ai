@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ChevronLeftOutlinedIcon from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
 import { Button, Grid, Paper, Stack, Typography } from "@mui/material";
-import type { CodeReviewPullRequestDetail, ReviewLane, ReviewLaneId } from "@taxes/shared";
+import type { CodeReviewPullRequestDetail, CodeReviewReviewAction, ReviewLane, ReviewLaneId } from "@taxes/shared";
 
 import {
   buildLaneSections,
@@ -214,7 +214,7 @@ function WalkthroughBody({
   readonly isSubmittingReviewAction: boolean;
   readonly laneCount: number;
   readonly onCreateFollowUp: () => Promise<void>;
-  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
+  readonly onSubmitReviewAction: (action: CodeReviewReviewAction) => Promise<void>;
   readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
   readonly pullRequest: CodeReviewPullRequestDetail;
   readonly reviewActionMessage: string | null;

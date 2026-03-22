@@ -229,4 +229,33 @@ describe("code review app", () => {
 
     await app.close();
   });
+
+  it("accepts merge as a review action payload", async () => {
+    const app = await buildApp({
+      codeReviewService: {
+        ...fakeService,
+        submitReviewAction: () =>
+          Promise.resolve({
+            action: "merge" as const,
+            comment: "",
+            submittedAt: "2026-03-22T12:20:00.000Z",
+            workflowEventId: "evt_merge"
+          })
+      }
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/code-review/pull-requests/25/review-actions",
+      payload: {
+        action: "merge"
+      }
+    });
+    const payload = z.object({ result: CodeReviewReviewActionResultSchema }).parse(response.json());
+
+    expect(response.statusCode).toBe(200);
+    expect(payload.result.action).toBe("merge");
+    expect(payload.result.workflowEventId).toBe("evt_merge");
+
+    await app.close();
+  });
 });

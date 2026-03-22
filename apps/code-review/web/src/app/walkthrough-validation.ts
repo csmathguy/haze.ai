@@ -1,4 +1,4 @@
-import type { CodeReviewAgentReview, CodeReviewPullRequestDetail, ReviewLane } from "@taxes/shared";
+import type { CodeReviewAgentReview, CodeReviewPullRequestDetail, CodeReviewReviewAction, ReviewLane } from "@taxes/shared";
 
 import type { ReviewEvidencePresentation } from "./review-evidence.js";
 import { buildReviewEvidencePresentation } from "./review-evidence.js";
@@ -16,7 +16,7 @@ export interface ValidationReviewProps {
   readonly isSubmittingReviewAction: boolean;
   readonly isVisible: boolean;
   readonly onCreateFollowUp: () => Promise<void>;
-  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
+  readonly onSubmitReviewAction: (action: CodeReviewReviewAction) => Promise<void>;
   readonly reviewActionMessage: string | null;
   readonly reviewActionTone: ReviewActionTone;
   readonly totalLaneCount: number;
@@ -45,7 +45,7 @@ export function buildValidationReviewProps({
   readonly isCreatingFollowUp: boolean;
   readonly isSubmittingReviewAction: boolean;
   readonly onCreateFollowUp: () => Promise<void>;
-  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
+  readonly onSubmitReviewAction: (action: CodeReviewReviewAction) => Promise<void>;
   readonly pullRequest: CodeReviewPullRequestDetail;
   readonly reviewActionMessage: string | null;
   readonly reviewActionTone: ReviewActionTone;

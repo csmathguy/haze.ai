@@ -124,24 +124,12 @@ function parsePullRequestEvent(payload: unknown): WebhookEventData {
 
   const { action, pull_request, repository } = parsed.data;
 
-  // Check for merge conflicts (mergeable_state === "dirty" indicates conflict)
-  if (
-    pull_request &&
-    repository &&
-    ["opened", "synchronize", "reopened"].includes(action) &&
-    pull_request.mergeable_state === "dirty"
-  ) {
-    // Extract PLAN-XXX reference from PR body
-    const prBody = pull_request.body ?? "";
-    const planMatch = /PLAN-(\d+)/i.exec(prBody);
-    if (planMatch) {
-      const { login: owner } = repository.owner;
-      const correlationId = `${owner}/${repository.name}#${String(pull_request.number)}`;
-      return { type: "github.pull_request.conflict", correlationId };
-    }
+  const conflictEvent = tryBuildConflictEvent(action, pull_request, repository);
+  if (conflictEvent !== null) {
+    return conflictEvent;
   }
 
-  const type = `github.pull_request.${action}`;
+  const type = resolvePullRequestEventType(action, pull_request?.merged);
 
   if (pull_request && repository) {
     const { login: owner } = repository.owner;
@@ -150,6 +138,40 @@ function parsePullRequestEvent(payload: unknown): WebhookEventData {
   }
 
   return { type };
+}
+
+function tryBuildConflictEvent(
+  action: string,
+  pullRequest: z.infer<typeof GitHubPullRequestPayloadSchema>["pull_request"],
+  repository: z.infer<typeof GitHubPullRequestPayloadSchema>["repository"]
+): WebhookEventData | null {
+  if (
+    pullRequest === undefined ||
+    repository === undefined ||
+    !["opened", "synchronize", "reopened"].includes(action) ||
+    pullRequest.mergeable_state !== "dirty"
+  ) {
+    return null;
+  }
+
+  const prBody = pullRequest.body ?? "";
+  if (!/PLAN-(\d+)/i.test(prBody)) {
+    return null;
+  }
+
+  const { login: owner } = repository.owner;
+  return {
+    correlationId: `${owner}/${repository.name}#${String(pullRequest.number)}`,
+    type: "github.pull_request.conflict"
+  };
+}
+
+function resolvePullRequestEventType(action: string, merged: boolean | undefined): string {
+  if (action === "closed" && merged === true) {
+    return "github.pull_request.merged";
+  }
+
+  return `github.pull_request.${action}`;
 }
 
 function parsePushEvent(payload: unknown): WebhookEventData {

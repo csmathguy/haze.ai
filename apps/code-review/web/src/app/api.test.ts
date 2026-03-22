@@ -170,4 +170,34 @@ describe("code review app api", () => {
     });
     expect(result.workflowEventId).toBe("evt_123");
   });
+
+  it("submits a merge action for a pull request", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<MockFetchResponse>>().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          result: {
+            action: "merge",
+            comment: "",
+            submittedAt: "2026-03-22T12:20:00.000Z",
+            workflowEventId: "evt_merge"
+          }
+        }),
+      ok: true
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitCodeReviewAction(25, "merge");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/code-review/pull-requests/25/review-actions", {
+      body: JSON.stringify({
+        action: "merge"
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    });
+    expect(result.workflowEventId).toBe("evt_merge");
+  });
 });

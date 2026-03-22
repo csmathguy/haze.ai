@@ -1,5 +1,6 @@
 import { Alert, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import type { CodeReviewReviewAction } from "@taxes/shared";
 
 import type { FollowUpActionTone } from "../use-follow-up-action.js";
 import type { ReviewActionTone } from "../use-review-action.js";
@@ -12,7 +13,7 @@ interface TrustSummaryPanelProps {
   readonly isCreatingFollowUp?: boolean;
   readonly isSubmittingReviewAction?: boolean;
   readonly onCreateFollowUp?: (() => void) | undefined;
-  readonly onSubmitReviewAction?: ((action: "approve" | "request-changes") => void) | undefined;
+  readonly onSubmitReviewAction?: ((action: CodeReviewReviewAction) => void) | undefined;
   readonly reviewActionMessage?: string | null;
   readonly reviewActionTone?: ReviewActionTone;
   readonly summary: TrustSummary;
@@ -172,7 +173,7 @@ function GitHubActionArea({
   reviewActionTone
 }: {
   readonly isSubmittingReviewAction: boolean;
-  readonly onSubmitReviewAction?: ((action: "approve" | "request-changes") => void) | undefined;
+  readonly onSubmitReviewAction?: ((action: CodeReviewReviewAction) => void) | undefined;
   readonly reviewActionMessage: string | null;
   readonly reviewActionTone: ReviewActionTone;
 }) {
@@ -193,6 +194,16 @@ function GitHubActionArea({
           variant="contained"
         >
           {isSubmittingReviewAction ? "Submitting..." : "Approve in GitHub"}
+        </Button>
+        <Button
+          color="success"
+          disabled={isSubmittingReviewAction}
+          onClick={() => {
+            onSubmitReviewAction("merge");
+          }}
+          variant="contained"
+        >
+          {isSubmittingReviewAction ? "Submitting..." : "Merge via GitHub"}
         </Button>
         <Button
           color="inherit"

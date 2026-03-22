@@ -120,7 +120,7 @@ export const CodeReviewAgentReviewStatusSchema = z.enum(["advisory"]);
 export const CodeReviewAgentLensSchema = z.enum(["architecture", "readability", "risk", "testing", "workflow"]);
 export const CodeReviewAgentSuggestedActionSchema = z.enum(["accept-now", "follow-up", "reject"]);
 export const CodeReviewAgentConfidenceSchema = z.enum(["high", "medium", "low"]);
-export const CodeReviewReviewActionSchema = z.enum(["approve", "request-changes"]);
+export const CodeReviewReviewActionSchema = z.enum(["approve", "merge", "request-changes"]);
 
 export const CodeReviewAgentFindingSchema = z.object({
   confidence: CodeReviewAgentConfidenceSchema,

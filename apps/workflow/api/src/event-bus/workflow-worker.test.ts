@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { PrismaClient } from "@taxes/db";
 import { getPrismaClient } from "@taxes/db";
@@ -282,5 +281,88 @@ describe("WorkflowWorker", () => {
 
     // Verify planning client was called
     expect(mockPlanningDb.planWorkItem.updateMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("processBatch() marks github.pull_request.closed events as processed without completing planning work", async () => {
+    const { getPrismaClient: getMockPlanClient } = await import("@taxes/plan-api");
+
+    const mockPlanningDb = {
+      planWorkItem: {
+        updateMany: vi.fn(() => Promise.resolve({ count: 1 } as unknown))
+      },
+      $disconnect: vi.fn(() => Promise.resolve(undefined))
+    };
+
+    vi.mocked(getMockPlanClient).mockResolvedValue(mockPlanningDb as never);
+
+    await prisma.workflowEvent.deleteMany({});
+
+    const event = await prisma.workflowEvent.create({
+      data: {
+        type: "github.pull_request.closed",
+        source: "github",
+        correlationId: "csmathguy/Taxes#321",
+        payload: JSON.stringify({
+          action: "closed",
+          pull_request: {
+            number: 321,
+            title: "Closed without merge",
+            body: "References PLAN-54 but did not merge",
+            merged: false
+          }
+        })
+      }
+    });
+
+    const worker = new WorkflowWorker({
+      pollIntervalMs: 100,
+      batchSize: 10,
+      db: prisma
+    });
+
+    const count = await worker.processBatch();
+    expect(count).toBe(1);
+
+    const processedEvent = await prisma.workflowEvent.findUnique({
+      where: { id: event.id }
+    });
+    expect(processedEvent?.processedAt).toBeDefined();
+    expect(mockPlanningDb.planWorkItem.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("processBatch() marks local code review action events as processed", async () => {
+    await prisma.workflowEvent.deleteMany({});
+
+    const event = await prisma.workflowEvent.create({
+      data: {
+        type: "code-review.pull-request.merge-submitted",
+        source: "code-review",
+        correlationId: "PLAN-54",
+        payload: JSON.stringify({
+          pullRequestNumber: 321,
+          repository: {
+            name: "Taxes",
+            owner: "csmathguy",
+            url: "https://github.com/csmathguy/Taxes"
+          },
+          submittedAt: "2026-03-22T15:05:00.000Z"
+        })
+      }
+    });
+
+    const worker = new WorkflowWorker({
+      pollIntervalMs: 100,
+      batchSize: 10,
+      db: prisma
+    });
+
+    const count = await worker.processBatch();
+    expect(count).toBe(1);
+
+    const processedEvent = await prisma.workflowEvent.findUnique({
+      where: { id: event.id }
+    });
+    expect(processedEvent?.processedAt).toBeDefined();
+    expect(processedEvent?.metadata).toBeNull();
   });
 });
