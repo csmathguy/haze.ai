@@ -133,10 +133,8 @@ export class AgentStepExecutor {
       );
     }
 
-    // Use worktree path as cwd if available in context (set by create-worktree step)
-    const worktreePath = typeof run.contextJson.worktreePath === "string"
-      ? run.contextJson.worktreePath
-      : undefined;
+    // Use worktree path as cwd if available in context (set by create-worktree step).
+    const worktreePath = this.resolveWorktreePath(step.id, run.contextJson);
 
     // Spawn CLI and stream output
     const cliOutput = await this.spawnCli({
@@ -380,6 +378,16 @@ Provide your response as JSON matching the output schema. Include reasoning in a
     throw new Error(
       `Unsupported provider/runtime combination: ${providerFamily}/${runtimeKind}`
     );
+  }
+
+  /**
+   * Returns the worktree path from contextJson, or undefined with a stderr warning if absent.
+   * An absent path means the subprocess will run in the main checkout (unintended).
+   */
+  private resolveWorktreePath(stepId: string, contextJson: Record<string, unknown>): string | undefined {
+    if (typeof contextJson.worktreePath === "string") return contextJson.worktreePath;
+    process.stderr.write(`[agent-step-executor] WARNING: worktreePath missing for step ${stepId} — subprocess will run in main checkout\n`);
+    return undefined;
   }
 
   private collectLines(buffer: string, lines: string[]): void {

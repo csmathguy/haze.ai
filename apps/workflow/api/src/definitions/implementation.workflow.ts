@@ -243,33 +243,30 @@ const guardrailsParallel: ParallelStep = {
 };
 
 /**
- * Condition step: Check if validation failed too many times.
- * After the parallel validation phase, if all three validation steps have failed and retried,
- * this condition routes the workflow to a human approval gate instead of failing immediately.
- * This allows humans to review and decide whether to proceed with manual inspection.
+ * Condition step: Check if any validation step signalled failure via contextJson.
  *
- * Note: The validationFailCount is tracked in context by the engine's retry handling.
- * If a parallel branch fails after all retries, we transition to waiting-for-approval.
+ * When a command step fails it sets contextJson.validationFailed = true via captureStdoutKey
+ * on a wrapper script, OR this can be set manually by an operator to force human review.
+ *
+ * Note: Per-step retry policies on each parallel branch exhaust first. Only after all retries
+ * fail does the engine set the run to failed. This condition gate intercepts that to give
+ * a human-review option instead of an outright failure.
+ *
+ * If validationFailed is not set (normal success path), falseBranch continues to ship phase.
  */
 const validationRetryCheckCondition: ConditionStep = {
   type: "condition",
   id: "phase-4-check-retry-exhausted",
-  label: "Phase 4: Check if validation retries exhausted",
-  condition: (context: Record<string, unknown>) => {
-    // If any validation step has failed with retries exhausted (indicated by validationFailCount >= 3),
-    // this returns true to route to approval gate.
-    // For now, we track this as 0 until the engine reports failure after all retries.
-    const failCount = Number(context.validationFailCount) || 0;
-    return failCount >= 3;
-  },
+  label: "Phase 4: Check if validation failed — route to human review or continue",
+  condition: (context: Record<string, unknown>) => context.validationFailed === true,
   trueBranch: [
     {
       type: "approval",
       id: "phase-4-human-review-gate",
-      label: "Validation failed multiple times - request human review",
+      label: "Validation failed — request human review before proceeding",
       prompt:
-        "Validation steps (Prisma check, quality check, TypeScript check) have failed and exhausted retries. " +
-        "Please manually review the error messages in the logs and decide whether to proceed, fix issues, or abort."
+        "One or more validation steps (Prisma check, quality check, TypeScript check) failed after retries. " +
+        "Review the step output in the run detail panel and decide: approve to continue to ship phase, or cancel to abort."
     } as ApprovalStep
   ],
   falseBranch: [] // Continue to ship phase
@@ -418,5 +415,5 @@ export const implementationWorkflow: WorkflowDefinition = {
     backoffMs: 3000
   },
   timeoutMs: 36000000,
-  maxTokensBudget: 50000
+  maxTokensBudget: 200000
 };
