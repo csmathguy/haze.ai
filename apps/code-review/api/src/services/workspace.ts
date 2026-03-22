@@ -5,6 +5,7 @@ import { DirectAuditServiceGateway, type AuditWorkItemGateway } from "../adapter
 import { GitHubCliPullRequestGateway, type GitHubPullRequestGateway } from "../adapters/github-cli.js";
 import { DirectPlanningServiceGateway, type PlanningWorkItemGateway } from "../adapters/planning-api.js";
 import { createFileCodeReviewCacheStore, type CodeReviewCacheStore } from "./pull-request-cache.js";
+import { buildAgentReview } from "./agent-review.js";
 import { toAuditEvidence, toPlanningWorkItem } from "./pull-request-evidence.js";
 import { toPullRequestDetail, toPullRequestSummary, toRepository } from "./pull-request-review.js";
 
@@ -107,9 +108,18 @@ async function enrichPullRequestDetail(
   const evidenceWarnings: string[] = [];
   const planningWorkItem = resolvePlanningWorkItem(detail, planningResult, evidenceWarnings);
   const auditEvidence = resolveAuditEvidence(workItemId, auditResult, evidenceWarnings);
+  const agentReview = buildAgentReview(
+    {
+      ...detail,
+      ...(auditEvidence === undefined ? {} : { auditEvidence }),
+      ...(planningWorkItem === undefined ? {} : { planningWorkItem })
+    },
+    detail.updatedAt
+  );
 
   return {
     ...detail,
+    ...(agentReview === undefined ? {} : { agentReview }),
     ...(auditEvidence === undefined ? {} : { auditEvidence }),
     ...(evidenceWarnings.length === 0 ? {} : { evidenceWarnings }),
     ...(planningWorkItem === undefined ? {} : { planningWorkItem })

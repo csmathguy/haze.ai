@@ -1,6 +1,7 @@
 export {
   buildLaneSections,
   createReviewNotebook,
+  getWalkthroughStageCopy,
   getSelectedFile,
   getSelectedSection,
   orderWalkthroughLanes,

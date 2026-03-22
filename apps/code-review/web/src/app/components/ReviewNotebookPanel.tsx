@@ -9,19 +9,20 @@ import type { ReviewNotebookEntry } from "../walkthrough.js";
 
 interface ReviewNotebookPanelProps {
   readonly entry: ReviewNotebookEntry;
+  readonly isFinalStage?: boolean;
   readonly laneTitle: string;
   readonly onChange: (patch: Partial<ReviewNotebookEntry>) => void;
 }
 
-export function ReviewNotebookPanel({ entry, laneTitle, onChange }: ReviewNotebookPanelProps) {
+export function ReviewNotebookPanel({ entry, isFinalStage = false, laneTitle, onChange }: ReviewNotebookPanelProps) {
   return (
     <Paper sx={{ p: 2.5 }} variant="outlined">
       <Stack spacing={2}>
         <Stack spacing={1}>
-          <Typography variant="subtitle2">Notebook</Typography>
+          <Typography variant="subtitle2">Stage Notes</Typography>
           <Typography variant="h3">{laneTitle}</Typography>
           <Typography color="text.secondary" variant="body2">
-            Capture what increased confidence, what still needs follow-up, and what you want to remember before leaving this lane.
+            Capture what increased confidence, what still needs follow-up, and what the reviewer should carry into the next checkpoint.
           </Typography>
         </Stack>
 
@@ -52,35 +53,73 @@ export function ReviewNotebookPanel({ entry, laneTitle, onChange }: ReviewNotebo
           />
         </Stack>
 
-        <TextField
-          label="Questions or concerns"
-          multiline
-          minRows={3}
-          onChange={(event) => {
-            onChange({ concerns: event.target.value });
-          }}
-          value={entry.concerns}
-        />
-        <TextField
-          label="Confidence notes"
-          multiline
-          minRows={3}
-          onChange={(event) => {
-            onChange({ confirmations: event.target.value });
-          }}
-          value={entry.confirmations}
-        />
-        <TextField
-          label="Lane notes"
-          multiline
-          minRows={4}
-          onChange={(event) => {
-            onChange({ notes: event.target.value });
-          }}
-          value={entry.notes}
-        />
+        <NotebookFields entry={entry} isFinalStage={isFinalStage} onChange={onChange} />
       </Stack>
     </Paper>
+  );
+}
+
+function NotebookFields({
+  entry,
+  isFinalStage,
+  onChange
+}: {
+  readonly entry: ReviewNotebookEntry;
+  readonly isFinalStage: boolean;
+  readonly onChange: (patch: Partial<ReviewNotebookEntry>) => void;
+}) {
+  return (
+    <>
+      <TextField
+        label="Questions or concerns"
+        multiline
+        minRows={3}
+        onChange={(event) => {
+          onChange({ concerns: event.target.value });
+        }}
+        value={entry.concerns}
+      />
+      <TextField
+        label="Confidence notes"
+        multiline
+        minRows={3}
+        onChange={(event) => {
+          onChange({ confirmations: event.target.value });
+        }}
+        value={entry.confirmations}
+      />
+      <TextField
+        label="Lane notes"
+        multiline
+        minRows={4}
+        onChange={(event) => {
+          onChange({ notes: event.target.value });
+        }}
+        value={entry.notes}
+      />
+      {isFinalStage ? <FollowUpField followUps={entry.followUps} onChange={onChange} /> : null}
+    </>
+  );
+}
+
+function FollowUpField({
+  followUps,
+  onChange
+}: {
+  readonly followUps: string;
+  readonly onChange: (patch: Partial<ReviewNotebookEntry>) => void;
+}) {
+  return (
+    <TextField
+      helperText="One follow-up per line works well for future work items or refactor ideas."
+      label="Follow-up candidates"
+      multiline
+      minRows={4}
+      onChange={(event) => {
+        onChange({ followUps: event.target.value });
+      }}
+      value={followUps}
+    />
   );
 }
 

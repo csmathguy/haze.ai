@@ -2,7 +2,7 @@ import { startTransition, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import MergeTypeOutlinedIcon from "@mui/icons-material/MergeTypeOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
-import { Alert, Box, Chip, Container, Paper, Stack, Typography, useMediaQuery } from "@mui/material";
+import { Alert, Box, Chip, Container, Grid, Paper, Stack, Typography, useMediaQuery } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, CodeReviewWorkspace, ReviewLaneId } from "@taxes/shared";
 
@@ -10,14 +10,11 @@ import { fetchCodeReviewPullRequest, fetchCodeReviewWorkspace } from "./api.js";
 import { PullRequestDetailDrawer } from "./components/PullRequestDetailDrawer.js";
 import { PullRequestList } from "./components/PullRequestList.js";
 import { countPullRequestsByState } from "./index.js";
-import { useResizableDrawer } from "./use-resizable-drawer.js";
 
 export function App() {
   const controller = useCodeReviewController();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("lg"));
-  const { drawerWidth, startResize } = useResizableDrawer(isDesktop);
-  const drawerOffset = isDesktop && controller.selectedPullRequestNumber !== null ? drawerWidth + 28 : 0;
 
   if (controller.workspace === null) {
     return (
@@ -33,33 +30,19 @@ export function App() {
 
   return (
     <>
-      <PageShell drawerOffset={drawerOffset}>
+      <PageShell drawerOffset={0}>
         {controller.errorMessage === null ? null : <Alert severity="warning">{controller.errorMessage}</Alert>}
         <Hero workspace={controller.workspace} />
         {controller.workspace.showingRecentFallback ? (
           <Alert severity="info">No open pull requests were found. Showing the most recent merged and closed pull requests instead.</Alert>
         ) : null}
-        {controller.selectedPullRequestNumber === null ? (
-          <Alert severity="info">Click a row in the review queue to open the pull request drawer.</Alert>
-        ) : null}
-        <PullRequestList
-          pullRequests={controller.workspace.pullRequests}
-          selectedPullRequestNumber={controller.selectedPullRequestNumber}
-          onSelect={controller.setSelectedPullRequestNumber}
-        />
+        {isDesktop ? (
+          <DesktopReviewLayout controller={controller} workspace={controller.workspace} />
+        ) : (
+          <MobileReviewLayout controller={controller} workspace={controller.workspace} />
+        )}
       </PageShell>
-      <PullRequestDetailDrawer
-        drawerWidth={drawerWidth}
-        isLoading={controller.isPullRequestLoading}
-        onClose={() => {
-          controller.setSelectedPullRequestNumber(null);
-        }}
-        onResizeStart={startResize}
-        pullRequest={controller.pullRequest}
-        selectedLaneId={controller.selectedLaneId}
-        selectedPullRequestNumber={controller.selectedPullRequestNumber}
-        setSelectedLaneId={controller.setSelectedLaneId}
-      />
+      {isDesktop ? null : <MobileReviewDrawer controller={controller} />}
     </>
   );
 }
@@ -128,6 +111,78 @@ function useCodeReviewController() {
   };
 }
 
+function DesktopReviewLayout({
+  controller,
+  workspace
+}: {
+  readonly controller: ReturnType<typeof useCodeReviewController>;
+  readonly workspace: CodeReviewWorkspace;
+}) {
+  return (
+    <Grid container spacing={2.5}>
+      <Grid size={{ lg: 4, xl: 3.5, xs: 12 }}>
+        <PullRequestList
+          pullRequests={workspace.pullRequests}
+          selectedPullRequestNumber={controller.selectedPullRequestNumber}
+          onSelect={controller.setSelectedPullRequestNumber}
+        />
+      </Grid>
+      <Grid size={{ lg: 8, xl: 8.5, xs: 12 }}>
+        <PullRequestDetailDrawer
+          isLoading={controller.isPullRequestLoading}
+          onClose={() => {
+            controller.setSelectedPullRequestNumber(null);
+          }}
+          pullRequest={controller.pullRequest}
+          selectedLaneId={controller.selectedLaneId}
+          selectedPullRequestNumber={controller.selectedPullRequestNumber}
+          setSelectedLaneId={controller.setSelectedLaneId}
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
+function MobileReviewLayout({
+  controller,
+  workspace
+}: {
+  readonly controller: ReturnType<typeof useCodeReviewController>;
+  readonly workspace: CodeReviewWorkspace;
+}) {
+  return (
+    <>
+      {controller.selectedPullRequestNumber === null ? (
+        <Alert severity="info">Tap a review thread to open the walkthrough and inspect the pull request.</Alert>
+      ) : null}
+      <PullRequestList
+        pullRequests={workspace.pullRequests}
+        selectedPullRequestNumber={controller.selectedPullRequestNumber}
+        onSelect={controller.setSelectedPullRequestNumber}
+      />
+    </>
+  );
+}
+
+function MobileReviewDrawer({
+  controller
+}: {
+  readonly controller: ReturnType<typeof useCodeReviewController>;
+}) {
+  return (
+    <PullRequestDetailDrawer
+      isLoading={controller.isPullRequestLoading}
+      onClose={() => {
+        controller.setSelectedPullRequestNumber(null);
+      }}
+      pullRequest={controller.pullRequest}
+      selectedLaneId={controller.selectedLaneId}
+      selectedPullRequestNumber={controller.selectedPullRequestNumber}
+      setSelectedLaneId={controller.setSelectedLaneId}
+    />
+  );
+}
+
 function PageShell({ children, drawerOffset }: { readonly children: ReactNode; readonly drawerOffset: number }) {
   return (
     <Box
@@ -174,7 +229,7 @@ function Hero({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
             })}
             variant="body2"
           >
-            {workspace.trustStatement}
+            Use the review queue to pick a PR, then walk the staged review flow to understand the work item, the code changes, the tests, and the final sign-off posture.
           </Typography>
           <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
             <HeroChip icon={<MergeTypeOutlinedIcon />} label={`${openPullRequestCount.toString()} open pull requests`} />
@@ -210,7 +265,7 @@ function Hero({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
               })}
               variant="body2"
             >
-              The queue is now optimized for scan speed, while the drawer is where the PR gets explained, justified, and pressure-tested before a human merge decision.
+              The queue is a navigation rail. The selected PR walkthrough is the main review surface where the assistant explains what changed and where a human decides what still needs judgment.
             </Typography>
           </Stack>
         </Paper>

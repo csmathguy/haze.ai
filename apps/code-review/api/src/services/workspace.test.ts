@@ -216,6 +216,24 @@ describe("createCodeReviewService", () => {
         workItemId: "PLAN-29"
       })
     );
+    expect(detail.agentReview).toEqual(
+      expect.objectContaining({
+        reviewer: "code-review-agent",
+        status: "advisory"
+      })
+    );
+    expect(detail.agentReview?.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "testing-missing-validation-commands",
+          suggestedAction: "follow-up"
+        }),
+        expect.objectContaining({
+          id: "testing-no-reported-checks",
+          suggestedAction: "follow-up"
+        })
+      ])
+    );
     expect(detail.evidenceWarnings).toBeUndefined();
   });
 

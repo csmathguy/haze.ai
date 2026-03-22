@@ -5,13 +5,13 @@ import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Button, Grid, Paper, Stack, Typography } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, ReviewLane, ReviewLaneId } from "@taxes/shared";
 
 import {
   buildLaneSections,
   buildTrustSummary,
   createReviewNotebook,
+  getWalkthroughStageCopy,
   getSelectedFile,
   getSelectedSection,
   orderWalkthroughLanes,
@@ -19,11 +19,14 @@ import {
   type ReviewNotebook,
   type ReviewNotebookEntry
 } from "../walkthrough.js";
-import { buildLaneNarrativePresentation } from "../pull-request-story.js";
+import { buildReviewStagePresentation } from "../review-stage.js";
+import { buildReviewEvidencePresentation } from "../review-evidence.js";
+import { useFollowUpAction, type FollowUpActionTone } from "../use-follow-up-action.js";
 import { FileDiffExplorer } from "./FileDiffExplorer.js";
 import { ReviewNotebookPanel } from "./ReviewNotebookPanel.js";
 import { SelectionRail, type SelectionRailItem } from "./SelectionRail.js";
-import { TrustSummaryPanel } from "./TrustSummaryPanel.js";
+import { ValidationReviewPanel } from "./ValidationReviewPanel.js";
+import { WalkthroughNarrativePanel } from "./WalkthroughNarrativePanel.js";
 
 interface WalkthroughDeckProps {
   readonly pullRequest: CodeReviewPullRequestDetail;
@@ -34,9 +37,15 @@ interface WalkthroughDeckProps {
 export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId }: WalkthroughDeckProps) {
   const orderedLanes = orderWalkthroughLanes(pullRequest.lanes);
   const [notebook, setNotebook] = useState<ReviewNotebook>(() => createReviewNotebook(orderedLanes));
+  const { followUpActionMessage, followUpActionTone, handleCreateFollowUp, isCreatingFollowUp, resetFollowUpAction } = useFollowUpAction(
+    pullRequest,
+    notebook,
+    setNotebook
+  );
 
   useEffect(() => {
     setNotebook(createReviewNotebook(orderedLanes));
+    resetFollowUpAction();
   }, [pullRequest.number]);
 
   useEffect(() => {
@@ -53,6 +62,7 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
   const activeEntry = notebook[activeLane.id];
   const activeSection = getSelectedSection(activeLane, notebook);
   const activeFile = getSelectedFile(activeLane, notebook);
+  const activeStage = getWalkthroughStageCopy(activeLane.id);
   const trustSummary = buildTrustSummary(pullRequest, notebook);
 
   function updateEntry(laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) {
@@ -68,14 +78,25 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
   return (
     <Paper sx={{ p: 2.75 }} variant="outlined">
       <Stack spacing={2.5}>
-        <WalkthroughHeader activeIndex={activeIndex} laneCount={orderedLanes.length} laneTitle={activeLane.title} onMove={setSelectedLaneId} orderedLanes={orderedLanes} />
+        <WalkthroughHeader
+          activeIndex={activeIndex}
+          laneCount={orderedLanes.length}
+          laneTitle={activeStage.title}
+          onMove={setSelectedLaneId}
+          orderedLanes={orderedLanes}
+          stageEyebrow={activeStage.eyebrow}
+        />
         <LaneCheckpointBar activeLaneId={activeLane.id} notebook={notebook} onSelectLane={setSelectedLaneId} orderedLanes={orderedLanes} />
         <WalkthroughBody
           activeEntry={activeEntry}
           activeFile={activeFile}
           activeLane={activeLane}
           activeSection={activeSection}
+          followUpActionMessage={followUpActionMessage}
+          followUpActionTone={followUpActionTone}
+          isCreatingFollowUp={isCreatingFollowUp}
           laneCount={orderedLanes.length}
+          onCreateFollowUp={handleCreateFollowUp}
           onUpdateEntry={updateEntry}
           pullRequest={pullRequest}
           trustSummary={trustSummary}
@@ -106,13 +127,15 @@ function WalkthroughHeader({
   laneCount,
   laneTitle,
   onMove,
-  orderedLanes
+  orderedLanes,
+  stageEyebrow
 }: {
   readonly activeIndex: number;
   readonly laneCount: number;
   readonly laneTitle: string;
   readonly onMove: (laneId: ReviewLaneId) => void;
   readonly orderedLanes: ReviewLane[];
+  readonly stageEyebrow: string;
 }) {
   const previousLane = activeIndex > 0 ? orderedLanes[activeIndex - 1] : undefined;
   const nextLane = activeIndex < laneCount - 1 ? orderedLanes[activeIndex + 1] : undefined;
@@ -120,10 +143,10 @@ function WalkthroughHeader({
   return (
     <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
       <div>
-        <Typography variant="subtitle2">Guided Walkthrough</Typography>
-        <Typography variant="h2">{laneTitle} checkpoint</Typography>
+        <Typography variant="subtitle2">{stageEyebrow} | Guided Walkthrough</Typography>
+        <Typography variant="h2">{laneTitle}</Typography>
         <Typography color="text.secondary" variant="body2">
-          Step {(activeIndex + 1).toString()} of {laneCount.toString()}.
+          Step {(activeIndex + 1).toString()} of {laneCount.toString()}. Review the current checkpoint before advancing.
         </Typography>
       </div>
       <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
@@ -172,6 +195,7 @@ function LaneCheckpointBar({
       {orderedLanes.map((lane) => {
         const status = notebook[lane.id].status;
         const isSelected = lane.id === activeLaneId;
+        const stage = getWalkthroughStageCopy(lane.id);
 
         return (
           <Button
@@ -183,7 +207,7 @@ function LaneCheckpointBar({
             startIcon={resolveLaneButtonIcon(status)}
             variant={isSelected ? "contained" : "outlined"}
           >
-            {lane.title}
+            {stage.title}
           </Button>
         );
       })}
@@ -196,7 +220,11 @@ function WalkthroughBody({
   activeFile,
   activeLane,
   activeSection,
+  followUpActionMessage,
+  followUpActionTone,
+  isCreatingFollowUp,
   laneCount,
+  onCreateFollowUp,
   onUpdateEntry,
   pullRequest,
   trustSummary
@@ -205,7 +233,11 @@ function WalkthroughBody({
   readonly activeFile: ReturnType<typeof getSelectedFile>;
   readonly activeLane: ReviewLane;
   readonly activeSection: ReturnType<typeof getSelectedSection>;
+  readonly followUpActionMessage: string | null;
+  readonly followUpActionTone: FollowUpActionTone;
+  readonly isCreatingFollowUp: boolean;
   readonly laneCount: number;
+  readonly onCreateFollowUp: () => Promise<void>;
   readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
   readonly pullRequest: CodeReviewPullRequestDetail;
   readonly trustSummary: ReturnType<typeof buildTrustSummary>;
@@ -215,6 +247,18 @@ function WalkthroughBody({
     subtitle: file.explanation.summary,
     title: file.path
   }));
+  const stagePresentation = buildReviewStagePresentation(pullRequest, activeLane.id);
+  const validationReviewProps = buildValidationReviewProps({
+    activeEntry,
+    activeLane,
+    followUpActionMessage,
+    followUpActionTone,
+    isCreatingFollowUp,
+    onCreateFollowUp,
+    pullRequest,
+    totalLaneCount: laneCount,
+    trustSummary
+  });
 
   return (
     <Grid container spacing={2}>
@@ -227,6 +271,7 @@ function WalkthroughBody({
           laneSections={laneSections}
           onUpdateEntry={onUpdateEntry}
           selectedFilePath={activeFile?.path}
+          stagePresentation={stagePresentation}
         />
         <FileDiffExplorer file={activeFile} />
       </Grid>
@@ -234,16 +279,52 @@ function WalkthroughBody({
         <Stack spacing={2}>
           <ReviewNotebookPanel
             entry={activeEntry}
-            laneTitle={activeLane.title}
+            isFinalStage={validationReviewProps.isVisible}
+            laneTitle={getWalkthroughStageCopy(activeLane.id).title}
             onChange={(patch) => {
               onUpdateEntry(activeLane.id, patch);
             }}
           />
-          <TrustSummaryPanel summary={trustSummary} totalLaneCount={laneCount} />
+          <ValidationReviewPanel {...validationReviewProps} />
         </Stack>
       </Grid>
     </Grid>
   );
+}
+
+function buildValidationReviewProps({
+  activeEntry,
+  activeLane,
+  followUpActionMessage,
+  followUpActionTone,
+  isCreatingFollowUp,
+  onCreateFollowUp,
+  pullRequest,
+  totalLaneCount,
+  trustSummary
+}: {
+  readonly activeEntry: ReviewNotebookEntry;
+  readonly activeLane: ReviewLane;
+  readonly followUpActionMessage: string | null;
+  readonly followUpActionTone: FollowUpActionTone;
+  readonly isCreatingFollowUp: boolean;
+  readonly onCreateFollowUp: () => Promise<void>;
+  readonly pullRequest: CodeReviewPullRequestDetail;
+  readonly totalLaneCount: number;
+  readonly trustSummary: ReturnType<typeof buildTrustSummary>;
+}) {
+  return {
+    ...(pullRequest.agentReview === undefined ? {} : { agentReview: pullRequest.agentReview }),
+    canCreateFollowUp: activeEntry.followUps.trim().length > 0,
+    evidencePresentation: buildReviewEvidencePresentation(pullRequest),
+    followUpActionMessage,
+    followUpActionTone,
+    isCreatingFollowUp,
+    isVisible: activeLane.id === "validation",
+    onCreateFollowUp,
+    totalLaneCount,
+    trustSummary
+  };
 }
 
 function WalkthroughContentColumn({
@@ -253,7 +334,8 @@ function WalkthroughContentColumn({
   fileItems,
   laneSections,
   onUpdateEntry,
-  selectedFilePath
+  selectedFilePath,
+  stagePresentation
 }: {
   readonly pullRequest: CodeReviewPullRequestDetail;
   readonly activeLane: ReviewLane;
@@ -262,10 +344,11 @@ function WalkthroughContentColumn({
   readonly laneSections: ReturnType<typeof buildLaneSections>;
   readonly onUpdateEntry: (laneId: ReviewLaneId, patch: Partial<ReviewNotebookEntry>) => void;
   readonly selectedFilePath: string | undefined;
+  readonly stagePresentation: ReturnType<typeof buildReviewStagePresentation>;
 }) {
   return (
     <Stack spacing={2}>
-      <LaneNarrativePanel lane={activeLane} pullRequest={pullRequest} />
+      <WalkthroughNarrativePanel lane={activeLane} pullRequest={pullRequest} stagePresentation={stagePresentation} />
       {laneSections.length > 1 ? (
         <SelectionRail
           activeTitle={activeSectionTitle}
@@ -336,64 +419,4 @@ function resolveLaneButtonIcon(status: ReviewCheckpointStatus) {
   }
 
   return <AutoStoriesOutlinedIcon />;
-}
-
-function LaneNarrativePanel({
-  lane,
-  pullRequest
-}: {
-  readonly lane: ReviewLane;
-  readonly pullRequest: CodeReviewPullRequestDetail;
-}) {
-  const narrative = buildLaneNarrativePresentation(pullRequest, lane);
-
-  return (
-    <Paper
-      sx={(theme) => ({
-        background: `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.08)}, ${alpha(theme.palette.background.paper, 0.94)})`,
-        p: 2.25
-      })}
-      variant="outlined"
-    >
-      <Stack spacing={2}>
-        <Stack spacing={0.75}>
-          <Typography variant="subtitle2">{lane.title} story</Typography>
-          <Typography variant="body2">{lane.summary}</Typography>
-          <Typography color="text.secondary" variant="body2">
-            Reviewer goal: {lane.reviewerGoal}
-          </Typography>
-        </Stack>
-        <Grid container spacing={2}>
-        <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={narrative.highlights} title="What to notice" />
-        </Grid>
-        <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={narrative.questions} title="What to confirm" />
-        </Grid>
-        <Grid size={{ md: 4, xs: 12 }}>
-          <NarrativeBlock items={narrative.evidence} title="Signals" />
-        </Grid>
-        </Grid>
-      </Stack>
-    </Paper>
-  );
-}
-
-function NarrativeBlock({ items, title }: { readonly items: string[]; readonly title: string }) {
-  return (
-    <Stack spacing={1}>
-      <Typography variant="subtitle2">{title}</Typography>
-      {items.length === 0 ? (
-        <Typography color="text.secondary" variant="body2">
-          No additional signal has been attached for this area yet.
-        </Typography>
-      ) : (
-        items.map((item) => (
-          <Typography key={`${title}-${item}`} variant="body2">
-            {item}
-          </Typography>
-        ))
-      )}
-    </Stack>
-  );
 }

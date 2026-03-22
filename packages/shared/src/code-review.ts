@@ -96,6 +96,30 @@ export const CodeReviewCheckSchema = z.object({
   workflowName: z.string().min(1).optional()
 });
 
+export const CodeReviewAgentReviewStatusSchema = z.enum(["advisory"]);
+export const CodeReviewAgentLensSchema = z.enum(["architecture", "readability", "risk", "testing", "workflow"]);
+export const CodeReviewAgentSuggestedActionSchema = z.enum(["accept-now", "follow-up", "reject"]);
+export const CodeReviewAgentConfidenceSchema = z.enum(["high", "medium", "low"]);
+
+export const CodeReviewAgentFindingSchema = z.object({
+  confidence: CodeReviewAgentConfidenceSchema,
+  evidence: z.array(z.string().min(1)).min(1),
+  id: z.string().min(1),
+  lens: CodeReviewAgentLensSchema,
+  rationale: z.string().min(1),
+  suggestedAction: CodeReviewAgentSuggestedActionSchema,
+  summary: z.string().min(1),
+  title: z.string().min(1)
+});
+
+export const CodeReviewAgentReviewSchema = z.object({
+  findings: z.array(CodeReviewAgentFindingSchema),
+  generatedAt: z.iso.datetime(),
+  reviewer: z.string().min(1),
+  status: CodeReviewAgentReviewStatusSchema,
+  summary: z.string().min(1)
+});
+
 export const CodeReviewFileExplanationSchema = z.object({
   rationale: z.string().min(1),
   reviewFocus: z.array(z.string().min(1)).min(1),
@@ -163,6 +187,7 @@ export const CodeReviewPullRequestSummarySchema = z.object({
 });
 
 export const CodeReviewPullRequestDetailSchema = CodeReviewPullRequestSummarySchema.extend({
+  agentReview: CodeReviewAgentReviewSchema.optional(),
   auditEvidence: CodeReviewAuditEvidenceSchema.optional(),
   body: z.string(),
   checks: z.array(CodeReviewCheckSchema),
@@ -187,6 +212,12 @@ export const CodeReviewWorkspaceSchema = z.object({
 });
 
 export type CodeReviewActor = z.infer<typeof CodeReviewActorSchema>;
+export type CodeReviewAgentConfidence = z.infer<typeof CodeReviewAgentConfidenceSchema>;
+export type CodeReviewAgentFinding = z.infer<typeof CodeReviewAgentFindingSchema>;
+export type CodeReviewAgentLens = z.infer<typeof CodeReviewAgentLensSchema>;
+export type CodeReviewAgentReview = z.infer<typeof CodeReviewAgentReviewSchema>;
+export type CodeReviewAgentReviewStatus = z.infer<typeof CodeReviewAgentReviewStatusSchema>;
+export type CodeReviewAgentSuggestedAction = z.infer<typeof CodeReviewAgentSuggestedActionSchema>;
 export type CodeReviewAuditEvidence = z.infer<typeof CodeReviewAuditEvidenceSchema>;
 export type CodeReviewAuditRunSummary = z.infer<typeof CodeReviewAuditRunSummarySchema>;
 export type CodeReviewChangedFile = z.infer<typeof CodeReviewChangedFileSchema>;

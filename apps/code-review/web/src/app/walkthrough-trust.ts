@@ -64,19 +64,25 @@ function summarizeLaneReview(pullRequest: CodeReviewPullRequestDetail, notebook:
 }
 
 function summarizeLaneEntry(lane: ReviewLane, entry: ReviewNotebookEntry): string[] {
+  const explicitFollowUps = entry.followUps
+    .split("\n")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .map((value) => `${lane.title}: ${value}`);
+
   if (entry.status === "needs-follow-up") {
-    return [`${lane.title}: follow-up requested`];
+    return [`${lane.title}: follow-up requested`, ...explicitFollowUps];
   }
 
   if (entry.concerns.trim().length > 0) {
-    return [`${lane.title}: ${entry.concerns.trim()}`];
+    return [`${lane.title}: ${entry.concerns.trim()}`, ...explicitFollowUps];
   }
 
   if (entry.status !== "confirmed") {
-    return [`${lane.title}: checkpoint not confirmed yet`];
+    return [`${lane.title}: checkpoint not confirmed yet`, ...explicitFollowUps];
   }
 
-  return [];
+  return explicitFollowUps;
 }
 
 function summarizeChecks(pullRequest: CodeReviewPullRequestDetail): CheckSummary {

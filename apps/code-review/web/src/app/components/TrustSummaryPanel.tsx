@@ -1,17 +1,31 @@
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import PendingOutlinedIcon from "@mui/icons-material/PendingOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
-import { Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
+import type { FollowUpActionTone } from "../use-follow-up-action.js";
 import type { TrustSummary } from "../walkthrough.js";
 
 interface TrustSummaryPanelProps {
+  readonly canCreateFollowUp?: boolean;
+  readonly followUpActionMessage?: string | null;
+  readonly followUpActionTone?: FollowUpActionTone;
+  readonly isCreatingFollowUp?: boolean;
+  readonly onCreateFollowUp?: (() => void) | undefined;
   readonly summary: TrustSummary;
   readonly totalLaneCount: number;
 }
 
-export function TrustSummaryPanel({ summary, totalLaneCount }: TrustSummaryPanelProps) {
+export function TrustSummaryPanel({
+  canCreateFollowUp = true,
+  followUpActionMessage = null,
+  followUpActionTone = "info",
+  isCreatingFollowUp = false,
+  onCreateFollowUp,
+  summary,
+  totalLaneCount
+}: TrustSummaryPanelProps) {
   const completionPercent = totalLaneCount === 0 ? 0 : Math.round((summary.confirmedLaneCount / totalLaneCount) * 100);
 
   return (
@@ -23,17 +37,7 @@ export function TrustSummaryPanel({ summary, totalLaneCount }: TrustSummaryPanel
       variant="outlined"
     >
       <Stack spacing={2.25}>
-        <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={1}>
-          <div>
-            <Typography variant="subtitle2">Human Trust Gate</Typography>
-            <Typography variant="h3">{summary.statusLabel}</Typography>
-          </div>
-          <Chip
-            color={summary.statusTone}
-            label={`${summary.confirmedLaneCount.toString()} of ${totalLaneCount.toString()} checkpoints cleared`}
-            variant="outlined"
-          />
-        </Stack>
+        <TrustSummaryHeader summary={summary} totalLaneCount={totalLaneCount} />
 
         <Stack spacing={0.8}>
           <Stack alignItems="center" direction="row" justifyContent="space-between">
@@ -67,8 +71,69 @@ export function TrustSummaryPanel({ summary, totalLaneCount }: TrustSummaryPanel
           }
           title="Follow-up queue"
         />
+        <FollowUpActionArea
+          canCreateFollowUp={canCreateFollowUp}
+          followUpActionMessage={followUpActionMessage}
+          followUpActionTone={followUpActionTone}
+          isCreatingFollowUp={isCreatingFollowUp}
+          onCreateFollowUp={onCreateFollowUp}
+        />
       </Stack>
     </Paper>
+  );
+}
+
+function TrustSummaryHeader({
+  summary,
+  totalLaneCount
+}: {
+  readonly summary: TrustSummary;
+  readonly totalLaneCount: number;
+}) {
+  return (
+    <Stack alignItems="center" direction="row" justifyContent="space-between" spacing={1}>
+      <div>
+        <Typography variant="subtitle2">Final Decision</Typography>
+        <Typography variant="h3">{summary.statusLabel}</Typography>
+      </div>
+      <Chip
+        color={summary.statusTone}
+        label={`${summary.confirmedLaneCount.toString()} of ${totalLaneCount.toString()} checkpoints cleared`}
+        variant="outlined"
+      />
+    </Stack>
+  );
+}
+
+function FollowUpActionArea({
+  canCreateFollowUp,
+  followUpActionMessage,
+  followUpActionTone,
+  isCreatingFollowUp,
+  onCreateFollowUp
+}: {
+  readonly canCreateFollowUp: boolean;
+  readonly followUpActionMessage: string | null;
+  readonly followUpActionTone: FollowUpActionTone;
+  readonly isCreatingFollowUp: boolean;
+  readonly onCreateFollowUp?: (() => void) | undefined;
+}) {
+  if (onCreateFollowUp === undefined) {
+    return followUpActionMessage === null ? null : <Alert severity={followUpActionTone}>{followUpActionMessage}</Alert>;
+  }
+
+  return (
+    <>
+      {followUpActionMessage === null ? null : <Alert severity={followUpActionTone}>{followUpActionMessage}</Alert>}
+      <Button disabled={isCreatingFollowUp || !canCreateFollowUp} onClick={onCreateFollowUp} variant="contained">
+        {isCreatingFollowUp ? "Creating follow-up..." : "Create follow-up work item"}
+      </Button>
+      {canCreateFollowUp ? null : (
+        <Typography color="text.secondary" variant="body2">
+          Capture at least one follow-up candidate above before creating a planning item.
+        </Typography>
+      )}
+    </>
   );
 }
 
