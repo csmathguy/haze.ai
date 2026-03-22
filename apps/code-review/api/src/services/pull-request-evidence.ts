@@ -1,4 +1,14 @@
-import type { AuditWorkItemTimeline, CodeReviewAuditEvidence, CodeReviewLinkedWorkItem, CodeReviewPlanContext, WorkItem } from "@taxes/shared";
+import type {
+  AuditArtifactRecord,
+  AuditWorkItemTimeline,
+  CodeReviewAuditEvidence,
+  CodeReviewEvidenceArtifact,
+  CodeReviewEvidenceArtifactKind,
+  CodeReviewEvidenceCategory,
+  CodeReviewLinkedWorkItem,
+  CodeReviewPlanContext,
+  WorkItem
+} from "@taxes/shared";
 
 export function toPlanningWorkItem(linkedPlan: CodeReviewPlanContext, workItem: WorkItem): CodeReviewLinkedWorkItem {
   const latestPlanRun = [...workItem.planRuns].sort(compareUpdatedAtDescending)[0];
@@ -45,6 +55,7 @@ export function toAuditEvidence(timeline: AuditWorkItemTimeline): CodeReviewAudi
   return {
     activeAgents: timeline.summary.activeAgents,
     artifactCount: timeline.summary.artifactCount,
+    artifacts: timeline.artifacts.map(toEvidenceArtifact),
     decisionCount: timeline.summary.decisionCount,
     failureCount: timeline.summary.failureCount,
     handoffCount: timeline.summary.handoffCount,
@@ -68,6 +79,31 @@ export function toAuditEvidence(timeline: AuditWorkItemTimeline): CodeReviewAudi
   };
 }
 
+function toEvidenceArtifact(artifact: AuditArtifactRecord): CodeReviewEvidenceArtifact {
+  const evidenceText = [
+    artifact.artifactType,
+    artifact.label,
+    artifact.path,
+    artifact.uri,
+    stringifyMetadata(artifact.metadata)
+  ]
+    .filter((value) => typeof value === "string" && value.length > 0)
+    .join(" ")
+    .toLowerCase();
+  const kind = classifyArtifactKind(evidenceText);
+  const category = classifyEvidenceCategory(evidenceText, kind);
+
+  return {
+    category,
+    ...(artifact.uri === undefined ? {} : { href: artifact.uri }),
+    kind,
+    label: artifact.label,
+    ...(artifact.path === undefined ? {} : { location: artifact.path }),
+    status: artifact.status,
+    timestamp: artifact.timestamp
+  };
+}
+
 function summarizeCompletion<TValue>(values: TValue[], isComplete: (value: TValue) => boolean) {
   const completeCount = values.filter(isComplete).length;
 
@@ -85,6 +121,88 @@ function summarizePreview(values: string[]) {
   };
 }
 
+function classifyArtifactKind(value: string): CodeReviewEvidenceArtifactKind {
+  if (matchesAny(value, ["screenshot", ".png", ".jpg", ".jpeg", ".webp", "snapshot"])) {
+    return "screenshot";
+  }
+
+  if (matchesAny(value, ["trace", ".zip"])) {
+    return "trace";
+  }
+
+  if (matchesAny(value, ["coverage", "lcov", "istanbul"])) {
+    return "coverage";
+  }
+
+  if (matchesAny(value, ["html-report", "html report", "playwright-report"])) {
+    return "html-report";
+  }
+
+  if (matchesAny(value, ["report"])) {
+    return "report";
+  }
+
+  return "other";
+}
+
+function classifyEvidenceCategory(value: string, kind: CodeReviewEvidenceArtifactKind): CodeReviewEvidenceCategory {
+  if (kind === "screenshot") {
+    return "visual";
+  }
+
+  if (matchesAny(value, ["integration"])) {
+    return "integration";
+  }
+
+  if (matchesAny(value, ["playwright", "browser", "e2e", "end-to-end", "cypress", "trace"])) {
+    return "browser";
+  }
+
+  if (matchesAny(value, ["visual", "snapshot", "screenshot"])) {
+    return "visual";
+  }
+
+  if (matchesAny(value, ["unit", "vitest", "jest"])) {
+    return "unit";
+  }
+
+  return "general";
+}
+
 function compareUpdatedAtDescending(left: { updatedAt: string }, right: { updatedAt: string }): number {
   return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+}
+
+function matchesAny(value: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => value.includes(pattern));
+}
+
+function stringifyMetadata(metadata: AuditArtifactRecord["metadata"]): string {
+  if (metadata === undefined) {
+    return "";
+  }
+
+  return Object.values(metadata)
+    .flatMap((value) => flattenMetadataValue(value))
+    .join(" ");
+}
+
+function flattenMetadataValue(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return [String(value)];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => flattenMetadataValue(entry));
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).flatMap((entry) => flattenMetadataValue(entry));
+  }
+
+  return [];
 }

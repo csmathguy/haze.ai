@@ -90,6 +90,7 @@ describe("buildAgentReview", () => {
         auditEvidence: {
           activeAgents: ["codex"],
           artifactCount: 0,
+          artifacts: [],
           decisionCount: 0,
           failureCount: 2,
           handoffCount: 0,

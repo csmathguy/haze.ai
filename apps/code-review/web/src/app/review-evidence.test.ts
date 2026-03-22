@@ -7,6 +7,24 @@ const pullRequest: CodeReviewPullRequestDetail = {
   auditEvidence: {
     activeAgents: ["codex", "reviewer"],
     artifactCount: 2,
+    artifacts: [
+      {
+        category: "browser",
+        href: "https://example.test/playwright-report/index.html",
+        kind: "html-report",
+        label: "Playwright HTML report",
+        status: "created",
+        timestamp: "2026-03-21T22:28:00.000Z"
+      },
+      {
+        category: "visual",
+        kind: "screenshot",
+        label: "Dashboard screenshot",
+        location: "artifacts/e2e/dashboard.png",
+        status: "created",
+        timestamp: "2026-03-21T22:29:00.000Z"
+      }
+    ],
     decisionCount: 1,
     failureCount: 0,
     handoffCount: 1,
@@ -99,6 +117,16 @@ const pullRequest: CodeReviewPullRequestDetail = {
     title: "Improve review UX",
     workItemId: "PLAN-90"
   },
+  reviewBrief: {
+    followUpCandidates: [],
+    generatedAt: "2026-03-21T22:30:00.000Z",
+    inspectFirst: ["Check the browser evidence before approving."],
+    missingEvidence: ["No browser-level validation evidence is attached yet."],
+    sourceHeadSha: "sha-90-evidence",
+    startHere: ["Confirm the PR goal."],
+    summary: "Review validation evidence.",
+    whatThisPrDoes: ["Improves review evidence."]
+  },
   reviewDecision: "",
   state: "OPEN",
   stats: {
@@ -115,17 +143,52 @@ const pullRequest: CodeReviewPullRequestDetail = {
 };
 
 describe("buildReviewEvidencePresentation", () => {
-  it("builds command, check, audit, and artifact sections from PR evidence", () => {
+  it("builds compact evidence summaries and detail sections from PR evidence", () => {
     expect(buildReviewEvidencePresentation(pullRequest)).toEqual({
+      summaries: [
+        {
+          detail: "No unit-test evidence is attached yet.",
+          label: "Unit tests",
+          status: "missing"
+        },
+        {
+          detail: "No integration evidence is attached yet.",
+          label: "Integration",
+          status: "missing"
+        },
+        {
+          detail: "1 artifact",
+          label: "Browser or E2E",
+          status: "available"
+        },
+        {
+          detail: "1 artifact",
+          label: "Visual proof",
+          status: "available"
+        }
+      ],
       sections: [
         {
-          items: ["npm run lint", "npm run typecheck:code-review:web"],
-          title: "Validation commands"
+          items: [
+            "Playwright HTML report: html report | created",
+            "Dashboard screenshot: screenshot | created | artifacts/e2e/dashboard.png"
+          ],
+          links: [
+            {
+              href: "https://example.test/playwright-report/index.html",
+              label: "Open Playwright HTML report"
+            }
+          ],
+          title: "Artifacts and reports"
         },
         {
           items: ["CI: success"],
           links: [{ href: "https://github.com/csmathguy/Taxes/actions/runs/1", label: "Open CI" }],
           title: "Reported checks"
+        },
+        {
+          items: ["npm run lint", "npm run typecheck:code-review:web"],
+          title: "Validation commands"
         },
         {
           items: [
@@ -138,11 +201,8 @@ describe("buildReviewEvidencePresentation", () => {
           title: "Audit lineage"
         },
         {
-          items: [
-            "2 workflow artifacts are available for reviewer follow-up.",
-            "Use those artifacts to confirm screenshots, traces, or other captured evidence before approving."
-          ],
-          title: "Visual and artifact evidence"
+          items: ["No browser-level validation evidence is attached yet."],
+          title: "Missing proof to resolve"
         }
       ]
     });
