@@ -22,7 +22,7 @@ interface RetryEffectOptions {
   retryCountKey: string;
   currentRetryCount: number;
   currentStep: WorkflowDefinition["steps"][number] | undefined;
-  failureReason?: string;
+  failureReason?: string | undefined;
 }
 
 function buildRetryEffect(

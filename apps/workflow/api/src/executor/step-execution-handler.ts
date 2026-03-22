@@ -376,20 +376,20 @@ export class StepExecutionHandler {
       : (await recordStepStart(this.db, runId, step.id, "child-workflow")).id;
 
     try {
-      await executeChildWorkflowStep(
-        this.db,
-        runId,
-        run.definitionName,
+      await executeChildWorkflowStep({
+        db: this.db,
+        parentRunId: runId,
+        parentDefinitionName: run.definitionName,
         stepRunId,
-        {
+        step: {
           type: "child-workflow",
           id: step.id,
           ...(step.label !== undefined ? { label: step.label as string } : {}),
           workflowName: step.workflowName as string,
           ...(step.inputMapping !== undefined ? { inputMapping: step.inputMapping as Record<string, string> } : {})
         },
-        run.contextJson
-      );
+        parentContextJson: run.contextJson
+      });
 
       await this.eventBus.emit({
         workflowRunId: runId,
