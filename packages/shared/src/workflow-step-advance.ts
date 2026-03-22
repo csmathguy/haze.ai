@@ -192,7 +192,7 @@ function advanceFromBranchStep(
   const contextKeys = Object.keys(run.contextJson);
   const pendingKey = contextKeys.find((k) => {
     if (!k.startsWith("__pendingSteps_")) return false;
-    const steps = run.contextJson[k] as Array<{ id: string }> | undefined;
+    const steps = run.contextJson[k] as { id: string }[] | undefined;
     return Array.isArray(steps) && steps.some((s) => s.id === run.currentStepId);
   });
 
@@ -205,7 +205,7 @@ function advanceFromBranchStep(
   }
 
   const conditionStepId = pendingKey.replace("__pendingSteps_", "");
-  const branchSteps = run.contextJson[pendingKey] as Array<{ id: string }>;
+  const branchSteps = run.contextJson[pendingKey] as { id: string }[];
   const currentIndex = branchSteps.findIndex((s) => s.id === run.currentStepId);
 
   if (currentIndex + 1 < branchSteps.length) {
