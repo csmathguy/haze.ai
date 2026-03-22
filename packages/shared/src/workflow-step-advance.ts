@@ -59,6 +59,49 @@ function buildFailEffect(
   };
 }
 
+/** Finds a step by id in top-level steps AND inside condition branch arrays. */
+function findStepInBranch(
+  step: WorkflowDefinition["steps"][number],
+  id: string
+): WorkflowDefinition["steps"][number] | undefined {
+  const record = step as Record<string, unknown>;
+
+  for (const branchKey of ["trueBranch", "falseBranch"]) {
+    const branch = record[branchKey] as WorkflowDefinition["steps"] | undefined;
+
+    if (!Array.isArray(branch)) {
+      continue;
+    }
+
+    const found = findStepById(branch, id);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
+function findStepById(
+  steps: WorkflowDefinition["steps"],
+  id: string | null | undefined
+): WorkflowDefinition["steps"][number] | undefined {
+  if (!id) return undefined;
+
+  for (const step of steps) {
+    if (step.id === id) return step;
+
+    const found = findStepInBranch(step, id);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
 /** Handles step failure with retry logic. */
 /** Finds a step by id in top-level steps AND inside condition branch arrays. */
 function findStepInBranch(

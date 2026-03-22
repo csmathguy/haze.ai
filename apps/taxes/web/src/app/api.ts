@@ -4,11 +4,51 @@ interface WorkspaceResponse {
   snapshot: WorkspaceSnapshot;
 }
 
+interface BitcoinFilingSummaryResponse {
+  summary: BitcoinFilingSummary;
+}
+
 interface UploadResponse {
   document: {
     fileName: string;
     id: string;
   };
+}
+
+interface MoneyValue {
+  readonly amountInCents: number;
+  readonly currencyCode: string;
+}
+
+export interface BitcoinFilingSummaryRow {
+  readonly accountLabel: string;
+  readonly acquiredAt: string;
+  readonly costBasis: MoneyValue;
+  readonly disposedAt: string;
+  readonly dispositionTransactionId: string;
+  readonly gainOrLoss: MoneyValue;
+  readonly lotId: string;
+  readonly proceeds: MoneyValue;
+  readonly quantity: string;
+  readonly term: "long-term" | "short-term";
+}
+
+export interface BitcoinFilingBlockedRow {
+  readonly accountLabel: string;
+  readonly disposedAt: string;
+  readonly quantity: string;
+  readonly reason: string;
+  readonly sourceTransactionId: string;
+}
+
+export interface BitcoinFilingSummary {
+  readonly blockedRows: BitcoinFilingBlockedRow[];
+  readonly csvContent: string;
+  readonly csvFileName: string;
+  readonly generatedAt: string;
+  readonly readyRows: BitcoinFilingSummaryRow[];
+  readonly taxYear: number;
+  readonly warnings: string[];
 }
 
 export interface SaveQuestionnaireResponseInput {
@@ -28,6 +68,17 @@ export async function fetchWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
 
   const payload = (await response.json()) as WorkspaceResponse;
   return payload.snapshot;
+}
+
+export async function fetchBitcoinFilingSummary(): Promise<BitcoinFilingSummary> {
+  const response = await fetch("/api/bitcoin-filing-summary");
+
+  if (!response.ok) {
+    throw new Error(`BTC filing summary request failed with ${response.status.toString()}.`);
+  }
+
+  const payload = (await response.json()) as BitcoinFilingSummaryResponse;
+  return payload.summary;
 }
 
 export async function uploadTaxDocument(file: File): Promise<string> {

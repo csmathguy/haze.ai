@@ -12,6 +12,15 @@ interface WorkspaceResponse {
   snapshot: WorkspaceSnapshot;
 }
 
+interface BitcoinFilingSummaryResponse {
+  summary: {
+    blockedRows: { sourceTransactionId: string }[];
+    csvContent: string;
+    readyRows: { dispositionTransactionId: string; lotId: string }[];
+    warnings: string[];
+  };
+}
+
 describe("buildApp", () => {
   const workspaces: TestWorkspaceContext[] = [];
 
@@ -245,6 +254,83 @@ describe("buildApp", () => {
         }
       })
     );
+
+    await app.close();
+  });
+
+  it("returns a BTC filing summary with ready rows and blocked rows", async () => {
+    const workspace = await createTestWorkspaceContext("taxes-build-app-bitcoin-filing-summary");
+    workspaces.push(workspace);
+    const prisma = await getPrismaClient(workspace.databaseUrl);
+    await prisma.transactionImportSession.create({
+      data: {
+        id: "session-btc-filing-summary",
+        sourceFileName: "btc-history.csv",
+        sourceKind: "csv-upload",
+        sourceLabel: "crypto-wallet-export",
+        status: "completed",
+        taxYear: 2025,
+        transactionCount: 2
+      }
+    });
+    await prisma.ledgerTransaction.createMany({
+      data: [
+        {
+          accountLabel: "Cold storage",
+          assetSymbol: "BTC",
+          cashValueInCents: 180000,
+          entryKind: "buy",
+          id: "tx-btc-summary-lot",
+          importSessionId: "session-btc-filing-summary",
+          occurredAt: new Date("2024-08-01T10:00:00.000Z"),
+          quantity: "0.05000000",
+          taxYear: 2025
+        },
+        {
+          accountLabel: "Cold storage",
+          assetSymbol: "BTC",
+          cashValueInCents: 150000,
+          entryKind: "sell",
+          id: "tx-btc-summary-sale",
+          importSessionId: "session-btc-filing-summary",
+          occurredAt: new Date("2025-02-01T10:00:00.000Z"),
+          quantity: "0.03000000",
+          taxYear: 2025
+        }
+      ]
+    });
+    await prisma.bitcoinLotSelection.create({
+      data: {
+        dispositionTransactionId: "tx-btc-summary-sale",
+        id: "btc-selection-summary-a",
+        lotTransactionId: "tx-btc-summary-lot",
+        quantity: "0.02000000",
+        selectionMethod: "specific-identification",
+        taxYear: 2025
+      }
+    });
+
+    const app = await buildApp(workspace);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/bitcoin-filing-summary"
+    });
+    const payload: BitcoinFilingSummaryResponse = response.json();
+
+    expect(response.statusCode).toBe(200);
+    expect(payload.summary.readyRows).toEqual([
+      expect.objectContaining({
+        dispositionTransactionId: "tx-btc-summary-sale",
+        lotId: "btc-lot-tx-btc-summary-lot"
+      })
+    ]);
+    expect(payload.summary.blockedRows).toEqual([
+      expect.objectContaining({
+        sourceTransactionId: "tx-btc-summary-sale"
+      })
+    ]);
+    expect(payload.summary.csvContent).toContain("Disposition ID,Lot ID");
+    expect(payload.summary.warnings).toContain("1 BTC filing row(s) remain blocked and are excluded from the export.");
 
     await app.close();
   });
