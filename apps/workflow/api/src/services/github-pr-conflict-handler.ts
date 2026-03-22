@@ -84,9 +84,14 @@ export class GitHubPrConflictHandler {
       htmlUrl: string;
     }
   ): Promise<string> {
+    // Look up the registered conflict-repair definition to get its DB id
+    const definition = await this.workflowDb.workflowDefinition.findFirst({
+      where: { name: "conflict-repair", status: "active" }
+    });
     // Create a workflow run for the conflict-repair workflow
     const run = await this.workflowDb.workflowRun.create({
       data: {
+        definitionId: definition?.id ?? "conflict-repair",
         definitionName: "conflict-repair",
         version: "1.0.0",
         status: "pending",

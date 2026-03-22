@@ -7,6 +7,9 @@ describe("GitHubPrConflictHandler", () => {
 
   beforeEach(() => {
     mockDb = {
+      workflowDefinition: {
+        findFirst: vi.fn().mockResolvedValue({ id: "def-conflict-repair" })
+      },
       workflowRun: {
         create: vi.fn().mockResolvedValue({ id: "run-123" })
       },
@@ -47,8 +50,10 @@ describe("GitHubPrConflictHandler", () => {
       const result = await handler.handleEvent(event);
 
       expect(result).toBe("run-123");
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowRun?.create).toHaveBeenCalledWith({
         data: {
+          definitionId: "def-conflict-repair",
           definitionName: "conflict-repair",
           version: "1.0.0",
           status: "pending",
@@ -66,8 +71,10 @@ describe("GitHubPrConflictHandler", () => {
           })
         }
       });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowEvent?.update).toHaveBeenCalledWith({
         where: { id: "event-1" },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: { processedAt: expect.any(Date) }
       });
     });
@@ -102,7 +109,9 @@ describe("GitHubPrConflictHandler", () => {
       const result = await handler.handleEvent(event);
 
       expect(result).toBeNull();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowRun?.create).not.toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowEvent?.update).not.toHaveBeenCalled();
     });
 
@@ -155,9 +164,12 @@ describe("GitHubPrConflictHandler", () => {
       const result = await handler.handleEvent(event);
 
       expect(result).toBe("run-123");
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowRun?.create).toHaveBeenCalledWith(
         expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           data: expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             contextJson: expect.stringContaining("PLAN-999")
           })
         })
@@ -191,6 +203,7 @@ describe("GitHubPrConflictHandler", () => {
       const result = await handler.handleEvent(event);
 
       expect(result).toBeNull();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockDb.workflowRun?.create).not.toHaveBeenCalled();
     });
   });

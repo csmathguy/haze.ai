@@ -20,6 +20,7 @@ import {
 
 export interface WorkflowPersistenceOptions {
   readonly databaseUrl?: string;
+  readonly planningDatabaseUrl?: string;
   readonly pollIntervalMs?: number;
 }
 

@@ -270,12 +270,10 @@ export class StepExecutionHandler {
 
   private parseAgentEffectResult(effect: StepExecutionEffect): StepResult {
     if (effect.type === "step-completed") {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       const outputJson: string | null = effect.stepRun.outputJson;
       const output = outputJson ? JSON.parse(outputJson) as Record<string, unknown> : {};
       return { type: "success", output };
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const errorJson: string | null = effect.stepRun.errorJson;
     const errorData = errorJson ? JSON.parse(errorJson) as { message?: string } : {};
     return {
@@ -346,10 +344,10 @@ export class StepExecutionHandler {
     await executeWaitForEventStep(this.db, stepRunId, {
       type: "wait-for-event",
       id: step.id,
-      label: step.label as string | undefined,
+      ...(step.label !== undefined ? { label: step.label as string } : {}),
       eventType: step.eventType as string,
-      correlationKey: step.correlationKey as string | undefined,
-      timeoutMs: step.timeoutMs as number | undefined
+      ...(step.correlationKey !== undefined ? { correlationKey: step.correlationKey as string } : {}),
+      ...(step.timeoutMs !== undefined ? { timeoutMs: step.timeoutMs as number } : {})
     });
 
     await this.eventBus.emit({
@@ -396,9 +394,9 @@ export class StepExecutionHandler {
         {
           type: "child-workflow",
           id: step.id,
-          label: step.label as string | undefined,
+          ...(step.label !== undefined ? { label: step.label as string } : {}),
           workflowName: step.workflowName as string,
-          inputMapping: step.inputMapping as Record<string, string> | undefined
+          ...(step.inputMapping !== undefined ? { inputMapping: step.inputMapping as Record<string, string> } : {})
         },
         run.contextJson
       );
@@ -476,7 +474,7 @@ export class StepExecutionHandler {
         contextJson: updatedContextJson
       };
 
-      stepResult = { type: "success", output: result };
+      stepResult = { type: "success", output: result as unknown as Record<string, unknown> };
       const advanceResult = this.engine.advanceRun(updatedRun, stepResult, definition);
 
       // Return the engine's result but with the updated context already in place
