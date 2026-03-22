@@ -41,6 +41,7 @@
     "dev:plan:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-api",
     "dev:plan:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/plan-web",
     "dev:workflow:web": "node tools/runtime/run-npm.cjs run dev -w @taxes/workflow-web",
+    "gateway:restart": "node ./node_modules/tsx/dist/cli.mjs tools/agent/gateway-restart.ts",
     "dev:taxes:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/api",
     "dev:gateway:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/gateway-api",
     "dev:api": "node tools/runtime/run-npm.cjs run dev -w @taxes/gateway-api",

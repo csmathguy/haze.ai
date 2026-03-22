@@ -53,6 +53,26 @@ function buildFailEffect(
 }
 
 /** Handles step failure with retry logic. */
+/** Finds a step by id in top-level steps AND inside condition branch arrays. */
+function findStepById(
+  steps: WorkflowDefinition["steps"],
+  id: string | null | undefined
+): WorkflowDefinition["steps"][number] | undefined {
+  if (!id) return undefined;
+  for (const step of steps) {
+    if (step.id === id) return step;
+    const s = step as Record<string, unknown>;
+    for (const branchKey of ["trueBranch", "falseBranch"]) {
+      const branch = s[branchKey] as WorkflowDefinition["steps"] | undefined;
+      if (Array.isArray(branch)) {
+        const found = findStepById(branch, id);
+        if (found) return found;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function handleStepFailure(
   run: WorkflowRun,
   stepResult: StepResult,
@@ -60,7 +80,7 @@ export function handleStepFailure(
   now: string
 ): WorkflowRunEffect {
   const nextRun: WorkflowRun = { ...run, updatedAt: now };
-  const currentStep = definition.steps.find((s) => s.id === run.currentStepId);
+  const currentStep = findStepById(definition.steps, run.currentStepId);
   const retryPolicy = currentStep && "retryPolicy" in currentStep
     ? currentStep.retryPolicy
     : definition.retryPolicy;
@@ -149,7 +169,7 @@ function advanceFromBranchStep(
   const contextKeys = Object.keys(run.contextJson);
   const pendingKey = contextKeys.find((k) => {
     if (!k.startsWith("__pendingSteps_")) return false;
-    const steps = run.contextJson[k] as Array<{ id: string }> | undefined;
+      const steps = run.contextJson[k] as { id: string }[] | undefined;
     return Array.isArray(steps) && steps.some((s) => s.id === run.currentStepId);
   });
 
@@ -162,7 +182,7 @@ function advanceFromBranchStep(
   }
 
   const conditionStepId = pendingKey.replace("__pendingSteps_", "");
-  const branchSteps = run.contextJson[pendingKey] as Array<{ id: string }>;
+  const branchSteps = run.contextJson[pendingKey] as { id: string }[];
   const currentIndex = branchSteps.findIndex((s) => s.id === run.currentStepId);
 
   if (currentIndex + 1 < branchSteps.length) {
