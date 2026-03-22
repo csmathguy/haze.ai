@@ -7,3 +7,4 @@
 
 export { implementationWorkflow } from "./implementation.workflow.js";
 export { conflictRepairWorkflow } from "./conflict-repair.workflow.js";
+export { planningWorkflow } from "./planning.workflow.js";

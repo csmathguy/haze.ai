@@ -51,6 +51,26 @@ export async function updatePlanningAcceptanceCriterionStatus(
   await sendJsonRequest(`/api/planning/work-items/${workItemId}/acceptance-criteria/${criterionId}`, "PATCH", input);
 }
 
+export interface StartPlanningSessionResult {
+  runId: string;
+}
+
+export async function startPlanningSession(idea: string, projectKey?: string): Promise<StartPlanningSessionResult> {
+  const response = await fetch("/api/planning/sessions/start", {
+    body: JSON.stringify({ idea, projectKey }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to start planning session (${response.status.toString()}).`);
+  }
+
+  return response.json() as Promise<StartPlanningSessionResult>;
+}
+
 async function sendJsonRequest(url: string, method: "PATCH" | "POST", body: unknown): Promise<void> {
   const response = await fetch(url, {
     body: JSON.stringify(body),

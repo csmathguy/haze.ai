@@ -22,11 +22,13 @@ import {
   updateTaskStatus,
   updateWorkItemAndEmitWorkflowEvent
 } from "../services/planning.js";
+import { registerPlanningSessionRoutes } from "./planning-sessions.js";
 
 export function registerPlanningRoutes(app: FastifyInstance, options: PlanningPersistenceOptions = {}): void {
   registerWorkspaceRoute(app, options);
   registerProjectRoutes(app, options);
   registerWorkItemRoutes(app, options);
+  registerPlanningSessionRoutes(app, options);
 }
 
 function registerWorkspaceRoute(app: FastifyInstance, options: PlanningPersistenceOptions): void {

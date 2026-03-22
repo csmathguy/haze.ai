@@ -23,6 +23,7 @@ export function App() {
     errorMessage,
     handleCreateWorkItem,
     handleCriterionToggle,
+    handlePlanningSessionStarted,
     handleStatusChange,
     handleTaskToggle,
     isBusy,
@@ -41,6 +42,7 @@ export function App() {
       errorMessage={errorMessage}
       handleCreateWorkItem={handleCreateWorkItem}
       handleCriterionToggle={handleCriterionToggle}
+      handlePlanningSessionStarted={handlePlanningSessionStarted}
       handleStatusChange={handleStatusChange}
       handleTaskToggle={handleTaskToggle}
       isBusy={isBusy}
@@ -105,10 +107,15 @@ function usePlanningWorkspaceController() {
     setSuccessMessage
   });
 
+  function handlePlanningSessionStarted(runId: string): void {
+    setSuccessMessage(`Planning session started (run ${runId}). Open the workflow app to follow along.`);
+  }
+
   return {
     errorMessage,
     handleCreateWorkItem,
     handleCriterionToggle,
+    handlePlanningSessionStarted,
     handleStatusChange,
     handleTaskToggle,
     isBusy,
@@ -257,6 +264,7 @@ interface PlanningPageLayoutProps {
   readonly errorMessage: string | null;
   readonly handleCreateWorkItem: (input: CreateWorkItemDraftInput) => Promise<boolean>;
   readonly handleCriterionToggle: (criterionId: string, checked: boolean) => Promise<void>;
+  readonly handlePlanningSessionStarted: (runId: string) => void;
   readonly handleStatusChange: (status: WorkItemStatus) => Promise<void>;
   readonly handleTaskToggle: (taskId: string, checked: boolean) => Promise<void>;
   readonly isBusy: boolean;
@@ -274,6 +282,7 @@ function PlanningPageLayout({
   errorMessage,
   handleCreateWorkItem,
   handleCriterionToggle,
+  handlePlanningSessionStarted,
   handleStatusChange,
   handleTaskToggle,
   isBusy,
@@ -307,6 +316,7 @@ function PlanningPageLayout({
           <PlanningWorkspaceState
             handleCreateWorkItem={handleCreateWorkItem}
             handleCriterionToggle={handleCriterionToggle}
+            handlePlanningSessionStarted={handlePlanningSessionStarted}
             handleStatusChange={handleStatusChange}
             handleTaskToggle={handleTaskToggle}
             isBusy={isBusy}

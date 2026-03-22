@@ -11,6 +11,7 @@ import { WorkspaceSummary } from "./WorkspaceSummary.js";
 interface PlanningWorkspaceStateProps {
   readonly handleCreateWorkItem: (input: CreateWorkItemDraftInput) => Promise<boolean>;
   readonly handleCriterionToggle: (criterionId: string, checked: boolean) => Promise<void>;
+  readonly handlePlanningSessionStarted: (runId: string) => void;
   readonly handleStatusChange: (status: WorkItemStatus) => Promise<void>;
   readonly handleTaskToggle: (taskId: string, checked: boolean) => Promise<void>;
   readonly isBusy: boolean;
@@ -27,6 +28,7 @@ interface PlanningWorkspaceStateProps {
 export function PlanningWorkspaceState({
   handleCreateWorkItem,
   handleCriterionToggle,
+  handlePlanningSessionStarted,
   handleStatusChange,
   handleTaskToggle,
   isBusy,
@@ -68,6 +70,7 @@ export function PlanningWorkspaceState({
     <PlanningWorkspaceReadyState
       handleCreateWorkItem={handleCreateWorkItem}
       handleCriterionToggle={handleCriterionToggle}
+      handlePlanningSessionStarted={handlePlanningSessionStarted}
       handleStatusChange={handleStatusChange}
       handleTaskToggle={handleTaskToggle}
       isCreateDrawerOpen={isCreateDrawerOpen}
@@ -86,7 +89,8 @@ export function PlanningWorkspaceState({
   );
 }
 
-interface PlanningWorkspaceReadyStateProps extends Omit<PlanningWorkspaceStateProps, "isBusy" | "workspace"> {
+interface PlanningWorkspaceReadyStateProps extends Omit<PlanningWorkspaceStateProps, "handlePlanningSessionStarted" | "isBusy" | "workspace"> {
+  readonly handlePlanningSessionStarted: (runId: string) => void;
   readonly isCreateDrawerOpen: boolean;
   readonly isDetailDrawerOpen: boolean;
   readonly setIsCreateDrawerOpen: (open: boolean) => void;
@@ -97,6 +101,7 @@ interface PlanningWorkspaceReadyStateProps extends Omit<PlanningWorkspaceStatePr
 function PlanningWorkspaceReadyState({
   handleCreateWorkItem,
   handleCriterionToggle,
+  handlePlanningSessionStarted,
   handleStatusChange,
   handleTaskToggle,
   isCreateDrawerOpen,
@@ -129,6 +134,7 @@ function PlanningWorkspaceReadyState({
         onCreateWorkItem={() => {
           setIsCreateDrawerOpen(true);
         }}
+        onPlanningSessionStarted={handlePlanningSessionStarted}
         projects={projects}
         selectedProjectKey={selectedProjectKey}
         totalVisibleItems={visibleWorkItems.length}
