@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchWorkspaceSnapshot, saveQuestionnaireResponse, uploadTaxDocument } from "./api.js";
+import { fetchBitcoinFilingSummary, fetchWorkspaceSnapshot, saveQuestionnaireResponse, uploadTaxDocument } from "./api.js";
 
 interface MockFetchResponse {
   json?: () => Promise<unknown>;
@@ -85,6 +85,31 @@ describe("app api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchWorkspaceSnapshot()).rejects.toThrow("Workspace request failed with 503.");
+  });
+
+  it("loads the BTC filing summary", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<MockFetchResponse>>().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          summary: {
+            blockedRows: [],
+            csvContent: "Acquired,Disposed\n",
+            csvFileName: "btc-filing-summary-2025.csv",
+            generatedAt: "2026-03-22T18:00:00.000Z",
+            readyRows: [],
+            taxYear: 2025,
+            warnings: []
+          }
+        }),
+      ok: true
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const summary = await fetchBitcoinFilingSummary();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/bitcoin-filing-summary");
+    expect(summary.csvFileName).toBe("btc-filing-summary-2025.csv");
   });
 
   it("uploads tax documents with multipart form data", async () => {

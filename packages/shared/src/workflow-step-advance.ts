@@ -52,6 +52,49 @@ function buildFailEffect(
   };
 }
 
+/** Finds a step by id in top-level steps AND inside condition branch arrays. */
+function findStepInBranch(
+  step: WorkflowDefinition["steps"][number],
+  id: string
+): WorkflowDefinition["steps"][number] | undefined {
+  const record = step as Record<string, unknown>;
+
+  for (const branchKey of ["trueBranch", "falseBranch"]) {
+    const branch = record[branchKey] as WorkflowDefinition["steps"] | undefined;
+
+    if (!Array.isArray(branch)) {
+      continue;
+    }
+
+    const found = findStepById(branch, id);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
+function findStepById(
+  steps: WorkflowDefinition["steps"],
+  id: string | null | undefined
+): WorkflowDefinition["steps"][number] | undefined {
+  if (!id) return undefined;
+
+  for (const step of steps) {
+    if (step.id === id) return step;
+
+    const found = findStepInBranch(step, id);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
 /** Handles step failure with retry logic. */
 export function handleStepFailure(
   run: WorkflowRun,
@@ -149,7 +192,7 @@ function advanceFromBranchStep(
   const contextKeys = Object.keys(run.contextJson);
   const pendingKey = contextKeys.find((k) => {
     if (!k.startsWith("__pendingSteps_")) return false;
-    const steps = run.contextJson[k] as Array<{ id: string }> | undefined;
+    const steps = run.contextJson[k] as { id: string }[] | undefined;
     return Array.isArray(steps) && steps.some((s) => s.id === run.currentStepId);
   });
 
@@ -162,7 +205,7 @@ function advanceFromBranchStep(
   }
 
   const conditionStepId = pendingKey.replace("__pendingSteps_", "");
-  const branchSteps = run.contextJson[pendingKey] as Array<{ id: string }>;
+  const branchSteps = run.contextJson[pendingKey] as { id: string }[];
   const currentIndex = branchSteps.findIndex((s) => s.id === run.currentStepId);
 
   if (currentIndex + 1 < branchSteps.length) {
