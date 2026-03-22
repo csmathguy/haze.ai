@@ -37,6 +37,21 @@ export function formatPullRequestStatusDetail(state: CodeReviewPullRequestState,
   }
 }
 
+export function formatPullRequestNextAction(state: CodeReviewPullRequestState, isDraft: boolean): string {
+  if (isDraft) {
+    return "Wait for the author to mark this ready before doing a full review.";
+  }
+
+  switch (state) {
+    case "OPEN":
+      return "Open this PR to continue the guided review.";
+    case "MERGED":
+      return "Review is complete. Open only if you need to revisit what shipped.";
+    case "CLOSED":
+      return "Open only if you need to understand why this PR was closed.";
+  }
+}
+
 export function summarizeLaneEvidence(lane: ReviewLane): string {
   return `${formatCount(lane.files.length, "file")} | ${formatCount(lane.evidence.length, "evidence", "evidence")}`;
 }

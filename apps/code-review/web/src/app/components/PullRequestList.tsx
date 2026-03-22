@@ -1,9 +1,10 @@
-import { Chip, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
+import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
+import { Chip, Divider, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import type { CodeReviewPullRequestSummary } from "@taxes/shared";
 
-import { formatPullRequestState, formatPullRequestStatusDetail } from "../index.js";
+import { formatPullRequestNextAction, formatPullRequestState, formatPullRequestStatusDetail } from "../index.js";
 
 interface PullRequestListProps {
   readonly onSelect: (pullRequestNumber: number) => void;
@@ -21,7 +22,7 @@ export function PullRequestList({ onSelect, pullRequests, selectedPullRequestNum
             <Typography variant="h3">Review queue</Typography>
           </div>
           <Typography color="text.secondary" maxWidth={480} variant="body2">
-            Click a row to open the trust-gate drawer. The queue stays focused on scan-friendly context while the drawer carries the full story.
+            Pick the next PR to review. Each row tells you what it is, where it stands, and whether you should open it now.
           </Typography>
         </Stack>
         {pullRequests.length === 0 ? (
@@ -29,29 +30,16 @@ export function PullRequestList({ onSelect, pullRequests, selectedPullRequestNum
             No pull requests were returned for this repository.
           </Typography>
         ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>PR</TableCell>
-                  <TableCell>Story</TableCell>
-                  <TableCell>Planning</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Updated</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pullRequests.map((pullRequest) => (
-                  <PullRequestRow
-                    isSelected={pullRequest.number === selectedPullRequestNumber}
-                    key={pullRequest.number}
-                    onSelect={onSelect}
-                    pullRequest={pullRequest}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <Stack divider={<Divider flexItem />} spacing={0}>
+            {pullRequests.map((pullRequest) => (
+              <PullRequestRow
+                isSelected={pullRequest.number === selectedPullRequestNumber}
+                key={pullRequest.number}
+                onSelect={onSelect}
+                pullRequest={pullRequest}
+              />
+            ))}
+          </Stack>
         )}
       </Stack>
     </Paper>
@@ -68,10 +56,15 @@ function PullRequestRow({
   readonly pullRequest: CodeReviewPullRequestSummary;
 }) {
   const stateColor = resolveStateColor(pullRequest);
+  const updatedLabel = new Date(pullRequest.updatedAt).toLocaleString([], {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short"
+  });
 
   return (
-    <TableRow
-      hover
+    <Stack
       onClick={() => {
         onSelect(pullRequest.number);
       }}
@@ -82,51 +75,51 @@ function PullRequestRow({
         }
       }}
       role="button"
-      selected={isSelected}
       sx={(theme) => ({
-        "& td": {
-          borderColor: alpha(theme.palette.divider, 0.9)
-        },
         backgroundColor: isSelected ? alpha(theme.palette.secondary.main, 0.08) : undefined,
+        borderLeft: isSelected ? `3px solid ${theme.palette.secondary.main}` : "3px solid transparent",
         cursor: "pointer",
-        verticalAlign: "top"
+        px: 2.25,
+        py: 1.75
       })}
       tabIndex={0}
     >
-      <TableCell sx={{ minWidth: 96 }}>
-        <Stack spacing={0.5}>
-          <Typography variant="subtitle2">#{pullRequest.number.toString()}</Typography>
+      <Stack spacing={1}>
+        <Stack alignItems="flex-start" direction="row" justifyContent="space-between" spacing={1.5}>
+          <Stack spacing={0.5}>
+            <Typography fontWeight={700} variant="body2">
+              #{pullRequest.number.toString()} {pullRequest.title}
+            </Typography>
+            <Typography color="text.secondary" variant="body2">
+              {pullRequest.author.name ?? pullRequest.author.login} | {pullRequest.headRefName} -&gt; {pullRequest.baseRefName}
+            </Typography>
+          </Stack>
+          <ChevronRightOutlinedIcon color={isSelected ? "secondary" : "action"} fontSize="small" sx={{ mt: 0.25 }} />
+        </Stack>
+
+        <Stack direction="row" flexWrap="wrap" gap={1}>
+          {pullRequest.linkedPlan === undefined ? (
+            <Chip color="warning" label="Needs plan link" size="small" variant="outlined" />
+          ) : (
+            <Chip label={pullRequest.linkedPlan.workItemId} size="small" variant="outlined" />
+          )}
+          <Chip
+            color={stateColor}
+            label={formatPullRequestState(pullRequest.state, pullRequest.isDraft)}
+            size="small"
+            variant={isSelected ? "filled" : "outlined"}
+          />
+          <Chip label={`Updated ${updatedLabel}`} size="small" variant="outlined" />
+        </Stack>
+
+        <Stack spacing={0.35}>
+          <Typography variant="body2">{formatPullRequestNextAction(pullRequest.state, pullRequest.isDraft)}</Typography>
           <Typography color="text.secondary" variant="body2">
-            {pullRequest.author.name ?? pullRequest.author.login}
+            {formatPullRequestStatusDetail(pullRequest.state, pullRequest.isDraft)}
           </Typography>
         </Stack>
-      </TableCell>
-      <TableCell sx={{ minWidth: 320 }}>
-        <Stack spacing={0.8}>
-          <Typography fontWeight={700} variant="body2">
-            {pullRequest.title}
-          </Typography>
-          <Typography color="text.secondary" variant="body2">
-            {pullRequest.headRefName} -&gt; {pullRequest.baseRefName}
-          </Typography>
-        </Stack>
-      </TableCell>
-      <TableCell sx={{ minWidth: 160 }}>
-        {pullRequest.linkedPlan === undefined ? (
-          <Chip color="warning" label="Needs plan link" size="small" variant="outlined" />
-        ) : (
-          <Chip label={pullRequest.linkedPlan.workItemId} size="small" variant="outlined" />
-        )}
-      </TableCell>
-      <TableCell sx={{ minWidth: 128 }}>
-        <PullRequestStatusCell isSelected={isSelected} pullRequest={pullRequest} stateColor={stateColor} />
-      </TableCell>
-      <TableCell sx={{ minWidth: 180 }}>
-        <Typography color="text.secondary" variant="body2">
-          {new Date(pullRequest.updatedAt).toLocaleString()}
-        </Typography>
-      </TableCell>
-    </TableRow>
+      </Stack>
+    </Stack>
   );
 }
 
@@ -136,28 +129,4 @@ function resolveStateColor(pullRequest: CodeReviewPullRequestSummary): "default"
   }
 
   return pullRequest.state === "OPEN" ? "success" : "default";
-}
-
-function PullRequestStatusCell({
-  isSelected,
-  pullRequest,
-  stateColor
-}: {
-  readonly isSelected: boolean;
-  readonly pullRequest: CodeReviewPullRequestSummary;
-  readonly stateColor: "default" | "success" | "warning";
-}) {
-  return (
-    <Stack spacing={0.8}>
-      <Chip
-        color={stateColor}
-        label={formatPullRequestState(pullRequest.state, pullRequest.isDraft)}
-        size="small"
-        variant={isSelected ? "filled" : "outlined"}
-      />
-      <Typography color="text.secondary" variant="body2">
-        {formatPullRequestStatusDetail(pullRequest.state, pullRequest.isDraft)}
-      </Typography>
-    </Stack>
-  );
 }
