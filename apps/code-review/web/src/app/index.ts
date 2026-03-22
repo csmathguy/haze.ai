@@ -22,6 +22,21 @@ export function formatPullRequestState(state: CodeReviewPullRequestState, isDraf
   }
 }
 
+export function formatPullRequestStatusDetail(state: CodeReviewPullRequestState, isDraft: boolean): string {
+  if (isDraft) {
+    return "Waiting for review readiness";
+  }
+
+  switch (state) {
+    case "OPEN":
+      return "Active review thread";
+    case "MERGED":
+      return "Merged to base branch";
+    case "CLOSED":
+      return "Closed without merge";
+  }
+}
+
 export function summarizeLaneEvidence(lane: ReviewLane): string {
   return `${formatCount(lane.files.length, "file")} | ${formatCount(lane.evidence.length, "evidence", "evidence")}`;
 }

@@ -126,19 +126,7 @@ export class GitHubCliPullRequestGateway implements GitHubPullRequestGateway {
 
   private async loadRepository(): Promise<GitHubRepositoryRef> {
     const remoteUrl = (await this.runText(["git", "remote", "get-url", "origin"])).trim();
-    const match = /github\.com[:/](?<owner>[^/]+)\/(?<repo>[^/.]+)(?:\.git)?$/u.exec(remoteUrl);
-
-    if (match?.groups?.owner === undefined || match.groups.repo === undefined) {
-      throw new Error(`Could not resolve the GitHub repository from remote URL "${remoteUrl}".`);
-    }
-
-    const { owner, repo } = match.groups;
-
-    return {
-      name: repo,
-      owner,
-      url: `https://github.com/${owner}/${repo}`
-    };
+    return parseGitHubRepositoryFromRemoteUrl(remoteUrl);
   }
 
   private async runJson<T>(args: string[]): Promise<T> {
@@ -208,4 +196,21 @@ function normalizeFileStatus(status: string | undefined): GitHubPullRequestFile[
 
 function normalizePath(filePath: string): string {
   return filePath.replaceAll("\\", "/");
+}
+
+export function parseGitHubRepositoryFromRemoteUrl(remoteUrl: string): GitHubRepositoryRef {
+  const match = /github\.com[:/](?<owner>[^/]+)\/(?<repo>[^/]+?)(?:\.git)?$/u.exec(remoteUrl);
+
+  if (match?.groups?.owner === undefined || match.groups.repo === undefined) {
+    throw new Error(`Could not resolve the GitHub repository from remote URL "${remoteUrl}".`);
+  }
+
+  const owner = match.groups.owner;
+  const repo = match.groups.repo;
+
+  return {
+    name: repo,
+    owner,
+    url: `https://github.com/${owner}/${repo}`
+  };
 }

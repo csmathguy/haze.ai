@@ -4,6 +4,7 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { GitHubPullRequestDetail, GitHubPullRequestGateway, GitHubPullRequestListEntry, GitHubRepositoryRef } from "../adapters/github-cli.js";
 import { createFileCodeReviewCacheStore } from "./pull-request-cache.js";
 import { createCodeReviewService } from "./workspace.js";
 
@@ -51,6 +52,54 @@ describe("createCodeReviewService", () => {
     expect(gateway.listCalls).toBe(2);
     expect(refreshedWorkspace.generatedAt).not.toBe(firstWorkspace.generatedAt);
     expect(refreshedWorkspace.pullRequests[0]?.title).toBe("Updated cached workspace title");
+  });
+
+  it("orders workspace pull requests by most recent update instead of state grouping", async () => {
+    const cacheRoot = await createCacheRoot();
+    const gateway = createGateway();
+    gateway.listPullRequests = (): Promise<GitHubPullRequestListEntry[]> =>
+      Promise.resolve([
+        {
+          author: {
+            is_bot: false,
+            login: "csmathguy",
+            name: "Zachary Hayes"
+          },
+          baseRefName: "main",
+          headRefName: "feature/older-open",
+          isDraft: false,
+          number: 29,
+          reviewDecision: "",
+          state: "OPEN" as const,
+          title: "Older open pull request",
+          updatedAt: "2026-03-14T16:15:00.000Z",
+          url: "https://github.com/csmathguy/Taxes/pull/29"
+        },
+        {
+          author: {
+            is_bot: false,
+            login: "csmathguy",
+            name: "Zachary Hayes"
+          },
+          baseRefName: "main",
+          headRefName: "feature/newer-merged",
+          isDraft: false,
+          number: 30,
+          reviewDecision: "",
+          state: "MERGED" as const,
+          title: "Newer merged pull request",
+          updatedAt: "2026-03-14T18:15:00.000Z",
+          url: "https://github.com/csmathguy/Taxes/pull/30"
+        }
+      ]);
+    const service = createCodeReviewService({
+      cacheStore: createFileCodeReviewCacheStore(cacheRoot),
+      gateway
+    });
+
+    const workspace = await service.getWorkspace();
+
+    expect(workspace.pullRequests.map((pullRequest) => pullRequest.number)).toEqual([30, 29]);
   });
 
   it("falls back to stale cached pull request detail when GitHub refresh fails", async () => {
@@ -257,14 +306,20 @@ async function createCacheRoot(): Promise<string> {
   return cacheRoot;
 }
 
-function createGateway() {
+function createGateway(): GitHubPullRequestGateway & {
+  detailCalls: number;
+  detailError: Error | undefined;
+  detailTitle: string;
+  listCalls: number;
+  workspaceTitle: string;
+} {
   return {
     detailCalls: 0,
     detailError: undefined as Error | undefined,
     detailTitle: "Initial pull request title",
     listCalls: 0,
     workspaceTitle: "Initial pull request title",
-    getPullRequest() {
+    getPullRequest(): Promise<GitHubPullRequestDetail> {
       this.detailCalls += 1;
 
       if (this.detailError !== undefined) {
@@ -301,14 +356,14 @@ function createGateway() {
         url: "https://github.com/csmathguy/Taxes/pull/29"
       });
     },
-    getRepository() {
+    getRepository(): Promise<GitHubRepositoryRef> {
       return Promise.resolve({
         name: "Taxes",
         owner: "csmathguy",
         url: "https://github.com/csmathguy/Taxes"
       });
     },
-    listPullRequests() {
+    listPullRequests(): Promise<GitHubPullRequestListEntry[]> {
       this.listCalls += 1;
 
       return Promise.resolve([
