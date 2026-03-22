@@ -2,7 +2,7 @@ import { startTransition, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import MergeTypeOutlinedIcon from "@mui/icons-material/MergeTypeOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
-import { Alert, Box, Chip, Container, Grid, Paper, Stack, Typography, useMediaQuery } from "@mui/material";
+import { Alert, Box, Chip, Container, Grid, Stack, Typography, useMediaQuery } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, CodeReviewWorkspace, ReviewLaneId } from "@taxes/shared";
 
@@ -32,7 +32,7 @@ export function App() {
     <>
       <PageShell drawerOffset={0}>
         {controller.errorMessage === null ? null : <Alert severity="warning">{controller.errorMessage}</Alert>}
-        <Hero workspace={controller.workspace} />
+        <WorkspaceHeader workspace={controller.workspace} />
         {controller.workspace.showingRecentFallback ? (
           <Alert severity="info">No open pull requests were found. Showing the most recent merged and closed pull requests instead.</Alert>
         ) : null}
@@ -205,72 +205,21 @@ function PageShell({ children, drawerOffset }: { readonly children: ReactNode; r
   );
 }
 
-function Hero({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
+function WorkspaceHeader({ workspace }: { readonly workspace: CodeReviewWorkspace }) {
   const openPullRequestCount = countPullRequestsByState(workspace.pullRequests, "OPEN");
 
   return (
-    <Paper
-      sx={(theme) => ({
-        background: `linear-gradient(140deg, ${alpha(theme.palette.primary.main, 0.96)}, ${alpha(theme.palette.secondary.main, 0.86)})`,
-        color: theme.palette.common.white,
-        p: { md: 4, xs: 3 }
-      })}
-    >
-      <Stack direction={{ lg: "row", xs: "column" }} justifyContent="space-between" spacing={3}>
-        <Stack spacing={2}>
-          <Typography variant="h1">{workspace.title}</Typography>
-          <Typography maxWidth={960} variant="body1">
-            {workspace.purpose}
-          </Typography>
-          <Typography
-            maxWidth={900}
-            sx={(theme) => ({
-              color: alpha(theme.palette.common.white, 0.84)
-            })}
-            variant="body2"
-          >
-            Use the review queue to pick a PR, then walk the staged review flow to understand the work item, the code changes, the tests, and the final sign-off posture.
-          </Typography>
-          <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
-            <HeroChip icon={<MergeTypeOutlinedIcon />} label={`${openPullRequestCount.toString()} open pull requests`} />
-            <HeroChip icon={<RuleFolderOutlinedIcon />} label={`${workspace.pullRequests.length.toString()} recent review threads`} />
-          </Stack>
-        </Stack>
-        <Paper
-          sx={(theme) => ({
-            alignSelf: "stretch",
-            backgroundColor: alpha(theme.palette.common.white, 0.12),
-            borderColor: alpha(theme.palette.common.white, 0.18),
-            color: theme.palette.common.white,
-            maxWidth: 360,
-            p: 2.5
-          })}
-          variant="outlined"
-        >
-          <Stack spacing={1.25}>
-            <Typography
-              sx={(theme) => ({
-                color: alpha(theme.palette.common.white, 0.8)
-              })}
-              variant="subtitle2"
-            >
-              Repository
-            </Typography>
-            <Typography variant="h3">
-              {workspace.repository.owner}/{workspace.repository.name}
-            </Typography>
-            <Typography
-              sx={(theme) => ({
-                color: alpha(theme.palette.common.white, 0.82)
-              })}
-              variant="body2"
-            >
-              The queue is a navigation rail. The selected PR walkthrough is the main review surface where the assistant explains what changed and where a human decides what still needs judgment.
-            </Typography>
-          </Stack>
-        </Paper>
+    <Stack spacing={1.25}>
+      <Typography variant="h1">{workspace.title}</Typography>
+      <Typography maxWidth={960} variant="body2">
+        Pick a PR, then follow the next step. The review page is designed to guide the human reviewer one checkpoint at a time.
+      </Typography>
+      <Stack direction="row" flexWrap="wrap" gap={1}>
+        <HeroChip icon={<MergeTypeOutlinedIcon />} label={`${openPullRequestCount.toString()} open pull requests`} />
+        <HeroChip icon={<RuleFolderOutlinedIcon />} label={`${workspace.pullRequests.length.toString()} recent review threads`} />
+        <Chip label={`${workspace.repository.owner}/${workspace.repository.name}`} size="small" variant="outlined" />
       </Stack>
-    </Paper>
+    </Stack>
   );
 }
 
@@ -279,11 +228,6 @@ function HeroChip({ icon, label }: { readonly icon: ReactElement; readonly label
     <Chip
       icon={icon}
       label={label}
-      sx={(theme) => ({
-        backgroundColor: alpha(theme.palette.common.white, 0.14),
-        border: `1px solid ${alpha(theme.palette.common.white, 0.18)}`,
-        color: theme.palette.common.white
-      })}
       variant="outlined"
     />
   );

@@ -1,4 +1,5 @@
-import { Grid, Paper, Stack, Typography } from "@mui/material";
+import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
+import { Accordion, AccordionDetails, AccordionSummary, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, ReviewLane } from "@taxes/shared";
 
@@ -28,27 +29,29 @@ export function WalkthroughNarrativePanel({
     >
       <Stack spacing={2}>
         <Stack spacing={0.75}>
-          <Typography variant="subtitle2">{lane.title} story</Typography>
-          <Typography variant="body2">{lane.summary}</Typography>
-          <Typography color="text.secondary" variant="body2">
-            Reviewer goal: {lane.reviewerGoal}
-          </Typography>
-          <Typography color="text.secondary" variant="body2">
-            {stagePresentation.intro}
-          </Typography>
+          <Typography variant="subtitle2">Current step</Typography>
+          <Typography variant="body2">{stagePresentation.intro}</Typography>
+          <Typography color="text.secondary" variant="body2">{lane.summary}</Typography>
+          <Typography color="text.secondary" variant="body2">Reviewer goal: {lane.reviewerGoal}</Typography>
         </Stack>
         <ReviewChecklist items={stagePresentation.checklist} />
-        <Grid container spacing={2}>
-          <Grid size={{ md: 4, xs: 12 }}>
-            <NarrativeBlock items={narrative.highlights} title="What to notice" />
-          </Grid>
-          <Grid size={{ md: 4, xs: 12 }}>
-            <NarrativeBlock items={narrative.questions} title="What to confirm" />
-          </Grid>
-          <Grid size={{ md: 4, xs: 12 }}>
-            <NarrativeBlock items={narrative.evidence} title="Signals" />
-          </Grid>
-        </Grid>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreOutlinedIcon />}>
+            <Stack spacing={0.25}>
+              <Typography variant="subtitle2">Need more guidance?</Typography>
+              <Typography color="text.secondary" variant="body2">
+                Open this only if you want more context, questions, or signals for this step.
+              </Typography>
+            </Stack>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Stack spacing={1.5}>
+              <NarrativeBlock items={narrative.highlights} title="What to notice" />
+              <NarrativeBlock items={narrative.questions} title="What to confirm" />
+              <NarrativeBlock items={narrative.evidence} title="Signals" />
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
         {stagePresentation.finalDecisionOptions.length > 0 ? <DecisionOptions options={stagePresentation.finalDecisionOptions} /> : null}
       </Stack>
     </Paper>

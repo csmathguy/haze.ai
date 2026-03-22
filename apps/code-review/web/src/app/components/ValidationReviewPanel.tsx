@@ -1,5 +1,7 @@
+import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
+import type { ReactNode } from "react";
 import type { CodeReviewAgentReview } from "@taxes/shared";
-import { Stack } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Paper, Stack, Typography } from "@mui/material";
 
 import type { FollowUpActionTone } from "../use-follow-up-action.js";
 import type { ReviewEvidencePresentation } from "../review-evidence.js";
@@ -39,8 +41,6 @@ export function ValidationReviewPanel({
 
   return (
     <Stack spacing={2}>
-      {agentReview === undefined ? null : <AgentReviewPanel review={agentReview} />}
-      <ReviewEvidencePanel presentation={evidencePresentation} />
       <TrustSummaryPanel
         canCreateFollowUp={canCreateFollowUp}
         followUpActionMessage={followUpActionMessage}
@@ -52,6 +52,35 @@ export function ValidationReviewPanel({
         summary={trustSummary}
         totalLaneCount={totalLaneCount}
       />
+      <Paper sx={{ p: 2.5 }} variant="outlined">
+        <Stack spacing={1.5}>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">Decision support</Typography>
+            <Typography color="text.secondary" variant="body2">
+              Open these only if you need more proof before deciding what should happen next in GitHub.
+            </Typography>
+          </Stack>
+          <OptionalDetail title="Validation evidence">
+            <ReviewEvidencePanel presentation={evidencePresentation} />
+          </OptionalDetail>
+          {agentReview === undefined ? null : (
+            <OptionalDetail title="Advisory agent review">
+              <AgentReviewPanel review={agentReview} />
+            </OptionalDetail>
+          )}
+        </Stack>
+      </Paper>
     </Stack>
+  );
+}
+
+function OptionalDetail({ children, title }: { readonly children: ReactNode; readonly title: string }) {
+  return (
+    <Accordion disableGutters elevation={0} sx={{ "&::before": { display: "none" }, border: 1, borderColor: "divider", borderRadius: 1.5 }}>
+      <AccordionSummary expandIcon={<ExpandMoreOutlinedIcon />}>
+        <Typography variant="subtitle2">{title}</Typography>
+      </AccordionSummary>
+      <AccordionDetails sx={{ p: 0, pt: 0.5 }}>{children}</AccordionDetails>
+    </Accordion>
   );
 }

@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import AutoStoriesOutlinedIcon from "@mui/icons-material/AutoStoriesOutlined";
 import ChevronLeftOutlinedIcon from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
-import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
-import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Button, Grid, Paper, Stack, Typography } from "@mui/material";
 import type { CodeReviewPullRequestDetail, ReviewLane, ReviewLaneId } from "@taxes/shared";
 
@@ -15,7 +12,6 @@ import {
   getSelectedFile,
   getSelectedSection,
   orderWalkthroughLanes,
-  type ReviewCheckpointStatus,
   type ReviewNotebook,
   type ReviewNotebookEntry
 } from "../walkthrough.js";
@@ -86,7 +82,6 @@ export function WalkthroughDeck({ pullRequest, selectedLaneId, setSelectedLaneId
           orderedLanes={orderedLanes}
           stageEyebrow={activeStage.eyebrow}
         />
-        <LaneCheckpointBar activeLaneId={activeLane.id} notebook={notebook} onSelectLane={setSelectedLaneId} orderedLanes={orderedLanes} />
         <WalkthroughBody
           activeEntry={activeEntry}
           activeFile={activeFile}
@@ -142,13 +137,13 @@ function WalkthroughHeader({
 
   return (
     <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
-      <div>
-        <Typography variant="subtitle2">{stageEyebrow} | Guided Walkthrough</Typography>
+      <Stack spacing={0.5}>
+        <Typography variant="subtitle2">{stageEyebrow}</Typography>
         <Typography variant="h2">{laneTitle}</Typography>
         <Typography color="text.secondary" variant="body2">
-          Step {(activeIndex + 1).toString()} of {laneCount.toString()}. Review the current checkpoint before advancing.
+          Step {(activeIndex + 1).toString()} of {laneCount.toString()}. Finish this step, then move forward. You do not need to inspect the whole PR at once.
         </Typography>
-      </div>
+      </Stack>
       <Stack direction={{ sm: "row", xs: "column" }} spacing={1}>
         <Button
           disabled={previousLane === undefined}
@@ -175,42 +170,6 @@ function WalkthroughHeader({
           Next checkpoint
         </Button>
       </Stack>
-    </Stack>
-  );
-}
-
-function LaneCheckpointBar({
-  activeLaneId,
-  notebook,
-  onSelectLane,
-  orderedLanes
-}: {
-  readonly activeLaneId: ReviewLaneId;
-  readonly notebook: ReviewNotebook;
-  readonly onSelectLane: (laneId: ReviewLaneId) => void;
-  readonly orderedLanes: ReviewLane[];
-}) {
-  return (
-    <Stack direction="row" flexWrap="wrap" gap={1}>
-      {orderedLanes.map((lane) => {
-        const status = notebook[lane.id].status;
-        const isSelected = lane.id === activeLaneId;
-        const stage = getWalkthroughStageCopy(lane.id);
-
-        return (
-          <Button
-            color={resolveLaneButtonColor(status, isSelected)}
-            key={lane.id}
-            onClick={() => {
-              onSelectLane(lane.id);
-            }}
-            startIcon={resolveLaneButtonIcon(status)}
-            variant={isSelected ? "contained" : "outlined"}
-          >
-            {stage.title}
-          </Button>
-        );
-      })}
     </Stack>
   );
 }
@@ -388,35 +347,4 @@ function createSectionSelectionPatch(
     selectedFilePath: section.files[0].path,
     selectedSectionTitle: title
   };
-}
-
-function resolveLaneButtonColor(
-  status: ReviewCheckpointStatus,
-  isSelected: boolean
-): "primary" | "secondary" | "success" | "warning" {
-  if (status === "needs-follow-up") {
-    return "warning";
-  }
-
-  if (status === "confirmed") {
-    return "success";
-  }
-
-  if (isSelected) {
-    return "secondary";
-  }
-
-  return "primary";
-}
-
-function resolveLaneButtonIcon(status: ReviewCheckpointStatus) {
-  if (status === "confirmed") {
-    return <TaskAltOutlinedIcon />;
-  }
-
-  if (status === "needs-follow-up") {
-    return <WarningAmberOutlinedIcon />;
-  }
-
-  return <AutoStoriesOutlinedIcon />;
 }
