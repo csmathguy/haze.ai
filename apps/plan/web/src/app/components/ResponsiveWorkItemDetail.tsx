@@ -35,7 +35,7 @@ export function ResponsiveWorkItemDetail({
     >
       <WorkItemDetail
         onCriterionToggle={onCriterionToggle}
-        onStartImplementation={onStartImplementation}
+        {...(onStartImplementation !== undefined ? { onStartImplementation } : {})}
         onStatusChange={onStatusChange}
         onTaskToggle={onTaskToggle}
         surface="plain"

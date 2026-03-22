@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Button,
   Checkbox,
@@ -44,7 +45,7 @@ export function WorkItemDetail({
 
   const content = (
     <Stack spacing={2.5}>
-      <WorkItemHeader onStartImplementation={onStartImplementation} onStatusChange={onStatusChange} workItem={workItem} />
+      <WorkItemHeader {...(onStartImplementation !== undefined ? { onStartImplementation } : {})} onStatusChange={onStatusChange} workItem={workItem} />
       <Divider />
       <ChecklistSection
         emptyMessage="No tasks yet."
@@ -83,7 +84,7 @@ function WorkItemHeader({
   onStatusChange,
   workItem
 }: Pick<WorkItemDetailProps, "onStartImplementation" | "onStatusChange"> & { readonly workItem: WorkItem }) {
-  const [implementationLoading, setImplementationLoading] = React.useState(false);
+  const [implementationLoading, setImplementationLoading] = useState(false);
 
   const handleStartImplementation = async (): Promise<void> => {
     if (!onStartImplementation) return;
