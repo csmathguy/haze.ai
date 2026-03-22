@@ -112,14 +112,16 @@ export class AgentStepExecutor {
     // Verify skills are allowed
     this.verifyAllowedSkills(agent, step);
 
-    // Load skill definitions
-    const skills = await db.skill.findMany({
-      where: {
-        id: {
-          in: step.skillIds
-        }
-      }
-    });
+    // Load skill definitions.
+    // skillIds in step definitions are skill names (e.g. "implementation-workflow"), not cuids.
+    // Try by id first, then fall back to name lookup.
+    const byId = await db.skill.findMany({ where: { id: { in: step.skillIds } } });
+    const foundIds = new Set(byId.map((s) => s.id));
+    const missingNames = step.skillIds.filter((sid) => !foundIds.has(sid));
+    const byName = missingNames.length > 0
+      ? await db.skill.findMany({ where: { name: { in: missingNames } } })
+      : [];
+    const skills = [...byId, ...byName];
 
     // Build the prompt from skill definitions
     const prompt = this.buildPrompt(agent, skills, step, run);
@@ -365,9 +367,19 @@ Provide your response as JSON matching the output schema. Include reasoning in a
     prompt: string
   ): { command: string; args: string[] } {
     if (providerFamily === "anthropic" && runtimeKind === "claude-code-subagent") {
+      // On Windows, "claude" is installed as claude.cmd (a batch file) and cannot be spawned
+      // directly without shell:true. To avoid shell-quoting the prompt (which may contain
+      // special characters), we invoke cmd.exe explicitly with /c so that args are passed
+      // as individual array elements without any shell re-interpretation.
+      if (process.platform === "win32") {
+        return {
+          command: "cmd.exe",
+          args: ["/c", "claude.cmd", "-p", prompt, "--output-format", "stream-json", "--dangerously-skip-permissions"]
+        };
+      }
       return {
         command: "claude",
-        args: ["-p", prompt, "--output-format", "stream-json"]
+        args: ["-p", prompt, "--output-format", "stream-json", "--dangerously-skip-permissions"]
       };
     }
     if (providerFamily === "openai" && runtimeKind === "codex-subagent") {
