@@ -29,10 +29,12 @@ describe("Implementation Workflow Definition", () => {
     // Phase 3
     expect(stepIds).toContain("phase-3-implement");
 
-    // Phase 4
-    expect(stepIds).toContain("phase-4-guardrails");
+    // Phase 4 (sequential validation)
+    expect(stepIds).toContain("phase-4-typecheck");
+    expect(stepIds).toContain("phase-4-lint");
 
     // Phase 5
+    expect(stepIds).toContain("phase-5-stage-changes");
     expect(stepIds).toContain("phase-5-commit");
     expect(stepIds).toContain("phase-5-pr-review");
   });
@@ -61,12 +63,14 @@ describe("Implementation Workflow Definition", () => {
     expect(step?.type).toBe("agent");
   });
 
-  it("should have parallel guardrails", () => {
-    const step = implementationWorkflow.steps.find(
-      (s) => s.id === "phase-4-guardrails"
-    );
-    expect(step).toBeDefined();
-    expect(step?.type).toBe("parallel");
+  it("should have sequential validation steps", () => {
+    const typeCheck = implementationWorkflow.steps.find((s) => s.id === "phase-4-typecheck");
+    expect(typeCheck).toBeDefined();
+    expect(typeCheck?.type).toBe("command");
+
+    const lint = implementationWorkflow.steps.find((s) => s.id === "phase-4-lint");
+    expect(lint).toBeDefined();
+    expect(lint?.type).toBe("command");
   });
 
   it("should have PR review approval gate", () => {

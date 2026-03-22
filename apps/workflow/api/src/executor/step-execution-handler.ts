@@ -48,34 +48,18 @@ function findStepInDefinition(steps: StepNode[], id: string): StepNode | undefin
   }
   return undefined;
 }
-/**
- * Interpolates {{input.workItemId}} style context variables into a string value.
- * Supports dot-notation paths within contextJson.
- */
-export function interpolateContextVar(template: string, contextJson: Record<string, unknown>): string {
-  // eslint-disable-next-line sonarjs/slow-regex
-  return template.replace(/\{\{([^}]+)\}\}/g, (_match, path: string) => {
-    const parts = path.trim().split(".");
-    let current: unknown = contextJson;
-    for (const part of parts) {
-      if (current !== null && typeof current === "object" && part in current) {
-        current = (current as Record<string, unknown>)[part];
-      } else {
-        return _match; // leave unresolved placeholders as-is
-      }
-    }
-    if (typeof current === "string") return current;
-    if (current === null || current === undefined) return "";
-    if (typeof current === "object") return JSON.stringify(current);
-    // current is number | boolean | bigint | symbol at this point
-    return (current as number | boolean | bigint).toString();
-  });
-}
 
-/** Interpolates all string args in a command step's args array. */
-function interpolateArgs(args: string[] | undefined, contextJson: Record<string, unknown>): string[] {
-  return (args ?? []).map((arg) => interpolateContextVar(arg, contextJson));
+/** Merges agent output fields (filesChanged, summary, etc.) into contextJson. */
+function mergeAgentOutputIntoContext(run: WorkflowRun, stepResult: StepResult): WorkflowRun {
+  if (stepResult.type !== "success") return run;
+  const output = stepResult.output;
+  if (!output) return run;
+  const innerOutput = output.output as Record<string, unknown> | undefined;
+  if (!innerOutput || typeof innerOutput !== "object") return run;
+  return { ...run, contextJson: { ...run.contextJson, ...innerOutput } };
 }
+export { interpolateContextVar } from "./interpolate-context.js";
+import { interpolateArgs } from "./interpolate-context.js";
 
 /**
  * Executes a single step and returns a StepResult for the engine.
@@ -148,9 +132,7 @@ export class StepExecutionHandler {
     return this.engine.advanceRun(run, failResult, definition);
   }
 
-  // ---------------------------------------------------------------------------
-  // CommandStep
-  // ---------------------------------------------------------------------------
+  // -- CommandStep
 
   private async executeCommandAndAdvance(
     runId: string,
@@ -205,9 +187,7 @@ export class StepExecutionHandler {
     return this.engine.advanceRun(updatedRun, stepResult, definition);
   }
 
-  // ---------------------------------------------------------------------------
-  // ConditionStep
-  // ---------------------------------------------------------------------------
+  // -- ConditionStep
 
   private async executeConditionAndAdvance(
     runId: string,
@@ -252,9 +232,7 @@ export class StepExecutionHandler {
     return this.engine.advanceRun(run, stepResult, definition);
   }
 
-  // ---------------------------------------------------------------------------
-  // AgentStep
-  // ---------------------------------------------------------------------------
+  // -- AgentStep
 
   private async executeAgentAndAdvance(
     runId: string,
@@ -266,28 +244,25 @@ export class StepExecutionHandler {
     let stepResult: StepResult;
 
     try {
-      const providerFamily = step.providerFamily as "anthropic" | "openai" | undefined;
-      const runtimeKind = step.runtimeKind as "claude-code-subagent" | "codex-subagent" | "api" | undefined;
+      const pf = step.providerFamily as "anthropic" | "openai" | undefined;
+      const rk = step.runtimeKind as "claude-code-subagent" | "codex-subagent" | "api" | undefined;
       const agentStep = {
-        type: "agent" as const,
-        id: step.id,
+        type: "agent" as const, id: step.id,
         label: (step.label as string | undefined) ?? step.id,
         agentId: step.agentId as string,
         model: (step.model as string | undefined) ?? "claude-sonnet-4-6",
-        ...(providerFamily !== undefined && { providerFamily }),
-        ...(runtimeKind !== undefined && { runtimeKind }),
+        ...(pf !== undefined && { providerFamily: pf }),
+        ...(rk !== undefined && { runtimeKind: rk }),
         skillIds: (step.skillIds as string[] | undefined) ?? [],
         outputSchema: step.outputSchema as never
       };
-
       const effect = await this.agentExecutor.execute(this.db, run, agentStep);
       stepResult = this.parseAgentEffectResult(effect);
 
-      // Token budget circuit breaker: pause run if cumulative tokens exceed maxTokensBudget
-      if (stepResult.type === "success") {
-        const pauseEffect = await this.pauseForTokenBudget(runId, run, step.id, definition.maxTokensBudget);
-        if (pauseEffect !== null) return pauseEffect;
-      }
+      const updatedRun = mergeAgentOutputIntoContext(run, stepResult);
+      const pauseEffect = await this.pauseForTokenBudget(runId, updatedRun, step.id, definition.maxTokensBudget);
+      if (pauseEffect !== null) return pauseEffect;
+      return this.engine.advanceRun(updatedRun, stepResult, definition);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await recordStepFailed(this.db, stepRun.id, message);
@@ -311,9 +286,7 @@ export class StepExecutionHandler {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // ApprovalStep — pause the run, create approval record, wait for signal
-  // ---------------------------------------------------------------------------
+  // -- ApprovalStep — pause the run, create approval record, wait for signal
 
   private async handleApprovalStep(
     runId: string,
@@ -348,9 +321,7 @@ export class StepExecutionHandler {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // WaitForEventStep — pause the run until a matching external event arrives
-  // ---------------------------------------------------------------------------
+  // -- WaitForEventStep — pause the run until a matching external event arrives
 
   private async executeWaitForEventAndAdvance(
     runId: string,
@@ -387,9 +358,7 @@ export class StepExecutionHandler {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // ChildWorkflowStep
-  // ---------------------------------------------------------------------------
+  // -- ChildWorkflowStep
 
   private async executeChildWorkflowAndAdvance(
     runId: string,
@@ -443,9 +412,7 @@ export class StepExecutionHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // ContextPackStep — gather rich work item and codebase context
-  // ---------------------------------------------------------------------------
+  // -- ContextPackStep — gather rich work item and codebase context
 
   private async executeContextPackAndAdvance(
     runId: string,
@@ -496,9 +463,7 @@ export class StepExecutionHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Token budget circuit breaker
-  // ---------------------------------------------------------------------------
+  // -- Token budget circuit breaker
 
   private async pauseForTokenBudget(
     runId: string,

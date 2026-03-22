@@ -122,14 +122,16 @@ describe("AgentStepExecutor", () => {
       agentId: agent.id,
       model: agent.model,
       providerFamily: "anthropic",
-      runtimeKind: "claude-code-subagent",
+      // Use "api" runtimeKind which throws immediately (not yet implemented),
+      // so the test fails fast without spawning a real subprocess
+      runtimeKind: "api",
       skillIds: [skill.id],
       outputSchema: {} as never
     };
 
     const executor = new AgentStepExecutor();
 
-    // This will fail at CLI invocation, but we're testing error handling and metadata recording
+    // Fails immediately (api runtimeKind not implemented), but we're testing error handling and metadata recording
     const result = await executor.execute(db, workflowRun, agentStep);
 
     // Should fail (no actual CLI available in test), but record the step run
