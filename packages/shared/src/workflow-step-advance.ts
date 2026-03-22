@@ -22,11 +22,18 @@ function buildRetryEffect(
   nextRun: WorkflowRun,
   retryCountKey: string,
   currentRetryCount: number,
-  currentStep: WorkflowDefinition["steps"][number] | undefined
+  currentStep: WorkflowDefinition["steps"][number] | undefined,
+  failureReason?: string
 ): WorkflowRunEffect {
+  // Store the failure reason under retry_error_<stepId> so the next attempt can see it.
+  const errorKey = retryCountKey.replace("retry_count_", "retry_error_");
   const updatedRun = {
     ...nextRun,
-    contextJson: { ...nextRun.contextJson, [retryCountKey]: currentRetryCount + 1 }
+    contextJson: {
+      ...nextRun.contextJson,
+      [retryCountKey]: currentRetryCount + 1,
+      ...(failureReason !== undefined ? { [errorKey]: failureReason } : {})
+    }
   };
   const effects: WorkflowEffect[] = [];
   if (currentStep) {
@@ -54,6 +61,29 @@ function buildFailEffect(
 
 /** Handles step failure with retry logic. */
 /** Finds a step by id in top-level steps AND inside condition branch arrays. */
+function findStepInBranch(
+  step: WorkflowDefinition["steps"][number],
+  id: string
+): WorkflowDefinition["steps"][number] | undefined {
+  const record = step as Record<string, unknown>;
+
+  for (const branchKey of ["trueBranch", "falseBranch"]) {
+    const branch = record[branchKey] as WorkflowDefinition["steps"] | undefined;
+
+    if (!Array.isArray(branch)) {
+      continue;
+    }
+
+    const found = findStepById(branch, id);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
 function findStepById(
   steps: WorkflowDefinition["steps"],
   id: string | null | undefined
@@ -61,13 +91,11 @@ function findStepById(
   if (!id) return undefined;
   for (const step of steps) {
     if (step.id === id) return step;
-    const s = step as Record<string, unknown>;
-    for (const branchKey of ["trueBranch", "falseBranch"]) {
-      const branch = s[branchKey] as WorkflowDefinition["steps"] | undefined;
-      if (Array.isArray(branch)) {
-        const found = findStepById(branch, id);
-        if (found) return found;
-      }
+
+    const found = findStepInBranch(step, id);
+
+    if (found !== undefined) {
+      return found;
     }
   }
   return undefined;
@@ -90,7 +118,8 @@ export function handleStepFailure(
   const currentRetryCount = typeof rawCount === "number" ? rawCount : 0;
 
   if (retryPolicy && currentRetryCount < retryPolicy.maxRetries) {
-    return buildRetryEffect(nextRun, retryCountKey, currentRetryCount, currentStep);
+    const failureReason = stepResult.type === "failure" ? stepResult.error.message : undefined;
+    return buildRetryEffect(nextRun, retryCountKey, currentRetryCount, currentStep, failureReason);
   }
 
   return buildFailEffect(nextRun, now, stepResult);
@@ -169,7 +198,7 @@ function advanceFromBranchStep(
   const contextKeys = Object.keys(run.contextJson);
   const pendingKey = contextKeys.find((k) => {
     if (!k.startsWith("__pendingSteps_")) return false;
-      const steps = run.contextJson[k] as { id: string }[] | undefined;
+    const steps = run.contextJson[k] as { id: string }[] | undefined;
     return Array.isArray(steps) && steps.some((s) => s.id === run.currentStepId);
   });
 

@@ -273,6 +273,13 @@ ${JSON.stringify(contextPack, null, 2)}` : "";
       ? JSON.stringify(step.outputSchema, null, 2)
       : "{}";
 
+    // Check for a previous failed attempt error stored by the retry logic.
+    const retryErrorKey = `retry_error_${step.id}`;
+    const previousError = (run.contextJson as Record<string, unknown>)[retryErrorKey] as string | undefined;
+    const previousErrorSection = previousError
+      ? `\n\nPREVIOUS ATTEMPT FAILED WITH THIS ERROR — fix it this time:\n${previousError}`
+      : "";
+
     // System prompt with agent context
     const systemPrompt = `You are an implementation agent executing a bounded task inside a git worktree.
 
@@ -290,7 +297,7 @@ Available Skills:
 ${skillsSection}
 
 Work Item Context:
-${JSON.stringify(contextPack ?? run.contextJson, null, 2)}`;
+${JSON.stringify(contextPack ?? run.contextJson, null, 2)}${previousErrorSection}`;
 
     // User prompt with specific task instructions
     const userPrompt = `Complete the implementation for step "${step.label}" (step id: ${step.id}).
