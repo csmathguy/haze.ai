@@ -134,7 +134,20 @@ describe("createCodeReviewService", () => {
       auditGateway: {
         getWorkItemTimeline: () =>
           Promise.resolve({
-            artifacts: [],
+            artifacts: [
+              {
+                artifactId: "artifact-1",
+                artifactType: "playwright-screenshot",
+                label: "Checkout confirmation screenshot",
+                metadata: {
+                  suite: "browser"
+                },
+                path: "artifacts/e2e/checkout-confirmation.png",
+                runId: "2026-03-14T161700-000-implementation-abcd1234",
+                status: "created",
+                timestamp: "2026-03-14T16:18:00.000Z"
+              }
+            ],
             decisions: [],
             events: [],
             failures: [],
@@ -165,7 +178,7 @@ describe("createCodeReviewService", () => {
             ],
             summary: {
               activeAgents: ["codex"],
-              artifactCount: 0,
+              artifactCount: 1,
               decisionCount: 0,
               executionCount: 4,
               failureCount: 0,
@@ -271,6 +284,16 @@ describe("createCodeReviewService", () => {
     expect(detail.auditEvidence).toEqual(
       expect.objectContaining({
         activeAgents: ["codex"],
+        artifacts: [
+          {
+            category: "visual",
+            kind: "screenshot",
+            label: "Checkout confirmation screenshot",
+            location: "artifacts/e2e/checkout-confirmation.png",
+            status: "created",
+            timestamp: "2026-03-14T16:18:00.000Z"
+          }
+        ],
         failureCount: 0,
         runCount: 1,
         workflows: ["implementation"],

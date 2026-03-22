@@ -80,9 +80,22 @@ export const CodeReviewAuditRunSummarySchema = z.object({
   workflow: z.string().min(1)
 });
 
+export const CodeReviewEvidenceArtifactKindSchema = z.enum(["coverage", "html-report", "other", "report", "screenshot", "trace"]);
+export const CodeReviewEvidenceCategorySchema = z.enum(["browser", "general", "integration", "unit", "visual"]);
+export const CodeReviewEvidenceArtifactSchema = z.object({
+  category: CodeReviewEvidenceCategorySchema,
+  href: z.url().optional(),
+  kind: CodeReviewEvidenceArtifactKindSchema,
+  label: z.string().min(1),
+  location: z.string().min(1).optional(),
+  status: z.string().min(1),
+  timestamp: z.iso.datetime()
+});
+
 export const CodeReviewAuditEvidenceSchema = z.object({
   activeAgents: z.array(z.string().min(1)),
   artifactCount: z.number().int().nonnegative(),
+  artifacts: z.array(CodeReviewEvidenceArtifactSchema),
   decisionCount: z.number().int().nonnegative(),
   failureCount: z.number().int().nonnegative(),
   handoffCount: z.number().int().nonnegative(),
@@ -255,6 +268,9 @@ export type CodeReviewReviewActionRequest = z.infer<typeof CodeReviewReviewActio
 export type CodeReviewReviewActionResult = z.infer<typeof CodeReviewReviewActionResultSchema>;
 export type CodeReviewAgentSuggestedAction = z.infer<typeof CodeReviewAgentSuggestedActionSchema>;
 export type CodeReviewAuditEvidence = z.infer<typeof CodeReviewAuditEvidenceSchema>;
+export type CodeReviewEvidenceArtifact = z.infer<typeof CodeReviewEvidenceArtifactSchema>;
+export type CodeReviewEvidenceArtifactKind = z.infer<typeof CodeReviewEvidenceArtifactKindSchema>;
+export type CodeReviewEvidenceCategory = z.infer<typeof CodeReviewEvidenceCategorySchema>;
 export type CodeReviewAuditRunSummary = z.infer<typeof CodeReviewAuditRunSummarySchema>;
 export type CodeReviewChangedFile = z.infer<typeof CodeReviewChangedFileSchema>;
 export type CodeReviewCheck = z.infer<typeof CodeReviewCheckSchema>;

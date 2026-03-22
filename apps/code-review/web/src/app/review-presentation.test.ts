@@ -11,6 +11,7 @@ const pullRequest: CodeReviewPullRequestDetail = {
   auditEvidence: {
     activeAgents: ["codex"],
     artifactCount: 1,
+    artifacts: [],
     decisionCount: 1,
     failureCount: 0,
     handoffCount: 1,
