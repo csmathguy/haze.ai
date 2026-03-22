@@ -87,11 +87,24 @@ export class WorkflowWorker {
     return events.length;
   }
 
+  // Event routing is intentionally explicit here because each event type has different
+  // workflow side effects and only a small fixed set is supported.
+  // eslint-disable-next-line complexity
   private async processEvent(event: { id: string; type: string; correlationId: string | null; payload: string }): Promise<void> {
     try {
       // Handle external system events (e.g., GitHub PR merged) that don't require a workflow run
       if (event.type === "github.pull_request.merged") {
         await this.handleGitHubPrMergedEvent(event);
+        return;
+      }
+
+      if (event.type === "github.pull_request.closed") {
+        await this.eventBus.markProcessed(event.id);
+        return;
+      }
+
+      if (event.type === "code-review.pull-request.review-submitted" || event.type === "code-review.pull-request.merge-submitted") {
+        await this.eventBus.markProcessed(event.id);
         return;
       }
 

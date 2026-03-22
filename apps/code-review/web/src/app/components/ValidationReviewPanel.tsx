@@ -1,6 +1,6 @@
 import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
 import type { ReactNode } from "react";
-import type { CodeReviewAgentReview } from "@taxes/shared";
+import type { CodeReviewAgentReview, CodeReviewReviewAction } from "@taxes/shared";
 import { Accordion, AccordionDetails, AccordionSummary, Paper, Stack, Typography } from "@mui/material";
 
 import type { FollowUpActionTone } from "../use-follow-up-action.js";
@@ -21,7 +21,7 @@ interface ValidationReviewPanelProps {
   readonly isSubmittingReviewAction: boolean;
   readonly isVisible: boolean;
   readonly onCreateFollowUp: () => Promise<void>;
-  readonly onSubmitReviewAction: (action: "approve" | "request-changes") => Promise<void>;
+  readonly onSubmitReviewAction: (action: CodeReviewReviewAction) => Promise<void>;
   readonly reviewActionMessage: string | null;
   readonly reviewActionTone: ReviewActionTone;
   readonly totalLaneCount: number;

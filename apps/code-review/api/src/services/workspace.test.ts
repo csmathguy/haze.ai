@@ -345,6 +345,7 @@ describe("createCodeReviewService", () => {
       cacheStore: createFileCodeReviewCacheStore(cacheRoot),
       gateway,
       workflowEventGateway: {
+        createCodeReviewMergeSubmittedEvent: () => Promise.resolve({ eventId: "evt_merge" }),
         createCodeReviewReviewSubmittedEvent: () => Promise.resolve({ eventId: "evt_123" })
       }
     });
@@ -368,6 +369,33 @@ describe("createCodeReviewService", () => {
       }
     ]);
   });
+
+  it("submits a merge action and records a merge workflow event id", async () => {
+    const cacheRoot = await createCacheRoot();
+    const gateway = createGateway();
+    const service = createCodeReviewService({
+      cacheStore: createFileCodeReviewCacheStore(cacheRoot),
+      gateway,
+      now: () => new Date("2026-03-22T12:20:00.000Z"),
+      workflowEventGateway: {
+        createCodeReviewMergeSubmittedEvent: () => Promise.resolve({ eventId: "evt_merge" }),
+        createCodeReviewReviewSubmittedEvent: () => Promise.resolve({ eventId: "evt_review" })
+      }
+    });
+
+    const result = await service.submitReviewAction(29, {
+      action: "merge"
+    });
+
+    expect(result).toEqual({
+      action: "merge",
+      comment: "",
+      submittedAt: "2026-03-22T12:20:00.000Z",
+      workflowEventId: "evt_merge"
+    });
+    expect(gateway.mergedPullRequests).toEqual([29]);
+    expect(gateway.submittedReviews).toEqual([]);
+  });
 });
 
 async function createCacheRoot(): Promise<string> {
@@ -382,6 +410,7 @@ function createGateway(): GitHubPullRequestGateway & {
   detailError: Error | undefined;
   detailTitle: string;
   listCalls: number;
+  mergedPullRequests: number[];
   submittedReviews: { action: "approve" | "request-changes"; comment: string; pullRequestNumber: number }[];
   workspaceTitle: string;
 } {
@@ -390,6 +419,7 @@ function createGateway(): GitHubPullRequestGateway & {
     detailError: undefined as Error | undefined,
     detailTitle: "Initial pull request title",
     listCalls: 0,
+    mergedPullRequests: [],
     submittedReviews: [],
     workspaceTitle: "Initial pull request title",
     getPullRequest(): Promise<GitHubPullRequestDetail> {
@@ -459,6 +489,11 @@ function createGateway(): GitHubPullRequestGateway & {
           url: "https://github.com/csmathguy/Taxes/pull/29"
         }
       ]);
+    },
+    mergePullRequest(pullRequestNumber: number): Promise<{ merged: true }> {
+      this.mergedPullRequests.push(pullRequestNumber);
+
+      return Promise.resolve({ merged: true });
     },
     submitPullRequestReview(
       pullRequestNumber: number,

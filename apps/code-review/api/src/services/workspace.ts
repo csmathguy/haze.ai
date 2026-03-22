@@ -279,22 +279,30 @@ function createSubmitReviewAction(options: {
   return async (pullRequestNumber, request) => {
     const normalizedComment = request.comment?.trim() ?? "";
     const [repository, currentPullRequest] = await Promise.all([options.gateway.getRepository(), options.gateway.getPullRequest(pullRequestNumber)]);
-    const submittedReview = await options.gateway.submitPullRequestReview(pullRequestNumber, {
-      action: request.action,
-      comment: normalizedComment
-    });
-    const submittedAt = submittedReview.submitted_at ?? options.now().toISOString();
     const workItemId = extractLinkedWorkItemId(currentPullRequest);
-    const workflowEvent = await options.workflowEventGateway.createCodeReviewReviewSubmittedEvent({
-      action: request.action,
-      comment: normalizedComment,
-      headSha: currentPullRequest.headRefOid,
-      pullRequestNumber,
-      repository: toRepository(repository),
-      submittedAt,
-      ...(submittedReview.id === undefined ? {} : { reviewId: submittedReview.id }),
-      ...(workItemId === undefined ? {} : { workItemId })
-    });
+    const repositoryRef = toRepository(repository);
+    const workflowEvent =
+      request.action === "merge"
+        ? await submitMergeAction({
+          currentPullRequest,
+          gateway: options.gateway,
+          pullRequestNumber,
+          repository: repositoryRef,
+          submittedAt: options.now().toISOString(),
+          workflowEventGateway: options.workflowEventGateway,
+          ...(workItemId === undefined ? {} : { workItemId })
+        })
+        : await submitReviewDecision({
+          action: request.action,
+          comment: normalizedComment,
+          currentPullRequest,
+          gateway: options.gateway,
+          pullRequestNumber,
+          repository: repositoryRef,
+          submittedAt: options.now().toISOString(),
+          workflowEventGateway: options.workflowEventGateway,
+          ...(workItemId === undefined ? {} : { workItemId })
+        });
 
     await refreshPullRequestCaches({
       auditGateway: options.auditGateway,
@@ -307,9 +315,71 @@ function createSubmitReviewAction(options: {
     return {
       action: request.action,
       comment: normalizedComment,
-      submittedAt,
+      submittedAt: workflowEvent.submittedAt,
       workflowEventId: workflowEvent.eventId
     };
+  };
+}
+
+async function submitReviewDecision(options: {
+  readonly action: "approve" | "request-changes";
+  readonly comment: string;
+  readonly currentPullRequest: { readonly headRefOid: string };
+  readonly gateway: GitHubPullRequestGateway;
+  readonly pullRequestNumber: number;
+  readonly repository: ReturnType<typeof toRepository>;
+  readonly submittedAt: string;
+  readonly workflowEventGateway: WorkflowEventGateway;
+  readonly workItemId?: string;
+}): Promise<{ readonly eventId: string; readonly submittedAt: string }> {
+  const submittedReview = await options.gateway.submitPullRequestReview(options.pullRequestNumber, {
+    action: options.action,
+    comment: options.comment
+  });
+  const submittedAt = submittedReview.submitted_at ?? options.submittedAt;
+  const workflowEvent = await options.workflowEventGateway.createCodeReviewReviewSubmittedEvent({
+    action: options.action,
+    comment: options.comment,
+    headSha: options.currentPullRequest.headRefOid,
+    pullRequestNumber: options.pullRequestNumber,
+    repository: options.repository,
+    submittedAt,
+    ...(submittedReview.id === undefined ? {} : { reviewId: submittedReview.id }),
+    ...(options.workItemId === undefined ? {} : { workItemId: options.workItemId })
+  });
+
+  return {
+    eventId: workflowEvent.eventId,
+    submittedAt
+  };
+}
+
+async function submitMergeAction(options: {
+  readonly currentPullRequest: { readonly headRefOid: string };
+  readonly gateway: GitHubPullRequestGateway;
+  readonly pullRequestNumber: number;
+  readonly repository: ReturnType<typeof toRepository>;
+  readonly submittedAt: string;
+  readonly workflowEventGateway: WorkflowEventGateway;
+  readonly workItemId?: string;
+}): Promise<{ readonly eventId: string; readonly submittedAt: string }> {
+  const mergeResult = await options.gateway.mergePullRequest(options.pullRequestNumber);
+
+  if (!mergeResult.merged) {
+    throw new Error(`GitHub did not merge pull request ${options.pullRequestNumber.toString()}.`);
+  }
+
+  const workflowEvent = await options.workflowEventGateway.createCodeReviewMergeSubmittedEvent({
+    headSha: options.currentPullRequest.headRefOid,
+    pullRequestNumber: options.pullRequestNumber,
+    repository: options.repository,
+    submittedAt: options.submittedAt,
+    ...(options.workItemId === undefined ? {} : { workItemId: options.workItemId })
+  });
+
+  return {
+    eventId: workflowEvent.eventId,
+    submittedAt: options.submittedAt
   };
 }
 

@@ -27,7 +27,7 @@ export function useReviewAction(
       await submitCodeReviewAction(pullRequestNumber, action);
       await onSubmitted();
       setActionTone("success");
-      setActionMessage(action === "approve" ? "Approval sent to GitHub." : "Request changes sent to GitHub.");
+      setActionMessage(formatActionSuccessMessage(action));
     } catch (error) {
       setActionTone("error");
       setActionMessage(error instanceof Error ? error.message : "Failed to submit the review action.");
@@ -42,4 +42,15 @@ export function useReviewAction(
     isSubmitting,
     submitAction
   };
+}
+
+function formatActionSuccessMessage(action: CodeReviewReviewAction): string {
+  switch (action) {
+    case "approve":
+      return "Approval sent to GitHub.";
+    case "merge":
+      return "Merge sent to GitHub.";
+    case "request-changes":
+      return "Request changes sent to GitHub.";
+  }
 }

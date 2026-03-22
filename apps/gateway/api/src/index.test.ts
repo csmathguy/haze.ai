@@ -159,7 +159,7 @@ describe("buildGatewayApp", () => {
     await app.close();
   });
 
-  it("accepts GitHub webhook with valid signature and stores PR merged event", async () => {
+  it("accepts GitHub webhook with valid signature and stores a merged PR event for real GitHub close payloads", async () => {
     const ctx = await createTestGatewayContext("gateway-webhooks");
     contexts.push(ctx);
 
@@ -167,7 +167,7 @@ describe("buildGatewayApp", () => {
     const app = await buildGatewayApp({ ...ctx, githubWebhookSecret: secret });
 
     const payload = {
-      action: "merged",
+      action: "closed",
       pull_request: {
         number: 42,
         title: "Add feature",
@@ -324,7 +324,8 @@ describe("buildGatewayApp", () => {
       action: "closed",
       pull_request: {
         number: 44,
-        title: "Closed PR"
+        title: "Closed PR",
+        merged: false
       },
       repository: {
         name: "Taxes",
@@ -343,6 +344,7 @@ describe("buildGatewayApp", () => {
     });
 
     expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ type: "github.pull_request.closed" });
 
     await app.close();
   });
