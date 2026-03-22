@@ -99,9 +99,9 @@ function PullRequestDetailPanel({
   return (
     <Paper sx={{ minHeight: "78vh", p: 0, overflow: "hidden" }} variant="outlined">
       <Stack spacing={0}>
-        <Stack spacing={0.75} sx={{ px: 3, py: 2.25 }}>
-          <Typography variant="subtitle2">Selected Pull Request</Typography>
-          <Typography variant="h2">
+        <Stack spacing={0.5} sx={{ px: 3, py: 1.5 }}>
+          <Typography variant="subtitle2">Selected pull request</Typography>
+          <Typography variant="h5">
             {pullRequest === null ? "Choose a review thread" : pullRequest.title}
           </Typography>
           <Typography color="text.secondary" variant="body2">
@@ -140,11 +140,11 @@ function DrawerHeader({
       direction="row"
       justifyContent="space-between"
       spacing={1.5}
-      sx={{ px: { md: 2.5, xs: 2 }, py: 1.5 }}
+      sx={{ px: { md: 2.5, xs: 2 }, py: 1.25 }}
     >
       <div>
         <Typography variant="subtitle2">Review Drawer</Typography>
-        <Typography variant="h3">
+        <Typography variant="h6">
           {pullRequest === null ? "Pull request detail" : `PR #${pullRequest.number.toString()}`}
         </Typography>
         <Typography color="text.secondary" variant="body2">

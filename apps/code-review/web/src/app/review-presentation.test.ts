@@ -64,6 +64,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 3,
       totalCount: 5
     },
+    acceptanceCriteriaPreview: {
+      items: ["Reviewer can start with work-item context."],
+      totalCount: 5
+    },
     latestPlanRun: {
       completedStepCount: 1,
       currentStepTitle: "Refine walkthrough-first layout",
@@ -80,6 +84,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 1,
       pendingCount: 4,
+      totalCount: 5
+    },
+    taskPreview: {
+      items: ["Show the work item summary", "Keep the review order visible"],
       totalCount: 5
     },
     title: "Redesign PR review page: walkthrough-first, actionable stages",

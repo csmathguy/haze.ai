@@ -39,7 +39,7 @@ function buildStartHere(detail: CodeReviewPullRequestDetail): string[] {
   const items = [
     detail.linkedPlan === undefined
       ? "Anchor this review to a planning item before trusting the walkthrough."
-      : `Start with ${detail.linkedPlan.workItemId} so the human reviewer understands why this PR exists.`,
+      : `Start with ${detail.linkedPlan.workItemId}: confirm the work-item goal and expected outcome before opening the diff.`,
     detail.narrative.reviewOrder[0] === undefined
       ? "Begin with the context lane before opening raw diffs."
       : `Follow the guided review order starting with ${detail.narrative.reviewOrder[0]}.`

@@ -8,6 +8,7 @@ export function toPlanningWorkItem(linkedPlan: CodeReviewPlanContext, workItem: 
       workItem.acceptanceCriteria,
       (criterion) => criterion.status === "passed"
     ),
+    acceptanceCriteriaPreview: summarizePreview(workItem.acceptanceCriteria.map((criterion) => criterion.title)),
     ...(latestPlanRun === undefined
       ? {}
       : {
@@ -34,6 +35,7 @@ export function toPlanningWorkItem(linkedPlan: CodeReviewPlanContext, workItem: 
       workItem.tasks,
       (task) => task.status === "done"
     ),
+    taskPreview: summarizePreview(workItem.tasks.map((task) => task.title)),
     title: workItem.title,
     workItemId: linkedPlan.workItemId
   };
@@ -72,6 +74,13 @@ function summarizeCompletion<TValue>(values: TValue[], isComplete: (value: TValu
   return {
     completeCount,
     pendingCount: values.length - completeCount,
+    totalCount: values.length
+  };
+}
+
+function summarizePreview(values: string[]) {
+  return {
+    items: values.slice(0, 3),
     totalCount: values.length
   };
 }

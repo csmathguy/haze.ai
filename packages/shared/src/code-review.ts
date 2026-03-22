@@ -39,6 +39,11 @@ export const CodeReviewChecklistProgressSchema = z.object({
   totalCount: z.int().nonnegative()
 });
 
+export const CodeReviewChecklistPreviewSchema = z.object({
+  items: z.array(z.string().min(1)),
+  totalCount: z.int().nonnegative()
+});
+
 export const CodeReviewPlanRunSummarySchema = z.object({
   completedStepCount: z.int().nonnegative(),
   currentStepTitle: z.string().min(1).optional(),
@@ -50,6 +55,7 @@ export const CodeReviewPlanRunSummarySchema = z.object({
 
 export const CodeReviewLinkedWorkItemSchema = z.object({
   acceptanceCriteria: CodeReviewChecklistProgressSchema,
+  acceptanceCriteriaPreview: CodeReviewChecklistPreviewSchema,
   latestPlanRun: CodeReviewPlanRunSummarySchema.optional(),
   owner: z.string().min(1).optional(),
   priority: WorkItemPrioritySchema,
@@ -58,6 +64,7 @@ export const CodeReviewLinkedWorkItemSchema = z.object({
   summary: z.string().min(1),
   targetIteration: z.string().min(1).optional(),
   tasks: CodeReviewChecklistProgressSchema,
+  taskPreview: CodeReviewChecklistPreviewSchema,
   title: z.string().min(1),
   workItemId: WorkItemIdSchema
 });
@@ -252,6 +259,7 @@ export type CodeReviewAuditRunSummary = z.infer<typeof CodeReviewAuditRunSummary
 export type CodeReviewChangedFile = z.infer<typeof CodeReviewChangedFileSchema>;
 export type CodeReviewCheck = z.infer<typeof CodeReviewCheckSchema>;
 export type CodeReviewChecklistProgress = z.infer<typeof CodeReviewChecklistProgressSchema>;
+export type CodeReviewChecklistPreview = z.infer<typeof CodeReviewChecklistPreviewSchema>;
 export type CodeReviewFileChangeType = z.infer<typeof CodeReviewFileChangeTypeSchema>;
 export type CodeReviewFileExplanation = z.infer<typeof CodeReviewFileExplanationSchema>;
 export type CodeReviewLinkedWorkItem = z.infer<typeof CodeReviewLinkedWorkItemSchema>;

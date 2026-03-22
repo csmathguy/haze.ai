@@ -118,6 +118,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 0,
       totalCount: 1
     },
+    acceptanceCriteriaPreview: {
+      items: ["Reviewer can walk the PR in a guided order."],
+      totalCount: 1
+    },
     latestPlanRun: {
       completedStepCount: 1,
       currentStepTitle: "Implement the walkthrough",
@@ -134,6 +138,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 1,
       pendingCount: 1,
+      totalCount: 2
+    },
+    taskPreview: {
+      items: ["Add walkthrough lane ordering", "Keep review trust visible"],
       totalCount: 2
     },
     title: "Interactive walkthrough and trust confirmation flow",

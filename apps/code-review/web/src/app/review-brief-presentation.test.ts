@@ -53,6 +53,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 2,
       totalCount: 3
     },
+    acceptanceCriteriaPreview: {
+      items: ["Reviewer can understand what this PR is trying to accomplish.", "Reviewer sees the claimed outcome before opening diffs."],
+      totalCount: 3
+    },
     latestPlanRun: {
       completedStepCount: 1,
       currentStepTitle: "Render the generated review brief",
@@ -68,6 +72,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 1,
       pendingCount: 3,
+      totalCount: 4
+    },
+    taskPreview: {
+      items: ["Generate the review brief", "Render a compact opening step", "Keep planning context visible"],
       totalCount: 4
     },
     title: "Agent-assisted pre-review suggestions in PR walkthrough",
@@ -101,18 +109,34 @@ const pullRequest: CodeReviewPullRequestDetail = {
 describe("buildReviewBriefPresentation", () => {
   it("prefers the generated review brief and keeps the start surface focused", () => {
     expect(buildReviewBriefPresentation(pullRequest, "Context")).toEqual({
-      contextSummary: [
-        "PR 239 is open.",
-        "Linked work item: PLAN-239.",
-        "Current plan step: Render the generated review brief."
+      checklistSections: [
+        {
+          items: [
+            "Reviewer can understand what this PR is trying to accomplish.",
+            "Reviewer sees the claimed outcome before opening diffs."
+          ],
+          title: "Acceptance criteria (1/3 complete)"
+        },
+        {
+          items: ["Generate the review brief", "Render a compact opening step", "Keep planning context visible"],
+          title: "Planned tasks (1/4 complete)"
+        }
+      ],
+      compactStatus: [
+        `PR #${pullRequest.number.toString()} is open.`,
+        "Review state: under review.",
+        "Work item is in-progress.",
+        "Current step: Render the generated review brief."
       ],
       inspectFirst: ["Confirm the linked plan and review order."],
       missingEvidence: ["No explicit validation command is attached yet."],
       nextStepTitle: "Context",
+      reviewGoal: "Generate and surface a durable review brief for PR walkthroughs.",
       startHere: ["Read the work item summary.", "Confirm the first review checkpoint.", "Inspect the riskiest file next."],
       statusLabel: "Open",
       summary: "Generate a short briefing so the reviewer knows how to start.",
       title: "Agent-assisted pre-review suggestions in PR walkthrough",
+      workItemLabel: "PLAN-239",
       whatThisPrDoes: [
         "Adds a generated review brief to the PR detail.",
         "Uses that brief to guide the opening review experience."

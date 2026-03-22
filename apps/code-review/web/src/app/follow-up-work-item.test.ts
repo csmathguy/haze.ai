@@ -49,6 +49,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 1,
       totalCount: 2
     },
+    acceptanceCriteriaPreview: {
+      items: ["Reviewer can capture follow-up work from PR review."],
+      totalCount: 2
+    },
     priority: "high",
     projectKey: "code-review",
     status: "in-progress",
@@ -56,6 +60,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 1,
       pendingCount: 3,
+      totalCount: 4
+    },
+    taskPreview: {
+      items: ["Collect follow-up notes", "Create a planning work item draft"],
       totalCount: 4
     },
     title: "Redesign PR review page: walkthrough-first, actionable stages",

@@ -78,6 +78,10 @@ const baseDetail: CodeReviewPullRequestDetail = {
       pendingCount: 3,
       totalCount: 3
     },
+    acceptanceCriteriaPreview: {
+      items: ["Review brief is generated for the current PR.", "Opening step explains how to begin the review."],
+      totalCount: 3
+    },
     priority: "high",
     projectKey: "code-review",
     status: "in-progress",
@@ -85,6 +89,10 @@ const baseDetail: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 0,
       pendingCount: 8,
+      totalCount: 8
+    },
+    taskPreview: {
+      items: ["Generate review brief", "Persist by head SHA", "Render in the opening step"],
       totalCount: 8
     },
     title: "Agent-assisted pre-review suggestions in PR walkthrough",

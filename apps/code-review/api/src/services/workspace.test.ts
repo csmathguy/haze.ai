@@ -250,8 +250,16 @@ describe("createCodeReviewService", () => {
 
     expect(detail.planningWorkItem).toEqual(
       expect.objectContaining({
+        acceptanceCriteriaPreview: {
+          items: ["PR detail renders plan context."],
+          totalCount: 1
+        },
         owner: "codex",
         status: "in-progress",
+        taskPreview: {
+          items: ["Add the planning endpoint", "Add the trust panel"],
+          totalCount: 2
+        },
         tasks: {
           completeCount: 1,
           pendingCount: 1,

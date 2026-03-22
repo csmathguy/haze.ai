@@ -95,6 +95,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 0,
       totalCount: 4
     },
+    acceptanceCriteriaPreview: {
+      items: ["Reviewer can explain what changed and why."],
+      totalCount: 4
+    },
     latestPlanRun: {
       completedStepCount: 2,
       currentStepTitle: "Refine the queue and drawer UX",
@@ -111,6 +115,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 3,
       pendingCount: 1,
+      totalCount: 4
+    },
+    taskPreview: {
+      items: ["Summarize the work item", "Map changed areas to the review story"],
       totalCount: 4
     },
     title: "Trust-gate workspace with planning and audit evidence",

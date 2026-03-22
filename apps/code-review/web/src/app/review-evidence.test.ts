@@ -79,6 +79,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
       pendingCount: 1,
       totalCount: 2
     },
+    acceptanceCriteriaPreview: {
+      items: ["Validation evidence is visible in the final stage."],
+      totalCount: 2
+    },
     priority: "high",
     projectKey: "code-review",
     status: "in-progress",
@@ -86,6 +90,10 @@ const pullRequest: CodeReviewPullRequestDetail = {
     tasks: {
       completeCount: 1,
       pendingCount: 2,
+      totalCount: 3
+    },
+    taskPreview: {
+      items: ["Summarize checks", "Show audit lineage"],
       totalCount: 3
     },
     title: "Improve review UX",
