@@ -1,4 +1,4 @@
-import type { WorkspaceSnapshot } from "@taxes/shared";
+import type { SaveBitcoinBasisProfileInput, SaveBitcoinLotSelectionInput, WorkspaceSnapshot } from "@taxes/shared";
 
 interface WorkspaceResponse {
   snapshot: WorkspaceSnapshot;
@@ -59,5 +59,33 @@ export async function saveQuestionnaireResponse(input: SaveQuestionnaireResponse
 
   if (!response.ok) {
     throw new Error(`Questionnaire save failed with ${response.status.toString()}.`);
+  }
+}
+
+export async function saveBitcoinBasisProfile(input: SaveBitcoinBasisProfileInput): Promise<void> {
+  const response = await fetch("/api/bitcoin-basis-profile", {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`BTC basis save failed with ${response.status.toString()}.`);
+  }
+}
+
+export async function saveBitcoinLotSelection(input: SaveBitcoinLotSelectionInput): Promise<void> {
+  const response = await fetch("/api/bitcoin-lot-selections", {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`BTC lot selection save failed with ${response.status.toString()}.`);
   }
 }

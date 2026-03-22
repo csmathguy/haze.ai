@@ -1,5 +1,9 @@
 import {
   AssetLotSchema,
+  BitcoinBasisMethodSchema,
+  BitcoinBasisProfileSchema,
+  BitcoinDispositionSchema,
+  BitcoinLotSelectionSchema,
   buildFilingReadinessChecklist,
   buildQuestionnairePrompts,
   createEmptyTaxReturnDraft,
@@ -8,14 +12,30 @@ import {
   deriveRequiredForms,
   DocumentExtractionSchema,
   HouseholdProfileSchema,
+  LedgerTransactionSchema,
   makeUsd,
-  type TaxScenario,
+  TransactionImportSessionSchema,
+  TransferMatchSchema,
   type WorkspaceSnapshot
 } from "@taxes/shared";
 
 import { getPrismaClient } from "../db/client.js";
 import type { WorkspacePersistenceOptions } from "./context.js";
+import {
+  buildBitcoinDispositions,
+  buildBitcoinLotSelections,
+  buildBitcoinLots,
+  createBitcoinLotSelectionReviewTasks,
+} from "./bitcoin-lot-selection.js";
+import { buildBitcoinScenarioTemplates } from "./bitcoin-scenarios.js";
 import { listImportedDocuments } from "./document-store.js";
+import {
+  buildBitcoinBasisProfile,
+  createBasisReviewTasks,
+  createBitcoinBasisReviewTasks,
+  createTransferReviewTasks,
+  syncTransferMatches
+} from "./transaction-reconciliation.js";
 
 const HOUSEHOLD_PROFILE_ID = 1;
 
@@ -27,9 +47,30 @@ export async function getWorkspaceSnapshot(options: WorkspacePersistenceOptions 
   const household = buildHouseholdProfile(state.storedHousehold, documents);
   const parsedGaps = mapDataGaps(state.gaps);
   const draft = buildDraft(documents, household);
+  const parsedTransactions = mapLedgerTransactions(state.transactions);
+  const bitcoinLotSelections = mapBitcoinLotSelections(state.bitcoinLotSelections);
+  const originalBitcoinLots = buildBitcoinLots({
+    selections: [],
+    transactions: parsedTransactions
+  });
+  const bitcoinLots = buildBitcoinLots({
+    selections: bitcoinLotSelections,
+    transactions: parsedTransactions
+  });
+  const bitcoinDispositions = buildBitcoinDispositions({
+    lots: bitcoinLots,
+    selections: bitcoinLotSelections,
+    transactions: parsedTransactions
+  });
+  const transferMatches = await syncTransferMatches(prisma, parsedTransactions, activeTaxYear);
+  const bitcoinBasis = mapBitcoinBasisProfile(state.bitcoinTaxConfiguration, parsedTransactions, activeTaxYear);
 
   return {
     assetLots: mapAssetLots(state.assetLots),
+    bitcoinBasis,
+    bitcoinDispositions: mapBitcoinDispositions(bitcoinDispositions),
+    bitcoinLotSelections,
+    bitcoinLots,
     dataGaps: parsedGaps,
     documents,
     draft,
@@ -40,6 +81,7 @@ export async function getWorkspaceSnapshot(options: WorkspacePersistenceOptions 
     }),
     generatedAt: new Date().toISOString(),
     household,
+    importSessions: mapImportSessions(state.importSessions),
     localOnly: true,
     questionnaire: buildQuestionnairePrompts({
       documents,
@@ -48,8 +90,16 @@ export async function getWorkspaceSnapshot(options: WorkspacePersistenceOptions 
       responses: mapQuestionnaireResponses(state.questionnaireResponses),
       taxYear: household.taxYear
     }),
-    reviewQueue: createReviewTasksFromDataGaps(parsedGaps),
-    scenarios: buildScenarioTemplates()
+    reviewQueue: [
+      ...createReviewTasksFromDataGaps(parsedGaps),
+      ...createTransferReviewTasks(transferMatches),
+      ...createBasisReviewTasks(parsedTransactions),
+      ...createBitcoinBasisReviewTasks(bitcoinBasis),
+      ...createBitcoinLotSelectionReviewTasks(bitcoinDispositions)
+    ],
+    scenarios: buildBitcoinScenarioTemplates(bitcoinDispositions, originalBitcoinLots),
+    transferMatches: mapTransferMatches(transferMatches),
+    transactions: parsedTransactions
   };
 }
 
@@ -87,12 +137,41 @@ async function loadWorkspaceState(prisma: Awaited<ReturnType<typeof getPrismaCli
       taxYear: activeTaxYear
     }
   });
+  const importSessions = await prisma.transactionImportSession.findMany({
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const bitcoinTaxConfiguration = await prisma.bitcoinTaxConfiguration.upsert({
+    create: createDefaultBitcoinTaxConfiguration(activeTaxYear),
+    update: {},
+    where: {
+      taxYear: activeTaxYear
+    }
+  });
+  const bitcoinLotSelections = await prisma.bitcoinLotSelection.findMany({
+    orderBy: {
+      createdAt: "asc"
+    },
+    where: {
+      taxYear: activeTaxYear
+    }
+  });
+  const transactions = await prisma.ledgerTransaction.findMany({
+    orderBy: {
+      occurredAt: "desc"
+    }
+  });
 
   return {
     assetLots,
+    bitcoinTaxConfiguration,
+    bitcoinLotSelections,
     extractions,
     gaps,
+    importSessions,
     questionnaireResponses,
+    transactions,
     storedHousehold
   };
 }
@@ -200,36 +279,79 @@ function mapQuestionnaireResponses(questionnaireResponses: WorkspaceState["quest
   }));
 }
 
-function buildScenarioTemplates(): TaxScenario[] {
-  return [
-    {
-      description: "Baseline comparison using FIFO disposal assumptions.",
-      estimatedFederalTax: makeUsd(0),
-      id: "scenario-fifo",
-      lotSelectionMethod: "fifo",
-      name: "FIFO baseline",
-      realizedLongTermGain: makeUsd(0),
-      realizedShortTermGain: makeUsd(0)
-    },
-    {
-      description: "Prioritize higher basis lots when specific identification is available.",
-      estimatedFederalTax: makeUsd(0),
-      id: "scenario-high-basis",
-      lotSelectionMethod: "highest-basis",
-      name: "High basis focus",
-      realizedLongTermGain: makeUsd(0),
-      realizedShortTermGain: makeUsd(0)
-    },
-    {
-      description: "User-directed lot selection once all acquisition data is reconciled.",
-      estimatedFederalTax: makeUsd(0),
-      id: "scenario-specific-id",
-      lotSelectionMethod: "specific-identification",
-      name: "Specific identification",
-      realizedLongTermGain: makeUsd(0),
-      realizedShortTermGain: makeUsd(0)
-    }
-  ];
+function mapImportSessions(importSessions: WorkspaceState["importSessions"]) {
+  return importSessions.map((session) =>
+    TransactionImportSessionSchema.parse({
+      createdAt: session.createdAt.toISOString(),
+      id: session.id,
+      sourceDocumentId: session.sourceDocumentId ?? undefined,
+      sourceFileName: session.sourceFileName,
+      sourceKind: session.sourceKind,
+      sourceLabel: session.sourceLabel,
+      status: session.status,
+      taxYear: session.taxYear,
+      transactionCount: session.transactionCount,
+      updatedAt: session.updatedAt.toISOString()
+    })
+  );
+}
+
+function mapBitcoinBasisProfile(
+  bitcoinTaxConfiguration: WorkspaceState["bitcoinTaxConfiguration"],
+  transactions: readonly ReturnType<typeof LedgerTransactionSchema.parse>[],
+  activeTaxYear: number
+) {
+  return BitcoinBasisProfileSchema.parse(
+    buildBitcoinBasisProfile({
+      explanation: bitcoinTaxConfiguration.explanation,
+      method: BitcoinBasisMethodSchema.parse(bitcoinTaxConfiguration.transitionMethod),
+      recordedAt: bitcoinTaxConfiguration.recordedAt.toISOString(),
+      taxYear: activeTaxYear,
+      transactions,
+      updatedAt: bitcoinTaxConfiguration.updatedAt.toISOString()
+    })
+  );
+}
+
+function mapBitcoinDispositions(dispositions: ReturnType<typeof buildBitcoinDispositions>) {
+  return dispositions.map((disposition) => BitcoinDispositionSchema.parse(disposition));
+}
+
+function mapBitcoinLotSelections(bitcoinLotSelections: WorkspaceState["bitcoinLotSelections"]) {
+  return buildBitcoinLotSelections(bitcoinLotSelections).map((selection) => BitcoinLotSelectionSchema.parse(selection));
+}
+
+function mapLedgerTransactions(transactions: WorkspaceState["transactions"]) {
+  return transactions.map((transaction) =>
+    LedgerTransactionSchema.parse({
+      accountLabel: transaction.accountLabel,
+      assetSymbol: transaction.assetSymbol,
+      ...(typeof transaction.cashValueInCents !== "number"
+        ? {}
+        : { cashValue: makeUsd(transaction.cashValueInCents) }),
+      entryKind: transaction.entryKind,
+      id: transaction.id,
+      importSessionId: transaction.importSessionId,
+      occurredAt: transaction.occurredAt.toISOString(),
+      quantity: transaction.quantity,
+      sourceDocumentId: transaction.sourceDocumentId ?? undefined,
+      taxYear: transaction.taxYear
+    })
+  );
+}
+
+function mapTransferMatches(matches: Awaited<ReturnType<typeof syncTransferMatches>>) {
+  return matches.map((match) =>
+    TransferMatchSchema.parse({
+      confidence: match.confidence,
+      id: match.id,
+      inboundTransactionId: match.inboundTransactionId,
+      notes: match.notes,
+      outboundTransactionId: match.outboundTransactionId,
+      status: match.status,
+      taxYear: match.taxYear
+    })
+  );
 }
 
 function inferActiveTaxYear(now: Date = new Date()): number {
@@ -244,6 +366,16 @@ function createDefaultHousehold(taxYear: number) {
     primaryTaxpayer: "Local workspace owner",
     stateResidence: "NY",
     taxYear
+  };
+}
+
+function createDefaultBitcoinTaxConfiguration(taxYear: number) {
+  return {
+    assetSymbol: "BTC",
+    explanation: "No BTC wallet-basis transition method has been recorded yet.",
+    recordedAt: new Date(),
+    taxYear,
+    transitionMethod: "undocumented"
   };
 }
 

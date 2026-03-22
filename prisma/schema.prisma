@@ -34,9 +34,97 @@ model ImportedDocument {
   missingFacts   MissingFact[]
   questionnaireResponses QuestionnaireResponse[]
   assetLots      AssetLot[]
+  importSessions TransactionImportSession[]
+  ledgerTransactions LedgerTransaction[]
 
   @@index([importedAt])
   @@index([taxYear])
+}
+
+model TransactionImportSession {
+  id               String           @id
+  sourceDocumentId String?
+  sourceFileName   String
+  sourceKind       String
+  sourceLabel      String
+  status           String
+  taxYear          Int
+  transactionCount Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sourceDocument   ImportedDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  transactions     LedgerTransaction[]
+
+  @@index([sourceDocumentId])
+  @@index([status])
+  @@index([taxYear])
+}
+
+model BitcoinTaxConfiguration {
+  taxYear          Int      @id
+  assetSymbol      String   @default("BTC")
+  transitionMethod String
+  explanation      String
+  recordedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model BitcoinLotSelection {
+  id                       String   @id
+  taxYear                  Int
+  lotTransactionId         String
+  dispositionTransactionId String
+  quantity                 String
+  selectionMethod          String
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  lotTransaction           LedgerTransaction @relation("BitcoinLotSelectionLotTransaction", fields: [lotTransactionId], references: [id], onDelete: Cascade)
+  dispositionTransaction   LedgerTransaction @relation("BitcoinLotSelectionDispositionTransaction", fields: [dispositionTransactionId], references: [id], onDelete: Cascade)
+
+  @@index([taxYear, dispositionTransactionId])
+  @@index([lotTransactionId])
+}
+
+model LedgerTransaction {
+  id               String                 @id
+  importSessionId  String
+  sourceDocumentId String?
+  taxYear          Int
+  occurredAt       DateTime
+  entryKind        String
+  assetSymbol      String
+  quantity         String
+  accountLabel     String
+  cashValueInCents Int?
+  importSession    TransactionImportSession @relation(fields: [importSessionId], references: [id], onDelete: Cascade)
+  sourceDocument   ImportedDocument?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  outboundTransferMatches TransferMatch[]  @relation("OutboundTransferTransaction")
+  inboundTransferMatches  TransferMatch[]  @relation("InboundTransferTransaction")
+  lotSelectionsAsDisposition BitcoinLotSelection[] @relation("BitcoinLotSelectionDispositionTransaction")
+  lotSelectionsAsLot         BitcoinLotSelection[] @relation("BitcoinLotSelectionLotTransaction")
+
+  @@index([importSessionId])
+  @@index([sourceDocumentId])
+  @@index([taxYear, occurredAt])
+  @@index([assetSymbol, occurredAt])
+}
+
+model TransferMatch {
+  id                  String            @id
+  outboundTransactionId String
+  inboundTransactionId  String?
+  taxYear             Int
+  status              String
+  confidence          String
+  notes               String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  outboundTransaction LedgerTransaction @relation("OutboundTransferTransaction", fields: [outboundTransactionId], references: [id], onDelete: Cascade)
+  inboundTransaction  LedgerTransaction? @relation("InboundTransferTransaction", fields: [inboundTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([outboundTransactionId])
+  @@index([inboundTransactionId])
+  @@index([taxYear, status])
 }
 
 model MissingFact {

@@ -19,14 +19,15 @@ import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 
-import type { WorkspaceSnapshot } from "@taxes/shared";
+import type { SaveBitcoinBasisProfileInput, SaveBitcoinLotSelectionInput, WorkspaceSnapshot } from "@taxes/shared";
 
-import { fetchWorkspaceSnapshot, uploadTaxDocument } from "./api.js";
+import { fetchWorkspaceSnapshot, saveBitcoinBasisProfile, saveBitcoinLotSelection, uploadTaxDocument } from "./api.js";
 import { DocumentLedger } from "./components/DocumentLedger.js";
 import { DocumentUploadPanel } from "./components/DocumentUploadPanel.js";
 import { FilingReadinessChecklistPanel } from "./components/FilingReadinessChecklistPanel.js";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel.js";
 import { StatCard } from "./components/StatCard.js";
+import { TransactionLedgerPanel } from "./components/TransactionLedgerPanel.js";
 import { buildReviewBanner, summarizeFilingReadiness, summarizeRequiredForms } from "./index.js";
 
 type ViewKey = "documents" | "holdings" | "overview" | "scenarios" | "workflow";
@@ -56,6 +57,8 @@ interface AppState {
 }
 
 interface AppHandlers {
+  handleBitcoinBasisSave: (input: SaveBitcoinBasisProfileInput) => Promise<void>;
+  handleBitcoinLotSelectionSave: (input: SaveBitcoinLotSelectionInput) => Promise<void>;
   handleUpload: (file: File) => Promise<void>;
   onActiveViewChange: (view: ViewKey) => void;
 }
@@ -98,6 +101,34 @@ function useAppState(): [AppState, AppHandlers] {
     }
   }
 
+  async function handleBitcoinBasisSave(input: SaveBitcoinBasisProfileInput): Promise<void> {
+    setUploadMessage(null);
+    setErrorMessage(null);
+
+    try {
+      await saveBitcoinBasisProfile(input);
+      setUploadMessage("BTC basis method was recorded in the local workspace.");
+      await refreshWorkspace();
+      setActiveView("holdings");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "BTC basis save failed.");
+    }
+  }
+
+  async function handleBitcoinLotSelectionSave(input: SaveBitcoinLotSelectionInput): Promise<void> {
+    setUploadMessage(null);
+    setErrorMessage(null);
+
+    try {
+      await saveBitcoinLotSelection(input);
+      setUploadMessage("BTC lot selection was recorded in the local workspace.");
+      await refreshWorkspace();
+      setActiveView("holdings");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "BTC lot selection save failed.");
+    }
+  }
+
   const state: AppState = {
     activeView,
     errorMessage,
@@ -107,6 +138,8 @@ function useAppState(): [AppState, AppHandlers] {
   };
 
   const handlers: AppHandlers = {
+    handleBitcoinBasisSave,
+    handleBitcoinLotSelectionSave,
     handleUpload,
     onActiveViewChange: setActiveView
   };
@@ -158,6 +191,8 @@ export function App() {
           ) : (
             <WorkspaceContent
               activeView={state.activeView}
+              onBitcoinBasisSave={handlers.handleBitcoinBasisSave}
+              onBitcoinLotSelectionSave={handlers.handleBitcoinLotSelectionSave}
               onUpload={handlers.handleUpload}
               snapshot={state.snapshot}
             />
@@ -170,6 +205,11 @@ export function App() {
 
 interface SnapshotViewProps {
   readonly snapshot: WorkspaceSnapshot;
+}
+
+interface ReviewViewProps extends SnapshotViewProps {
+  readonly onBitcoinBasisSave: (input: SaveBitcoinBasisProfileInput) => Promise<void>;
+  readonly onBitcoinLotSelectionSave: (input: SaveBitcoinLotSelectionInput) => Promise<void>;
 }
 
 interface UploadViewProps extends SnapshotViewProps {
@@ -225,12 +265,23 @@ function DocumentsView({ onUpload, snapshot }: UploadViewProps) {
   );
 }
 
-function ReviewView({ snapshot }: SnapshotViewProps) {
+function ReviewView({ onBitcoinBasisSave, onBitcoinLotSelectionSave, snapshot }: ReviewViewProps) {
   return (
     <Stack spacing={3}>
+      <TransactionLedgerPanel
+        bitcoinBasis={snapshot.bitcoinBasis}
+        bitcoinDispositions={snapshot.bitcoinDispositions}
+        bitcoinLots={snapshot.bitcoinLots}
+        bitcoinLotSelections={snapshot.bitcoinLotSelections}
+        importSessions={snapshot.importSessions}
+        onBitcoinBasisSave={onBitcoinBasisSave}
+        onBitcoinLotSelectionSave={onBitcoinLotSelectionSave}
+        transactions={snapshot.transactions}
+        transferMatches={snapshot.transferMatches}
+      />
       <ReviewQueuePanel reviewQueue={snapshot.reviewQueue} />
       <Alert severity="info">
-        Asset-lot tracking is scaffolded but currently empty. The next implementation slice should load holdings, acquisition dates, basis, and disposal history into this workspace.
+        Asset-lot tracking is still empty. The next slices will load normalized transactions into lots, transfer matching, and basis reconciliation.
       </Alert>
     </Stack>
   );
@@ -254,11 +305,19 @@ function WorkspaceAlerts({ banner, errorMessage, uploadMessage }: WorkspaceAlert
 
 interface WorkspaceContentProps {
   readonly activeView: ViewKey;
+  readonly onBitcoinBasisSave: (input: SaveBitcoinBasisProfileInput) => Promise<void>;
+  readonly onBitcoinLotSelectionSave: (input: SaveBitcoinLotSelectionInput) => Promise<void>;
   readonly onUpload: (file: File) => Promise<void>;
   readonly snapshot: WorkspaceSnapshot;
 }
 
-function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentProps) {
+function WorkspaceContent({
+  activeView,
+  onBitcoinBasisSave,
+  onBitcoinLotSelectionSave,
+  onUpload,
+  snapshot
+}: WorkspaceContentProps) {
   if (activeView === "overview") {
     return <OverviewView onUpload={onUpload} snapshot={snapshot} />;
   }
@@ -268,7 +327,13 @@ function WorkspaceContent({ activeView, onUpload, snapshot }: WorkspaceContentPr
   }
 
   if (activeView === "holdings") {
-    return <ReviewView snapshot={snapshot} />;
+    return (
+      <ReviewView
+        onBitcoinBasisSave={onBitcoinBasisSave}
+        onBitcoinLotSelectionSave={onBitcoinLotSelectionSave}
+        snapshot={snapshot}
+      />
+    );
   }
 
   if (activeView === "workflow") {

@@ -16,6 +16,7 @@ import type { Prisma, PrismaClient } from "@taxes/db";
 import { getPrismaClient } from "../db/client.js";
 import type { WorkspacePersistenceOptions } from "./context.js";
 import { ensureWorkspacePaths, sanitizeFileName } from "./storage.js";
+import { importLedgerTransactionsFromCsv } from "./transaction-import.js";
 
 const importedDocumentInclude = {
   missingFacts: {
@@ -88,7 +89,7 @@ export async function saveUploadedDocument(
       },
       include: importedDocumentInclude
     });
-    await seedDocumentIntakeArtifacts(prisma, document);
+    await seedDocumentIntakeArtifacts(prisma, document, storedFilePath);
 
     return mapImportedDocument(savedDocument);
   } catch (error) {
@@ -97,7 +98,7 @@ export async function saveUploadedDocument(
   }
 }
 
-async function seedDocumentIntakeArtifacts(prisma: PrismaClient, document: ImportedDocument): Promise<void> {
+async function seedDocumentIntakeArtifacts(prisma: PrismaClient, document: ImportedDocument, storedFilePath: string): Promise<void> {
   await prisma.documentExtraction.create({
     data: {
       documentId: document.id,
@@ -119,6 +120,38 @@ async function seedDocumentIntakeArtifacts(prisma: PrismaClient, document: Impor
       title: `${document.fileName}: ${fact.label}`
     }))
   });
+
+  if (supportsTransactionImports(document.kind)) {
+    const importSessionId = `${document.id}-import-session`;
+
+    await prisma.transactionImportSession.create({
+      data: {
+        id: importSessionId,
+        sourceDocumentId: document.id,
+        sourceFileName: document.fileName,
+        sourceKind: inferTransactionImportSourceKind(document.mimeType),
+        sourceLabel: document.kind,
+        status: "staged",
+        taxYear: document.taxYear,
+        transactionCount: 0
+      }
+    });
+
+    if (document.mimeType.includes("csv")) {
+      await importLedgerTransactionsFromCsv({
+        defaultAccountLabel: deriveAccountLabel(document.fileName),
+        documentId: document.id,
+        filePath: storedFilePath,
+        importSessionId,
+        prisma,
+        taxYear: document.taxYear
+      });
+    }
+  }
+}
+
+function deriveAccountLabel(fileName: string): string {
+  return fileName.replace(/\.[^.]+$/u, "").replace(/[-_]+/gu, " ").trim();
 }
 
 function inferExtractionStatusMessage(document: ImportedDocument): string {
@@ -131,6 +164,10 @@ function inferExtractionStatusMessage(document: ImportedDocument): string {
 
 function inferExtractorKey(document: ImportedDocument): string {
   return `intake/${document.kind}`;
+}
+
+function inferTransactionImportSourceKind(documentMimeType: string): "csv-upload" | "document-upload" {
+  return documentMimeType.includes("csv") ? "csv-upload" : "document-upload";
 }
 
 function inferGapKind(documentKind: ImportedDocument["kind"], factKey: string): "document-classification" | "missing-source-field" | "missing-tax-lot" {
@@ -177,6 +214,15 @@ function createImportedDocument(input: CreateImportedDocumentInput): ImportedDoc
     status: kind === "unknown" ? "needs-review" : "imported",
     taxYear: input.taxYear
   };
+}
+
+function supportsTransactionImports(documentKind: ImportedDocument["kind"]): boolean {
+  return (
+    documentKind === "1099-b" ||
+    documentKind === "1099-da" ||
+    documentKind === "brokerage-statement" ||
+    documentKind === "crypto-wallet-export"
+  );
 }
 
 function mapImportedDocument(document: ImportedDocumentRecord): ImportedDocument {

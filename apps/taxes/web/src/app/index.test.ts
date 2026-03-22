@@ -6,6 +6,22 @@ import { buildReviewBanner, buildScenarioChartData, formatScenarioTax, summarize
 function createWorkspaceSnapshot(overrides: Partial<WorkspaceSnapshot>): WorkspaceSnapshot {
   return {
     assetLots: [],
+    bitcoinBasis: {
+      accounts: [],
+      assetSymbol: "BTC",
+      effectiveDate: "2025-01-01",
+      explanation: "No BTC wallet-basis transition method has been recorded yet.",
+      hasPost2024Activity: false,
+      hasPre2025Holdings: false,
+      method: "undocumented",
+      recordedAt: "2026-03-10T23:00:00.000Z",
+      taxYear: 2025,
+      transitionStatus: "not-needed",
+      updatedAt: "2026-03-10T23:00:00.000Z"
+    },
+    bitcoinDispositions: [],
+    bitcoinLotSelections: [],
+    bitcoinLots: [],
     dataGaps: [],
     documents: [],
     draft: {
@@ -46,10 +62,13 @@ function createWorkspaceSnapshot(overrides: Partial<WorkspaceSnapshot>): Workspa
       stateResidence: "NY",
       taxYear: 2025
     },
+    importSessions: [],
     localOnly: true,
     questionnaire: [],
     reviewQueue: [],
     scenarios: [],
+    transferMatches: [],
+    transactions: [],
     ...overrides
   };
 }

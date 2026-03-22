@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { AssetLotSchema, TaxScenarioSchema } from "./assets.js";
+import { AssetLotSchema, BitcoinDispositionSchema, BitcoinLotSchema, BitcoinLotSelectionSchema, TaxScenarioSchema } from "./assets.js";
 import { ReviewSeveritySchema } from "./common.js";
 import type { DocumentKind, ImportedDocument } from "./documents.js";
 import { DocumentKindSchema, ImportedDocumentSchema } from "./documents.js";
 import { DataGapSchema, DocumentExtractionSchema } from "./extraction.js";
 import { QuestionnairePromptSchema } from "./questionnaire.js";
 import { HouseholdProfileSchema, TaxReturnDraftSchema } from "./tax-return.js";
+import { BitcoinBasisProfileSchema, LedgerTransactionSchema, TransactionImportSessionSchema, TransferMatchSchema } from "./transactions.js";
 
 export const ReviewTaskSchema = z.object({
   actionLabel: z.string().min(1),
@@ -41,17 +42,24 @@ export const FilingReadinessChecklistSchema = z.object({
 });
 export const WorkspaceSnapshotSchema = z.object({
   assetLots: z.array(AssetLotSchema),
+  bitcoinDispositions: z.array(BitcoinDispositionSchema),
   dataGaps: z.array(DataGapSchema),
   documents: z.array(ImportedDocumentSchema),
   draft: TaxReturnDraftSchema,
   extractions: z.array(DocumentExtractionSchema),
   filingChecklist: FilingReadinessChecklistSchema,
   generatedAt: z.iso.datetime(),
+  bitcoinBasis: BitcoinBasisProfileSchema,
+  bitcoinLotSelections: z.array(BitcoinLotSelectionSchema),
+  bitcoinLots: z.array(BitcoinLotSchema),
   household: HouseholdProfileSchema,
+  importSessions: z.array(TransactionImportSessionSchema),
   localOnly: z.literal(true),
   questionnaire: z.array(QuestionnairePromptSchema),
   reviewQueue: z.array(ReviewTaskSchema),
-  scenarios: z.array(TaxScenarioSchema)
+  scenarios: z.array(TaxScenarioSchema),
+  transferMatches: z.array(TransferMatchSchema),
+  transactions: z.array(LedgerTransactionSchema)
 });
 
 export type ReviewTask = z.infer<typeof ReviewTaskSchema>;
