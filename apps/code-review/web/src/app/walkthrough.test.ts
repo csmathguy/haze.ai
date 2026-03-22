@@ -165,7 +165,7 @@ describe("orderWalkthroughLanes", () => {
 
     const ordered = orderWalkthroughLanes([implementationLane, testsLane, contextLane].filter(isDefined));
 
-    expect(ordered.map((lane) => lane.id)).toEqual(["context", "tests", "implementation"]);
+    expect(ordered.map((lane) => lane.id)).toEqual(["context", "implementation", "tests"]);
   });
 });
 
@@ -187,6 +187,7 @@ describe("buildTrustSummary", () => {
       tests: {
         ...notebook.tests,
         concerns: "Need one more negative-path assertion.",
+        followUps: "Create refactor work item for flaky selector handling.",
         status: "needs-follow-up" as const
       },
       implementation: {
@@ -224,7 +225,11 @@ describe("buildTrustSummary", () => {
           status: "complete"
         }
       ],
-      followUpQueue: ["Tests: follow-up requested", "No reported checks were attached to this pull request."],
+      followUpQueue: [
+        "Tests: follow-up requested",
+        "Tests: Create refactor work item for flaky selector handling.",
+        "No reported checks were attached to this pull request."
+      ],
       statusLabel: "Hold before decision",
       statusTone: "warning",
       valueSummary: ["Add a walkthrough", "Keep review state visible"]

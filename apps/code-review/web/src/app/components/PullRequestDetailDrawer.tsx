@@ -1,19 +1,14 @@
 import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
-import DragIndicatorOutlinedIcon from "@mui/icons-material/DragIndicatorOutlined";
-import OpenInFullOutlinedIcon from "@mui/icons-material/OpenInFullOutlined";
-import { Alert, Box, Chip, Divider, Drawer, IconButton, Stack, Typography, useMediaQuery } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { Alert, Box, Divider, Drawer, IconButton, Paper, Stack, Typography, useMediaQuery } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail, ReviewLaneId } from "@taxes/shared";
 
 import { PullRequestOverviewPanel } from "./PullRequestOverviewPanel.js";
 import { WalkthroughDeck } from "./WalkthroughDeck.js";
 
 interface PullRequestDetailDrawerProps {
-  readonly drawerWidth: number;
   readonly isLoading: boolean;
   readonly onClose: () => void;
-  readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
   readonly selectedLaneId: ReviewLaneId;
   readonly selectedPullRequestNumber: number | null;
@@ -21,10 +16,8 @@ interface PullRequestDetailDrawerProps {
 }
 
 export function PullRequestDetailDrawer({
-  drawerWidth,
   isLoading,
   onClose,
-  onResizeStart,
   pullRequest,
   selectedLaneId,
   selectedPullRequestNumber,
@@ -35,10 +28,21 @@ export function PullRequestDetailDrawer({
   const isOpen = selectedPullRequestNumber !== null;
   const isSelectedDetailLoaded = selectedPullRequestNumber !== null && pullRequest !== null && pullRequest.number === selectedPullRequestNumber;
 
+  if (isDesktop) {
+    return (
+      <PullRequestDetailPanel
+        isLoading={isLoading}
+        pullRequest={pullRequest}
+        selectedLaneId={selectedLaneId}
+        selectedPullRequestNumber={selectedPullRequestNumber}
+        setSelectedLaneId={setSelectedLaneId}
+      />
+    );
+  }
+
   return (
     <Drawer
       anchor="right"
-      hideBackdrop={isDesktop}
       ModalProps={{
         keepMounted: true
       }}
@@ -47,14 +51,13 @@ export function PullRequestDetailDrawer({
       sx={{
         "& .MuiDrawer-paper": {
           borderLeft: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
-          width: isDesktop ? drawerWidth : "100vw"
+          width: "100vw"
         }
       }}
-      variant={isDesktop ? "persistent" : "temporary"}
+      variant="temporary"
     >
-      {isDesktop ? <ResizeHandle drawerWidth={drawerWidth} onResizeStart={onResizeStart} /> : null}
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-        <DrawerHeader drawerWidth={drawerWidth} isDesktop={isDesktop} onClose={onClose} pullRequest={pullRequest} />
+        <DrawerHeader onClose={onClose} pullRequest={pullRequest} />
         <Divider />
         <Box sx={{ flex: 1, overflowY: "auto", p: { md: 2.5, xs: 2 } }}>
           <DrawerContent
@@ -71,14 +74,55 @@ export function PullRequestDetailDrawer({
   );
 }
 
+function PullRequestDetailPanel({
+  isLoading,
+  pullRequest,
+  selectedLaneId,
+  selectedPullRequestNumber,
+  setSelectedLaneId
+}: {
+  readonly isLoading: boolean;
+  readonly pullRequest: CodeReviewPullRequestDetail | null;
+  readonly selectedLaneId: ReviewLaneId;
+  readonly selectedPullRequestNumber: number | null;
+  readonly setSelectedLaneId: (laneId: ReviewLaneId) => void;
+}) {
+  const isSelectedDetailLoaded = selectedPullRequestNumber !== null && pullRequest !== null && pullRequest.number === selectedPullRequestNumber;
+
+  return (
+    <Paper sx={{ minHeight: "78vh", p: 0, overflow: "hidden" }} variant="outlined">
+      <Stack spacing={0}>
+        <Stack spacing={0.75} sx={{ px: 3, py: 2.25 }}>
+          <Typography variant="subtitle2">Selected Pull Request</Typography>
+          <Typography variant="h2">
+            {pullRequest === null ? "Choose a review thread" : pullRequest.title}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">
+            {pullRequest === null
+              ? "Pick a PR from the queue to start the walkthrough-first review flow."
+              : "The walkthrough is the primary review surface. Use the queue only to switch threads."}
+          </Typography>
+        </Stack>
+        <Divider />
+        <Box sx={{ p: 3 }}>
+          <DrawerContent
+            isLoading={isLoading}
+            isSelectedDetailLoaded={isSelectedDetailLoaded}
+            pullRequest={pullRequest}
+            selectedLaneId={selectedLaneId}
+            selectedPullRequestNumber={selectedPullRequestNumber}
+            setSelectedLaneId={setSelectedLaneId}
+          />
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
 function DrawerHeader({
-  drawerWidth,
-  isDesktop,
   onClose,
   pullRequest
 }: {
-  readonly drawerWidth: number;
-  readonly isDesktop: boolean;
   readonly onClose: () => void;
   readonly pullRequest: CodeReviewPullRequestDetail | null;
 }) {
@@ -101,14 +145,9 @@ function DrawerHeader({
             : pullRequest.title}
         </Typography>
       </div>
-      <Stack alignItems="center" direction="row" spacing={1}>
-        {isDesktop ? (
-          <Chip icon={<OpenInFullOutlinedIcon />} label={`${drawerWidth.toString()}px`} size="small" variant="outlined" />
-        ) : null}
-        <IconButton aria-label="Close pull request detail" onClick={onClose}>
-          <CloseOutlinedIcon />
-        </IconButton>
-      </Stack>
+      <IconButton aria-label="Close pull request detail" onClick={onClose}>
+        <CloseOutlinedIcon />
+      </IconButton>
     </Stack>
   );
 }
@@ -151,44 +190,3 @@ function DrawerContent({
     </Stack>
   );
 }
-
-function ResizeHandle({
-  drawerWidth,
-  onResizeStart
-}: {
-  readonly drawerWidth: number;
-  readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-}) {
-  return (
-    <Box
-      sx={{
-        inset: "0 auto 0 0",
-        pointerEvents: "none",
-        position: "absolute",
-        width: 20,
-        zIndex: 1
-      }}
-    >
-      <ResizeHandleButton
-        aria-label={`Resize drawer currently ${drawerWidth.toString()} pixels wide`}
-        onPointerDown={onResizeStart}
-      >
-        <DragIndicatorOutlinedIcon />
-      </ResizeHandleButton>
-    </Box>
-  );
-}
-
-const ResizeHandleButton = styled(IconButton)(({ theme }) => ({
-  "&:hover": {
-    backgroundColor: alpha(theme.palette.secondary.main, 0.08)
-  },
-  borderRadius: 0,
-  cursor: "col-resize",
-  inset: 0,
-  justifyContent: "center",
-  pointerEvents: "auto",
-  position: "absolute",
-  touchAction: "none",
-  width: "100%"
-}));

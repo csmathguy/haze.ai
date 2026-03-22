@@ -5,6 +5,7 @@ export type ReviewCheckpointStatus = "confirmed" | "in-progress" | "needs-follow
 export interface ReviewNotebookEntry {
   readonly concerns: string;
   readonly confirmations: string;
+  readonly followUps: string;
   readonly notes: string;
   readonly selectedFilePath?: string;
   readonly selectedSectionTitle?: string;
@@ -18,7 +19,40 @@ export interface ReviewLaneSection {
   readonly title: string;
 }
 
-const REVIEW_LANE_ORDER: readonly ReviewLaneId[] = ["context", "risks", "tests", "implementation", "validation", "docs"];
+const REVIEW_LANE_ORDER: readonly ReviewLaneId[] = ["context", "risks", "implementation", "tests", "docs", "validation"];
+
+const WALKTHROUGH_STAGE_COPY: Record<
+  ReviewLaneId,
+  {
+    readonly eyebrow: string;
+    readonly title: string;
+  }
+> = {
+  context: {
+    eyebrow: "Stage 1",
+    title: "Understand the work item"
+  },
+  docs: {
+    eyebrow: "Stage 5",
+    title: "Confirm docs and reviewer guidance"
+  },
+  implementation: {
+    eyebrow: "Stage 3",
+    title: "Inspect the file changes"
+  },
+  risks: {
+    eyebrow: "Stage 2",
+    title: "Check architecture fit and risky seams"
+  },
+  tests: {
+    eyebrow: "Stage 4",
+    title: "Review tests and evidence"
+  },
+  validation: {
+    eyebrow: "Stage 6",
+    title: "Sign off or capture follow-up"
+  }
+};
 
 export function orderWalkthroughLanes(lanes: ReviewLane[]): ReviewLane[] {
   const laneById = new Map(lanes.map((lane) => [lane.id, lane]));
@@ -27,6 +61,10 @@ export function orderWalkthroughLanes(lanes: ReviewLane[]): ReviewLane[] {
     const lane = laneById.get(laneId);
     return lane === undefined ? [] : [lane];
   });
+}
+
+export function getWalkthroughStageCopy(laneId: ReviewLaneId): { readonly eyebrow: string; readonly title: string } {
+  return WALKTHROUGH_STAGE_COPY[laneId];
 }
 
 export function createReviewNotebook(lanes: ReviewLane[]): ReviewNotebook {
@@ -42,6 +80,7 @@ export function createReviewNotebook(lanes: ReviewLane[]): ReviewNotebook {
         {
           concerns: "",
           confirmations: "",
+          followUps: "",
           notes: "",
           ...(lane?.files[0] === undefined ? {} : { selectedFilePath: lane.files[0].path }),
           ...(sections[0] === undefined ? {} : { selectedSectionTitle: sections[0].title }),

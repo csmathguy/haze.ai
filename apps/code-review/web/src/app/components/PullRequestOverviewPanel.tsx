@@ -6,7 +6,7 @@ import { alpha } from "@mui/material/styles";
 import type { CodeReviewPullRequestDetail } from "@taxes/shared";
 
 import { buildPullRequestStory } from "../pull-request-story.js";
-import { formatPullRequestState } from "../index.js";
+import { buildReviewOverviewPresentation } from "../review-presentation.js";
 
 interface PullRequestOverviewPanelProps {
   readonly pullRequest: CodeReviewPullRequestDetail;
@@ -14,31 +14,31 @@ interface PullRequestOverviewPanelProps {
 
 export function PullRequestOverviewPanel({ pullRequest }: PullRequestOverviewPanelProps) {
   const story = buildPullRequestStory(pullRequest);
+  const presentation = buildReviewOverviewPresentation(pullRequest);
 
   return (
     <Paper sx={{ p: 3 }} variant="outlined">
       <Stack spacing={2}>
         <OverviewHeader pullRequest={pullRequest} />
-        <OverviewSignals pullRequest={pullRequest} />
+        <OverviewSignals chips={presentation.metaChips} />
         <OverviewWarnings pullRequest={pullRequest} />
-        <Grid container spacing={2}>
+        <Grid container spacing={2.25}>
+          <Grid size={{ lg: 8, xs: 12 }}>
+            <HeroBrief presentation={presentation} />
+          </Grid>
+          <Grid size={{ lg: 4, xs: 12 }}>
+            <ActionBrief actions={presentation.primaryActions} />
+          </Grid>
+          {presentation.detailSections.map((section) => (
+            <Grid key={section.title} size={{ md: 4, xs: 12 }}>
+              <DetailCard items={section.items} title={section.title} />
+            </Grid>
+          ))}
           <Grid size={{ md: 6, xs: 12 }}>
-            <StoryCard items={story.whyItMatters} title="Why this matters" />
+            <DetailCard items={story.reviewQuestions} title="Reviewer Focus" />
           </Grid>
           <Grid size={{ md: 6, xs: 12 }}>
-            <StoryCard items={story.codebaseStory} title="What changes in the codebase" />
-          </Grid>
-          <Grid size={{ md: 6, xs: 12 }}>
-            <StoryCard items={story.trustSignals} title="Why it looks safe" />
-          </Grid>
-          <Grid size={{ md: 6, xs: 12 }}>
-            <StoryCard items={story.reviewQuestions} title="What still needs human judgment" />
-          </Grid>
-          <Grid size={{ md: 6, xs: 12 }}>
-            <EvidenceCard items={buildPlanningEvidence(pullRequest)} title="Planning context" />
-          </Grid>
-          <Grid size={{ md: 6, xs: 12 }}>
-            <EvidenceCard items={buildAuditEvidence(pullRequest)} title="Audit evidence" />
+            <DetailCard items={buildAuditEvidence(pullRequest)} title="Audit Evidence" />
           </Grid>
         </Grid>
         <ValidationAccordion pullRequest={pullRequest} validationCommands={story.validationCommands} validationOverview={story.validationOverview} />
@@ -48,16 +48,16 @@ export function PullRequestOverviewPanel({ pullRequest }: PullRequestOverviewPan
 }
 
 function OverviewHeader({ pullRequest }: PullRequestOverviewPanelProps) {
+  const presentation = buildReviewOverviewPresentation(pullRequest);
+
   return (
     <Stack direction={{ md: "row", xs: "column" }} justifyContent="space-between" spacing={2}>
       <Stack spacing={1}>
-        <Typography variant="subtitle2">PR #{pullRequest.number.toString()} | {formatPullRequestState(pullRequest.state, pullRequest.isDraft)}</Typography>
-        <Typography variant="h2">{pullRequest.title}</Typography>
+        <Typography variant="subtitle2">{presentation.heroEyebrow}</Typography>
+        <Typography variant="h2">Why This Matters</Typography>
+        <Typography variant="h3">{presentation.heroTitle}</Typography>
         <Typography color="text.secondary" variant="body2">
           {pullRequest.author.name ?? pullRequest.author.login} | {pullRequest.headRefName} -&gt; {pullRequest.baseRefName}
-        </Typography>
-        <Typography color="text.secondary" variant="body1">
-          {pullRequest.trustStatement}
         </Typography>
       </Stack>
       <Stack alignItems={{ md: "flex-end", xs: "flex-start" }} spacing={1}>
@@ -81,18 +81,12 @@ function OverviewHeader({ pullRequest }: PullRequestOverviewPanelProps) {
   );
 }
 
-function OverviewSignals({ pullRequest }: PullRequestOverviewPanelProps) {
+function OverviewSignals({ chips }: { readonly chips: string[] }) {
   return (
     <Stack direction="row" flexWrap="wrap" gap={1}>
-      <Chip label={`${pullRequest.stats.fileCount.toString()} files`} size="small" variant="outlined" />
-      <Chip label={`+${pullRequest.stats.totalAdditions.toString()} / -${pullRequest.stats.totalDeletions.toString()}`} size="small" variant="outlined" />
-      <Chip label={`merge state: ${pullRequest.mergeStateStatus.toLowerCase()}`} size="small" variant="outlined" />
-      <Chip
-        color={pullRequest.linkedPlan === undefined ? "warning" : "secondary"}
-        label={pullRequest.linkedPlan === undefined ? "Needs plan link" : pullRequest.linkedPlan.workItemId}
-        size="small"
-        variant="outlined"
-      />
+      {chips.map((chip) => (
+        <Chip key={chip} label={chip} size="small" variant="outlined" />
+      ))}
     </Stack>
   );
 }
@@ -122,19 +116,23 @@ function OverviewWarnings({ pullRequest }: PullRequestOverviewPanelProps) {
   );
 }
 
-function StoryCard({ items, title }: { readonly items: string[]; readonly title: string }) {
+function HeroBrief({
+  presentation
+}: {
+  readonly presentation: ReturnType<typeof buildReviewOverviewPresentation>;
+}) {
   return (
     <Paper
       sx={(theme) => ({
-        background: `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.06)}, ${alpha(theme.palette.background.paper, 0.92)})`,
+        background: `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.08)}, ${alpha(theme.palette.background.paper, 0.94)})`,
         p: 2
       })}
       variant="outlined"
     >
-      <Stack spacing={1.1}>
-        <Typography variant="subtitle2">{title}</Typography>
-        {items.map((item) => (
-          <Typography key={`${title}-${item}`} variant="body2">
+      <Stack spacing={1.2}>
+        <Typography variant="subtitle2">Review Brief</Typography>
+        {presentation.heroSummary.map((item) => (
+          <Typography key={item} variant="body2">
             {item}
           </Typography>
         ))}
@@ -143,7 +141,35 @@ function StoryCard({ items, title }: { readonly items: string[]; readonly title:
   );
 }
 
-function EvidenceCard({ items, title }: { readonly items: string[]; readonly title: string }) {
+function ActionBrief({
+  actions
+}: {
+  readonly actions: readonly ReturnType<typeof buildReviewOverviewPresentation>["primaryActions"][number][];
+}) {
+  return (
+    <Paper
+      sx={(theme) => ({
+        backgroundColor: alpha(theme.palette.background.default, 0.76),
+        p: 2
+      })}
+      variant="outlined"
+    >
+      <Stack spacing={1.1}>
+        <Typography variant="subtitle2">How To Review This PR</Typography>
+        {actions.map((action) => (
+          <Stack key={action.title} spacing={0.35}>
+            <Typography variant="body2">{action.title}</Typography>
+            <Typography color="text.secondary" variant="body2">
+              {action.description}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
+function DetailCard({ items, title }: { readonly items: string[]; readonly title: string }) {
   return (
     <Paper
       sx={(theme) => ({
@@ -213,26 +239,6 @@ function buildValidationCheckKey(check: CodeReviewPullRequestDetail["checks"][nu
     check.conclusion ?? "no-conclusion",
     check.detailsUrl ?? check.startedAt ?? check.completedAt ?? `row-${index.toString()}`
   ].join(":");
-}
-
-function buildPlanningEvidence(pullRequest: CodeReviewPullRequestDetail): string[] {
-  if (pullRequest.planningWorkItem === undefined) {
-    return [
-      pullRequest.linkedPlan === undefined
-        ? "This pull request is not linked to a planning work item yet."
-        : `The review knows about ${pullRequest.linkedPlan.workItemId}, but richer planning context is not available in the workspace.`
-    ];
-  }
-
-  return [
-    pullRequest.planningWorkItem.title,
-    pullRequest.planningWorkItem.summary,
-    `${pullRequest.planningWorkItem.tasks.completeCount.toString()}/${pullRequest.planningWorkItem.tasks.totalCount.toString()} planned tasks complete`,
-    `${pullRequest.planningWorkItem.acceptanceCriteria.completeCount.toString()}/${pullRequest.planningWorkItem.acceptanceCriteria.totalCount.toString()} acceptance criteria cleared`,
-    ...(pullRequest.planningWorkItem.latestPlanRun?.currentStepTitle === undefined
-      ? []
-      : [`Current plan step: ${pullRequest.planningWorkItem.latestPlanRun.currentStepTitle}`])
-  ];
 }
 
 function buildAuditEvidence(pullRequest: CodeReviewPullRequestDetail): string[] {
