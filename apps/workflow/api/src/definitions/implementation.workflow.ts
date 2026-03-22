@@ -34,7 +34,8 @@ const planningCheckCondition: ConditionStep = {
   id: "phase-1-check-planning-item",
   label: "Phase 1: Check if planning work item exists",
   condition: (context: Record<string, unknown>) => {
-    const workItemId = context.workItemId;
+    const input = context.input as Record<string, unknown> | undefined;
+    const workItemId = input?.workItemId;
     return (
       !!workItemId &&
       typeof workItemId === "string" &&

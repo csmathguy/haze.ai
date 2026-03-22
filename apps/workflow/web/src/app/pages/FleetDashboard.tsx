@@ -39,6 +39,9 @@ const getStatusColor = (status: string): "success" | "warning" | "error" | "info
   }
 };
 
+const formatStartedAt = (iso: string): string =>
+  new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
 const formatElapsedTime = (ms: number): string => {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
@@ -156,7 +159,7 @@ interface FleetTableProps {
   isLoading?: boolean;
 }
 
-const FLEET_COL_SPAN = 6;
+const FLEET_COL_SPAN = 7;
 
 interface FleetTableBodyProps {
   approvingApprovalId: string | null;
@@ -184,6 +187,7 @@ const FleetTableBody: React.FC<FleetTableBodyProps> = ({
       <TableRow key={run.id} sx={{ "&:hover": { backgroundColor: "action.hover" }, cursor: "pointer", backgroundColor: run.isStalled ? "warning.light" : "transparent" }} onClick={() => { onViewRun(run.id); }}>
         <TableCell>{run.definitionName}</TableCell>
         <TableCell sx={{ fontFamily: "monospace", fontSize: "0.875rem" }}>{run.workItemId ?? "-"}</TableCell>
+        <TableCell sx={{ fontSize: "0.875rem" }}>{formatStartedAt(run.startedAt)}</TableCell>
         <TableCell><StatusIndicator status={run.status} /></TableCell>
         <TableCell sx={{ fontFamily: "monospace", fontSize: "0.875rem" }}>{run.currentStep ?? "-"}</TableCell>
         <TableCell sx={{ fontSize: "0.875rem" }}>{formatElapsedTime(run.elapsedMs)}{run.isStalled && <Typography variant="caption" display="block" color="error" sx={{ mt: 0.5 }}>Stalled (5+ min waiting)</Typography>}</TableCell>
@@ -216,6 +220,7 @@ const FleetTable: React.FC<FleetTableProps> = ({ runs, onViewRun, onCancelRun, o
           <TableRow sx={{ backgroundColor: "action.hover" }}>
             <TableCell>Definition</TableCell>
             <TableCell>Work Item</TableCell>
+            <TableCell>Started</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Current Step</TableCell>
             <TableCell>Elapsed</TableCell>
