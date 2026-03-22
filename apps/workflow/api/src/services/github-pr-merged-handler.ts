@@ -46,8 +46,7 @@ export class GitHubPrMergedHandler {
     }
 
     // Get planning client
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    const planningDb = (await getPlanningPrismaClient(this.planningDatabaseUrl)) as PlanningDb;
+    const planningDb = (await getPlanningPrismaClient(this.planningDatabaseUrl)) as unknown as PlanningDb;
     try {
       // Update each work item to done status
       const updatedCount = await this.updateWorkItems(planningDb, planReferences);
