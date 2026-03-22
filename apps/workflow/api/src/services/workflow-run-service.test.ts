@@ -282,4 +282,33 @@ describe("WorkflowRunService", () => {
     const limited = await workflowRunService.listRuns(prisma, { limit: 2 });
     expect(limited.length).toBeLessThanOrEqual(2);
   });
+
+  it("startRun() stores workItemId on the WorkflowRun when provided", async () => {
+    const definition = await workflowDefinitionService.createDefinition(prisma, {
+      name: `test-work-item-id-${String(Date.now())}`,
+      version: "1.0",
+      description: "Test workItemId wiring",
+      triggers: ["manual"],
+      definitionJson: {
+        steps: [
+          { type: "command", id: "step-1", label: "Step", scriptPath: "/bin/echo", args: ["ok"] }
+        ]
+      }
+    });
+
+    const result = await workflowRunService.startRun(prisma, {
+      definitionName: definition.name,
+      input: {},
+      workItemId: "PLAN-236"
+    });
+
+    expect(result.run.workItemId).toBe("PLAN-236");
+
+    const fetched = await workflowRunService.getRun(prisma, result.run.id);
+    expect(fetched?.workItemId).toBe("PLAN-236");
+    if (!fetched) { throw new Error("Run not found after creation"); }
+
+    const formatted = workflowRunService.formatRunForApi(fetched);
+    expect(formatted.workItemId).toBe("PLAN-236");
+  });
 });
