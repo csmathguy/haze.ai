@@ -106,9 +106,11 @@ Updated on March 14, 2026.
 - OpenAI Codex docs, AGENTS.md: https://developers.openai.com/codex/agents.md
 - OpenAI Codex docs, multi-agents: https://developers.openai.com/codex/multi-agents
 - OpenAI Codex docs, skills: https://developers.openai.com/codex/skills
+- OpenAI API docs, evaluation best practices: https://developers.openai.com/api/docs/guides/evaluation-best-practices
 - Anthropic Claude Code memory docs: https://docs.anthropic.com/en/docs/claude-code/memory
 - Anthropic Claude Code hooks docs: https://docs.anthropic.com/en/docs/claude-code/hooks
 - Anthropic Claude Code subagents docs: https://docs.anthropic.com/en/docs/claude-code/sub-agents
+- Anthropic Claude Code skills docs: https://docs.claude.com/en/docs/claude-code/skills
 - Anthropic engineering, Claude Code best practices: https://www.anthropic.com/engineering/claude-code-best-practices
 - OpenAI Codex repository docs: https://github.com/openai/codex
 - OpenAI skills catalog: https://github.com/openai/skills
@@ -227,9 +229,11 @@ Updated on March 14, 2026.
 
 - Scrum Guides, "The Scrum Guide" (Product Backlog refinement, description, order, and size): https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf
 - Kanban Guides, "The Kanban Guide": https://kanbanguides.org/english/
+- Scrum.org, "Ready or Not? Demystifying the Definition of Ready in Scrum": https://www.scrum.org/resources/blog/ready-or-not-demystifying-definition-ready-scrum
 - GitHub Docs, "About fields in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-fields-in-projects
 - GitHub Docs, "About iterations in projects": https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-iterations
 - Microsoft Learn, "About work items and work item types": https://learn.microsoft.com/en-us/azure/devops/boards/work-items/about-work-items?view=azure-devops
 - Microsoft Learn, "Link work items to track dependencies": https://learn.microsoft.com/en-us/azure/devops/boards/backlogs/add-link?view=azure-devops
 - Atlassian, "Backlog refinement: 7 best practices for agile teams": https://www.atlassian.com/agile/project-management/backlog-refinement-meeting
+- Atlassian Team Playbook, "Backlog refinement": https://www.atlassian.com/agile/project-management/backlog-refinement-meeting
 - OpenAI, "A practical guide to building agents": https://openai.com/index/a-practical-guide-to-building-agents/
