@@ -17,7 +17,7 @@
     "@taxes/knowledge-api": "^0.1.0",
     "@taxes/plan-api": "^0.1.0",
     "better-sqlite3": "^12.6.2",
-    "fastify": "^5.8.2"
+    "fastify": "^5.8.4"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13"
