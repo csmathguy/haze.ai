@@ -1,0 +1,4 @@
+name: backlog-refinement
+description: Triage, groom, split, and validate backlog items with eval-backed refinement.
+model: gpt-5.2
+reasoning_effort: medium
