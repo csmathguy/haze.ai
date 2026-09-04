@@ -77,6 +77,30 @@ describe("OrchestratorWorkerService", () => {
     expect(dispatchEvents).toHaveLength(1);
   });
 
+  test("does not emit task_updated when no per-task worker state changes", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const tasks = new TaskWorkflowService(audit, { random: () => 0 });
+    await tasks.create({ title: "Worker idle task" });
+    audit.record.mockClear();
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date("2026-02-19T00:00:00.000Z")
+    });
+    worker.start();
+    await worker.runOnce();
+    await worker.runOnce();
+    worker.stop();
+
+    expect(
+      audit.record.mock.calls.some(([event]) => event.eventType === "task_updated")
+    ).toBe(false);
+    expect(
+      audit.record.mock.calls.filter(([event]) => event.eventType === "worker_run_completed").length
+    ).toBe(2);
+  });
+
   test("reports lifecycle status transitions", () => {
     const audit = {
       record: vi.fn(async () => {})
@@ -201,8 +225,7 @@ describe("OrchestratorWorkerService", () => {
       evaluatePlanningTask: async () => ({
         decision: "needs_info",
         reasonCodes: ["MANUAL_TEST_EXPECTS_PLANNING"],
-        evaluationSource: "heuristic",
-        usedFallback: true
+        evaluationSource: "cli"
       })
     });
     worker.start();
@@ -289,8 +312,7 @@ describe("OrchestratorWorkerService", () => {
       evaluatePlanningTask: async () => ({
         decision: "needs_info",
         reasonCodes: ["MANUAL_TEST_EXPECTS_PLANNING"],
-        evaluationSource: "heuristic",
-        usedFallback: true
+        evaluationSource: "cli"
       })
     });
     worker.start();
@@ -394,6 +416,73 @@ describe("OrchestratorWorkerService", () => {
     ).toBe(true);
   });
 
+  test("does not auto-transition planning task when approval includes CLI_FALLBACK_USED reason", async () => {
+    const audit = {
+      record: vi.fn(async () => {})
+    };
+    const taskId = "planning-agent-fallback-approved";
+    const updatedAt = "2026-02-19T00:00:00.000Z";
+    const tasks = new TaskWorkflowService(audit, {
+      random: () => 0,
+      initialTasks: [
+        {
+          id: taskId,
+          title: "Planning task fallback approval",
+          description: "Must not pass hard gate",
+          priority: 3,
+          status: "planning",
+          dependencies: [],
+          createdAt: updatedAt,
+          updatedAt,
+          startedAt: updatedAt,
+          completedAt: null,
+          dueAt: null,
+          tags: [],
+          metadata: {
+            acceptanceCriteria: ["Document transition gate behavior"],
+            planningArtifact: {
+              createdAt: updatedAt,
+              goals: ["Define planning goal"],
+              steps: ["Define planning step"],
+              risks: []
+            },
+            testingArtifacts: {
+              schemaVersion: "1.0",
+              planned: {
+                gherkinScenarios: ["Given readiness gate..."],
+                unitTestIntent: ["Validate readiness gate"],
+                integrationTestIntent: ["Validate worker transition"],
+                notes: null
+              },
+              implemented: {
+                testsAddedOrUpdated: [],
+                evidenceLinks: [],
+                commandsRun: [],
+                notes: null
+              }
+            },
+            plannerDetermination: {
+              decision: "approved",
+              source: "planning_agent",
+              reasonCodes: ["CLI_FALLBACK_USED"],
+              decidedAt: updatedAt
+            }
+          }
+        }
+      ]
+    });
+
+    const worker = new OrchestratorWorkerService(tasks, audit, {
+      now: () => new Date(updatedAt)
+    });
+    worker.start();
+    await worker.runOnce();
+    worker.stop();
+
+    const updated = tasks.get(taskId);
+    expect(updated.status).toBe("planning");
+  });
+
   test("evaluates planning task via planning-agent runner and records completion audit", async () => {
     const audit = {
       record: vi.fn(async () => {})
@@ -401,8 +490,7 @@ describe("OrchestratorWorkerService", () => {
     const evaluatePlanningTask = vi.fn(async () => ({
       decision: "approved" as const,
       reasonCodes: [],
-      evaluationSource: "heuristic" as const,
-      usedFallback: true
+      evaluationSource: "cli" as const
     }));
     const tasks = new TaskWorkflowService(audit, { random: () => 0 });
     const created = await tasks.create({
@@ -437,8 +525,7 @@ describe("OrchestratorWorkerService", () => {
     const evaluatePlanningTask = vi.fn(async () => ({
       decision: "approved" as const,
       reasonCodes: [],
-      evaluationSource: "heuristic" as const,
-      usedFallback: true
+      evaluationSource: "cli" as const
     }));
     const taskId = "planning-eval-dedupe";
     const updatedAt = "2026-02-19T00:00:00.000Z";
@@ -544,5 +631,8 @@ describe("OrchestratorWorkerService", () => {
         ([event]) => event.eventType === "worker_planning_agent_evaluation_failed"
       )
     ).toBe(true);
+    const status = worker.getStatus();
+    expect(status.planningAgent.status).toBe("error");
+    expect(status.planningAgent.lastError).toContain("planner_failure");
   });
 });

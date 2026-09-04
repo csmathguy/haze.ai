@@ -16,16 +16,19 @@ import {
 import { alpha, keyframes } from "@mui/material/styles";
 import { useEffect, useReducer } from "react";
 import {
+  fetchWorkerStatus,
   fetchRecentAudit,
   fetchStatus,
   postJson,
   subscribeAudit,
   type AuditEventRecord,
-  type OrchestratorStatus
+  type OrchestratorStatus,
+  type OrchestratorWorkerStatus
 } from "../api";
 
 interface DashboardState {
   status: OrchestratorStatus | null;
+  workerStatus: OrchestratorWorkerStatus | null;
   loading: boolean;
   error: string | null;
   audit: AuditEventRecord[];
@@ -33,13 +36,14 @@ interface DashboardState {
 
 type DashboardAction =
   | { type: "request-start" }
-  | { type: "request-success"; status: OrchestratorStatus }
+  | { type: "request-success"; status: OrchestratorStatus; workerStatus: OrchestratorWorkerStatus }
   | { type: "request-error"; message: string }
   | { type: "audit-seed"; records: AuditEventRecord[] }
   | { type: "audit-add"; record: AuditEventRecord };
 
 const initialDashboardState: DashboardState = {
   status: null,
+  workerStatus: null,
   loading: false,
   error: null,
   audit: []
@@ -53,7 +57,13 @@ function dashboardReducer(
     case "request-start":
       return { ...state, loading: true, error: null };
     case "request-success":
-      return { ...state, status: action.status, loading: false, error: null };
+      return {
+        ...state,
+        status: action.status,
+        workerStatus: action.workerStatus,
+        loading: false,
+        error: null
+      };
     case "request-error":
       return { ...state, loading: false, error: action.message };
     case "audit-seed":
@@ -77,8 +87,8 @@ export function DashboardView() {
   const refresh = async () => {
     dispatch({ type: "request-start" });
     try {
-      const next = await fetchStatus();
-      dispatch({ type: "request-success", status: next });
+      const [next, workerStatus] = await Promise.all([fetchStatus(), fetchWorkerStatus()]);
+      dispatch({ type: "request-success", status: next, workerStatus });
     } catch (error) {
       dispatch({ type: "request-error", message: (error as Error).message });
     }
@@ -133,6 +143,14 @@ export function DashboardView() {
   return (
     <Stack spacing={3}>
       {state.error && <Alert severity="error">{state.error}</Alert>}
+      {state.workerStatus?.planningAgent.status === "error" && (
+        <Alert severity="error">
+          Planning agent CLI is not available. Configure CLI access before planning tasks can auto-progress.
+          {state.workerStatus.planningAgent.lastError
+            ? ` Details: ${state.workerStatus.planningAgent.lastError}`
+            : ""}
+        </Alert>
+      )}
 
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
         <Card

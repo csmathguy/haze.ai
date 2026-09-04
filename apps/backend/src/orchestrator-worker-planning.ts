@@ -43,6 +43,10 @@ export function isPlanningReadyForArchitectureReview(task: TaskRecord): boolean 
   if (plannerSource !== "planning_agent" && plannerSource !== "human_review") {
     return false;
   }
+  const reasonCodes = readStringArray(plannerDetermination.reasonCodes);
+  if (reasonCodes.includes("CLI_FALLBACK_USED")) {
+    return false;
+  }
 
   const planningArtifact = asRecord(metadata.planningArtifact);
   const goals = readStringArray(planningArtifact.goals);

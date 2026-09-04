@@ -28,8 +28,8 @@ import { registerTaskPlannerDeterminationRoute } from "./task-planner-determinat
 const PORT = Number(process.env.PORT ?? 3001);
 const AUDIT_LOG_DIR = process.env.AUDIT_LOG_DIR ?? "data/audit";
 const AUDIT_RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS ?? 7);
-const TASKS_FILE_PATH = process.env.TASKS_FILE_PATH ?? "data/tasks/tasks.json";
-const PROJECTS_FILE_PATH = process.env.PROJECTS_FILE_PATH ?? "data/projects/projects.json";
+const TASKS_FILE_PATH = resolveRepoPath(process.env.TASKS_FILE_PATH ?? "apps/backend/data/tasks/tasks.json") ?? "apps/backend/data/tasks/tasks.json";
+const PROJECTS_FILE_PATH = resolveRepoPath(process.env.PROJECTS_FILE_PATH ?? "apps/backend/data/projects/projects.json") ?? "apps/backend/data/projects/projects.json";
 const TASKS_DOCS_DIR = resolveRepoPath(process.env.TASKS_DOCS_DIR);
 
 const app = express();

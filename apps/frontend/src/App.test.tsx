@@ -98,6 +98,21 @@ function installFetchMock(
       return mockJsonResponse({ busy: false, lastWakeReason: "startup" });
     }
 
+    if (url === "/api/orchestrator/worker/status" && method === "GET") {
+      return mockJsonResponse({
+        running: true,
+        sessionId: "session-1",
+        startedAt: "2026-02-16T00:00:00.000Z",
+        lastTickAt: "2026-02-16T00:00:00.000Z",
+        inFlight: false,
+        planningAgent: {
+          status: "ok",
+          lastCheckedAt: "2026-02-16T00:00:00.000Z",
+          lastError: null
+        }
+      });
+    }
+
     if (url.startsWith("/api/audit/recent") && method === "GET") {
       return mockJsonResponse({
         records: auditRecords
@@ -237,6 +252,41 @@ describe("App", () => {
 
     expect(screen.getByText(/live audit feed/i)).toBeInTheDocument();
     expect(screen.getByText(/backend_started/i)).toBeInTheDocument();
+  });
+
+  test("shows planning-agent configuration error banner when worker reports CLI failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url === "/api/orchestrator/status" && method === "GET") {
+        return mockJsonResponse({ busy: false, lastWakeReason: "startup" });
+      }
+      if (url === "/api/orchestrator/worker/status" && method === "GET") {
+        return mockJsonResponse({
+          running: true,
+          sessionId: "session-1",
+          startedAt: "2026-02-16T00:00:00.000Z",
+          lastTickAt: "2026-02-16T00:00:00.000Z",
+          inFlight: false,
+          planningAgent: {
+            status: "error",
+            lastCheckedAt: "2026-02-16T00:00:00.000Z",
+            lastError: "planning agent CLI command not found: codex"
+          }
+        });
+      }
+      if (url.startsWith("/api/audit/recent") && method === "GET") {
+        return mockJsonResponse({ records: [] });
+      }
+      return mockJsonResponse({ records: [] });
+    });
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByText(/planning agent cli is not available/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/command not found: codex/i)).toBeInTheDocument();
   });
 
   test("navigates to kanban board and loads task cards", async () => {
@@ -432,6 +482,24 @@ describe("App", () => {
               notes: "Implemented and validated"
             }
           },
+          planningAgentArtifact: {
+            lastRun: {
+              runId: "run-42",
+              sessionId: "session-42",
+              taskId: "t2",
+              at: "2026-02-16T12:15:00.000Z",
+              status: "completed",
+              decision: "approved",
+              reasonCodes: ["ACCEPTANCE_COMPLETE"],
+              trace: {
+                command: "codex",
+                args: ["run", "--json"],
+                prompt: "{\"instruction\":\"evaluate planning\"}",
+                rawResponse: "{\"decision\":\"approved\",\"reasonCodes\":[\"ACCEPTANCE_COMPLETE\"]}",
+                stderr: ""
+              }
+            }
+          },
           acceptanceCriteria: [
             "Task detail panel shows acceptance criteria",
             "Task detail panel surfaces timeline metadata"
@@ -501,9 +569,13 @@ describe("App", () => {
       "href",
       "https://github.com/csmathguy/haze.ai/pull/27"
     );
-    fireEvent.click(screen.getByRole("button", { name: /plan/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^plan$/i }));
     expect(screen.getByText(/show detailed panel/i)).toBeInTheDocument();
     expect(screen.getByText(/render planning section/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^planning agent trace$/i }));
+    expect(screen.getByText(/cli command:/i)).toBeInTheDocument();
+    expect(screen.getByText(/codex run --json/i)).toBeInTheDocument();
+    expect(screen.getByText(/raw cli response/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /project/i }));
     expect(screen.getByText(/name:/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^haze$/i).length).toBeGreaterThan(0);

@@ -3,6 +3,19 @@ export interface OrchestratorStatus {
   lastWakeReason: string;
 }
 
+export interface OrchestratorWorkerStatus {
+  running: boolean;
+  sessionId: string | null;
+  startedAt: string | null;
+  lastTickAt: string | null;
+  inFlight: boolean;
+  planningAgent: {
+    status: "unknown" | "ok" | "error";
+    lastCheckedAt: string | null;
+    lastError: string | null;
+  };
+}
+
 export interface TaskRecord {
   id: string;
   title: string;
@@ -104,6 +117,14 @@ export async function fetchStatus(): Promise<OrchestratorStatus> {
     throw new Error(`Status request failed: ${response.status}`);
   }
   return (await response.json()) as OrchestratorStatus;
+}
+
+export async function fetchWorkerStatus(): Promise<OrchestratorWorkerStatus> {
+  const response = await fetch("/api/orchestrator/worker/status");
+  if (!response.ok) {
+    throw new Error(`Worker status request failed: ${response.status}`);
+  }
+  return (await response.json()) as OrchestratorWorkerStatus;
 }
 
 export async function fetchTasks(status?: string): Promise<TaskRecord[]> {

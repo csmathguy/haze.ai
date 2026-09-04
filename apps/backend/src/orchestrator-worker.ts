@@ -3,11 +3,22 @@ import type { AuditSink } from "./audit.js";
 import type { TaskRecord } from "./tasks.js";
 import { TaskWorkflowService } from "./tasks.js";
 import { WorkflowHookDispatcher, type WorkflowDispatchJob } from "./workflow-hook-dispatcher.js";
-import { PlanningAgentRunner, type PlanningAgentDecision } from "./planning-agent-runner.js";
+import {
+  PlanningAgentRunnerError,
+  type PlanningAgentDecision
+} from "./planning-agent-runner.js";
 import {
   createPlanningAgentEvaluationKey,
   isPlanningReadyForArchitectureReview
 } from "./orchestrator-worker-planning.js";
+import {
+  buildCompletedPlanningAgentArtifact,
+  buildFailedPlanningAgentArtifact
+} from "./orchestrator-worker-planning-artifact.js";
+import {
+  dispatchWorkerAction,
+  evaluatePlanningTaskWithCli
+} from "./orchestrator-worker-actions.js";
 import {
   createTaskState,
   readNextActions,
@@ -21,6 +32,11 @@ export interface OrchestratorWorkerStatus {
   startedAt: string | null;
   lastTickAt: string | null;
   inFlight: boolean;
+  planningAgent: {
+    status: "unknown" | "ok" | "error";
+    lastCheckedAt: string | null;
+    lastError: string | null;
+  };
 }
 
 interface OrchestratorWorkerServiceOptions {
@@ -49,6 +65,9 @@ export class OrchestratorWorkerService {
   private sessionId: string | null = null;
   private startedAt: string | null = null;
   private lastTickAt: string | null = null;
+  private planningAgentStatus: "unknown" | "ok" | "error" = "unknown";
+  private planningAgentLastCheckedAt: string | null = null;
+  private planningAgentLastError: string | null = null;
 
   constructor(
     private readonly tasks: TaskWorkflowService,
@@ -59,8 +78,10 @@ export class OrchestratorWorkerService {
     this.now = options?.now ?? (() => new Date());
     this.maxCheckpointsPerTask = options?.maxCheckpointsPerTask ?? DEFAULT_MAX_CHECKPOINTS_PER_TASK;
     this.maxDispatchAttempts = options?.maxDispatchAttempts ?? DEFAULT_MAX_DISPATCH_ATTEMPTS;
-    this.dispatchAction = options?.dispatchAction ?? this.defaultDispatchAction;
-    this.evaluatePlanningTask = options?.evaluatePlanningTask ?? this.defaultEvaluatePlanningTask;
+    this.dispatchAction =
+      options?.dispatchAction ??
+      (async (job) => dispatchWorkerAction({ audit: this.audit, sessionId: this.sessionId, job }));
+    this.evaluatePlanningTask = options?.evaluatePlanningTask ?? evaluatePlanningTaskWithCli;
   }
 
   start(): void {
@@ -71,6 +92,9 @@ export class OrchestratorWorkerService {
     this.sessionId = randomUUID();
     this.startedAt = this.now().toISOString();
     this.lastTickAt = null;
+    this.planningAgentStatus = "unknown";
+    this.planningAgentLastCheckedAt = null;
+    this.planningAgentLastError = null;
     this.timer = setInterval(() => {
       void this.runOnce();
     }, this.pollIntervalMs);
@@ -93,7 +117,12 @@ export class OrchestratorWorkerService {
       sessionId: this.sessionId,
       startedAt: this.startedAt,
       lastTickAt: this.lastTickAt,
-      inFlight: this.inFlight
+      inFlight: this.inFlight,
+      planningAgent: {
+        status: this.planningAgentStatus,
+        lastCheckedAt: this.planningAgentLastCheckedAt,
+        lastError: this.planningAgentLastError
+      }
     };
   }
 
@@ -114,6 +143,7 @@ export class OrchestratorWorkerService {
       });
       const taskStates = new Map<string, WorkerTaskState>();
       const taskRecords = new Map<string, TaskRecord>();
+      const changedTaskIds = new Set<string>();
 
       for (const task of records) {
         let taskRecord = task;
@@ -125,25 +155,13 @@ export class OrchestratorWorkerService {
         });
         const taskState = workerMetadata.tasks[task.id] ?? createTaskState(this.sessionId);
         workerMetadata.tasks[task.id] = taskState;
-        workerMetadata.lastTickAt = tickAt;
         taskStates.set(task.id, taskState);
         taskRecords.set(task.id, taskRecord);
 
         if (taskRecord.status === "planning") {
-          const reconciliationKey = `planning:${taskRecord.updatedAt}`;
-          if (!taskState.planningReconciliationKeys.includes(reconciliationKey)) {
-            taskState.planningReconciliationKeys.push(reconciliationKey);
-            taskState.planningReconciliationKeys = taskState.planningReconciliationKeys.slice(-50);
-            taskRecord = await this.tasks.reconcilePlanningTask(taskRecord.id, {
-              trigger: "worker_reconciliation",
-              runId,
-              sessionId: this.sessionId
-            });
-            taskRecords.set(task.id, taskRecord);
-          }
-
           const evaluationKey = createPlanningAgentEvaluationKey(taskRecord);
-          if (!taskState.planningAgentEvaluationKeys.includes(evaluationKey)) {
+          const sessionEvaluationKey = `${this.sessionId}:${evaluationKey}`;
+          if (!taskState.planningAgentEvaluationKeys.includes(sessionEvaluationKey)) {
             await this.audit.record({
               eventType: "worker_planning_agent_evaluation_started",
               actor: "orchestrator_worker",
@@ -156,11 +174,50 @@ export class OrchestratorWorkerService {
             });
             try {
               const decision = await this.evaluatePlanningTask(taskRecord);
+              if (decision.planningArtifact || decision.testingPlanned) {
+                const metadata = {
+                  ...taskRecord.metadata
+                } as Record<string, unknown>;
+                if (decision.planningArtifact) {
+                  metadata.planningArtifact = decision.planningArtifact;
+                }
+                if (decision.testingPlanned) {
+                  const testingArtifacts =
+                    typeof metadata.testingArtifacts === "object" &&
+                    metadata.testingArtifacts !== null &&
+                    !Array.isArray(metadata.testingArtifacts)
+                      ? (metadata.testingArtifacts as Record<string, unknown>)
+                      : {};
+                  metadata.testingArtifacts = {
+                    ...testingArtifacts,
+                    planned: decision.testingPlanned
+                  };
+                }
+                taskRecord = await this.tasks.update(taskRecord.id, { metadata });
+                taskRecords.set(task.id, taskRecord);
+              }
               taskRecord = await this.tasks.recordPlannerDetermination(taskRecord.id, {
                 decision: decision.decision,
                 source: "planning_agent",
                 reasonCodes: decision.reasonCodes
               });
+              taskRecord = await this.tasks.update(taskRecord.id, {
+                metadata: {
+                  ...taskRecord.metadata,
+                  planningAgentArtifact: buildCompletedPlanningAgentArtifact(
+                    {
+                      runId,
+                      sessionId: this.sessionId,
+                      taskId: taskRecord.id,
+                      at: tickAt
+                    },
+                    decision
+                  )
+                }
+              });
+              this.planningAgentStatus = "ok";
+              this.planningAgentLastCheckedAt = tickAt;
+              this.planningAgentLastError = null;
               taskRecords.set(task.id, taskRecord);
               await this.audit.record({
                 eventType: "worker_planning_agent_evaluation_completed",
@@ -173,10 +230,37 @@ export class OrchestratorWorkerService {
                   decision: decision.decision,
                   reasonCodes: decision.reasonCodes,
                   evaluationSource: decision.evaluationSource,
-                  usedFallback: decision.usedFallback
+                  trace: decision.trace ?? null
                 }
               });
             } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              const errorCode =
+                error instanceof PlanningAgentRunnerError ? error.code : "unknown";
+              const errorDetails =
+                error instanceof PlanningAgentRunnerError ? (error.details ?? null) : null;
+              taskRecord = await this.tasks.update(taskRecord.id, {
+                metadata: {
+                  ...taskRecord.metadata,
+                  planningAgentArtifact: buildFailedPlanningAgentArtifact(
+                    {
+                      runId,
+                      sessionId: this.sessionId,
+                      taskId: taskRecord.id,
+                      at: tickAt
+                    },
+                    {
+                      errorCode,
+                      error: errorMessage,
+                      details: errorDetails
+                    }
+                  )
+                }
+              });
+              taskRecords.set(task.id, taskRecord);
+              this.planningAgentStatus = "error";
+              this.planningAgentLastCheckedAt = tickAt;
+              this.planningAgentLastError = errorMessage;
               await this.audit.record({
                 eventType: "worker_planning_agent_evaluation_failed",
                 actor: "orchestrator_worker",
@@ -185,12 +269,15 @@ export class OrchestratorWorkerService {
                   runId,
                   sessionId: this.sessionId,
                   evaluationKey,
-                  error: error instanceof Error ? error.message : String(error)
+                  error: errorMessage,
+                  errorCode,
+                  details: errorDetails
                 }
               });
             }
-            taskState.planningAgentEvaluationKeys.push(evaluationKey);
+            taskState.planningAgentEvaluationKeys.push(sessionEvaluationKey);
             taskState.planningAgentEvaluationKeys = taskState.planningAgentEvaluationKeys.slice(-50);
+            changedTaskIds.add(task.id);
           }
 
           if (isPlanningReadyForArchitectureReview(taskRecord)) {
@@ -247,6 +334,7 @@ export class OrchestratorWorkerService {
         }
         taskState.lastRunId = runId;
         taskState.lastProcessedAt = tickAt;
+        changedTaskIds.add(result.job.taskId);
 
         if (result.status === "dispatched") {
           if (!taskState.dispatchedActionIds.includes(result.job.actionId)) {
@@ -293,9 +381,10 @@ export class OrchestratorWorkerService {
         taskState.checkpoints = taskState.checkpoints.slice(-this.maxCheckpointsPerTask);
       }
 
-      for (const [taskId, taskState] of taskStates.entries()) {
+      for (const taskId of changedTaskIds.values()) {
+        const taskState = taskStates.get(taskId);
         const task = taskRecords.get(taskId);
-        if (!task) {
+        if (!task || !taskState) {
           continue;
         }
         const workerMetadata = readWorkerMetadata({
@@ -327,42 +416,4 @@ export class OrchestratorWorkerService {
       this.inFlight = false;
     }
   }
-
-  private defaultDispatchAction = async (job: WorkflowDispatchJob): Promise<void> => {
-    await this.audit.record({
-      eventType: "worker_action_dispatched",
-      actor: "orchestrator_worker",
-      payload: {
-        taskId: job.taskId,
-        sessionId: this.sessionId,
-        runId: job.runId,
-        checkpointKey: job.key,
-        actionId: job.actionId,
-        actionType: job.actionType,
-        attempts: job.attempt + 1
-      }
-    });
-    if (job.attempt > 0) {
-      await this.audit.record({
-        eventType: "worker_action_dispatch_retried",
-        actor: "orchestrator_worker",
-        payload: {
-          taskId: job.taskId,
-          sessionId: this.sessionId,
-          runId: job.runId,
-          checkpointKey: job.key,
-          actionId: job.actionId,
-          actionType: job.actionType,
-          attempts: job.attempt + 1
-        }
-      });
-    }
-  };
-
-  private readonly defaultEvaluatePlanningTask = async (
-    task: TaskRecord
-  ): Promise<PlanningAgentDecision> => {
-    const runner = new PlanningAgentRunner();
-    return runner.evaluate(task);
-  };
 }

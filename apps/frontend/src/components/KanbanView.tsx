@@ -499,6 +499,20 @@ export function KanbanView() {
   const selectedTestingArtifacts = asRecord(selectedTask?.metadata.testingArtifacts);
   const selectedTestingPlan = asRecord(selectedTestingArtifacts?.planned);
   const selectedTestingImplemented = asRecord(selectedTestingArtifacts?.implemented);
+  const selectedPlanningAgentArtifact = asRecord(selectedTask?.metadata.planningAgentArtifact);
+  const selectedPlanningAgentLastRun = asRecord(selectedPlanningAgentArtifact?.lastRun);
+  const selectedPlanningAgentTrace = asRecord(selectedPlanningAgentLastRun?.trace);
+  const planningAgentRunStatus = asString(selectedPlanningAgentLastRun?.status);
+  const planningAgentRunAt = asString(selectedPlanningAgentLastRun?.at);
+  const planningAgentRunDecision = asString(selectedPlanningAgentLastRun?.decision);
+  const planningAgentRunReasonCodes = asStringArray(selectedPlanningAgentLastRun?.reasonCodes);
+  const planningAgentRunError = asString(selectedPlanningAgentLastRun?.error);
+  const planningAgentRunErrorCode = asString(selectedPlanningAgentLastRun?.errorCode);
+  const planningAgentCommand = asString(selectedPlanningAgentTrace?.command);
+  const planningAgentArgs = asStringArray(selectedPlanningAgentTrace?.args);
+  const planningAgentPrompt = asString(selectedPlanningAgentTrace?.prompt);
+  const planningAgentRawResponse = asString(selectedPlanningAgentTrace?.rawResponse);
+  const planningAgentStderr = asString(selectedPlanningAgentTrace?.stderr);
   const plannedGherkinScenarios = asStringArray(selectedTestingPlan?.gherkinScenarios);
   const plannedUnitTestIntent = asStringArray(selectedTestingPlan?.unitTestIntent);
   const plannedIntegrationTestIntent = asStringArray(selectedTestingPlan?.integrationTestIntent);
@@ -1186,6 +1200,118 @@ export function KanbanView() {
                       ))}
                     </Box>
                   </>
+                )}
+              </DetailSection>
+
+              <DetailSection title="Planning Agent Trace" icon={<CodeRounded />}>
+                {!planningAgentRunStatus && (
+                  <Typography variant="body2" color="text.secondary">
+                    No planning-agent run trace recorded yet.
+                  </Typography>
+                )}
+                {planningAgentRunStatus && (
+                  <Stack spacing={1}>
+                    <Typography variant="body2">
+                      <strong>Status:</strong> {planningAgentRunStatus}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Ran at:</strong> {formatShortTimestamp(planningAgentRunAt)}
+                    </Typography>
+                    {planningAgentRunDecision && (
+                      <Typography variant="body2">
+                        <strong>Decision:</strong> {planningAgentRunDecision}
+                      </Typography>
+                    )}
+                    {planningAgentRunReasonCodes.length > 0 && (
+                      <Typography variant="body2">
+                        <strong>Reason codes:</strong> {planningAgentRunReasonCodes.join(", ")}
+                      </Typography>
+                    )}
+                    {planningAgentRunErrorCode && (
+                      <Typography variant="body2">
+                        <strong>Error code:</strong> {planningAgentRunErrorCode}
+                      </Typography>
+                    )}
+                    {planningAgentRunError && (
+                      <Typography variant="body2">
+                        <strong>Error:</strong> {planningAgentRunError}
+                      </Typography>
+                    )}
+                    {planningAgentCommand && (
+                      <Typography variant="body2">
+                        <strong>CLI command:</strong>{" "}
+                        {planningAgentArgs.length > 0
+                          ? `${planningAgentCommand} ${planningAgentArgs.join(" ")}`
+                          : planningAgentCommand}
+                      </Typography>
+                    )}
+                    {planningAgentPrompt && (
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          Prompt
+                        </Typography>
+                        <Box
+                          component="pre"
+                          sx={{
+                            m: 0,
+                            p: 1,
+                            borderRadius: 1,
+                            overflowX: "auto",
+                            bgcolor: "action.hover",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            fontSize: "0.75rem"
+                          }}
+                        >
+                          {planningAgentPrompt}
+                        </Box>
+                      </Stack>
+                    )}
+                    {planningAgentRawResponse && (
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          Raw CLI response
+                        </Typography>
+                        <Box
+                          component="pre"
+                          sx={{
+                            m: 0,
+                            p: 1,
+                            borderRadius: 1,
+                            overflowX: "auto",
+                            bgcolor: "action.hover",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            fontSize: "0.75rem"
+                          }}
+                        >
+                          {planningAgentRawResponse}
+                        </Box>
+                      </Stack>
+                    )}
+                    {planningAgentStderr && (
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          CLI stderr
+                        </Typography>
+                        <Box
+                          component="pre"
+                          sx={{
+                            m: 0,
+                            p: 1,
+                            borderRadius: 1,
+                            overflowX: "auto",
+                            bgcolor: "action.hover",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            fontSize: "0.75rem"
+                          }}
+                        >
+                          {planningAgentStderr}
+                        </Box>
+                      </Stack>
+                    )}
+                  </Stack>
                 )}
               </DetailSection>
 
